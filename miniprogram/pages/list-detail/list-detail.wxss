@@ -1,0 +1,550 @@
+/* 页面容器 */
+.list-detail-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #F5F5F5;
+}
+
+/* 顶部固定区域 */
+.header-fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background-color: #fff;
+}
+
+/* 顶部导航栏 */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #fff;
+  border-bottom: 1rpx solid #eee;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.back-text {
+  font-size: 14px;
+  color: #333;
+}
+
+.header-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #333;
+  flex: 1;
+  text-align: center;
+  margin: 0 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-right {
+  display: flex;
+  gap: 8px;
+}
+
+.action-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: #f5f5f5;
+}
+
+.action-btn:active {
+  background-color: #e0e0e0;
+}
+
+/* 清单信息卡片 */
+.list-info-card {
+  background-color: #fff;
+  margin: 12px 16px;
+  padding: 16px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.list-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.list-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.list-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.list-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  display: block;
+  margin-bottom: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-tags {
+  display: flex;
+  gap: 8px;
+}
+
+.tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.personal-tag {
+  background-color: #E3F2FD;
+  color: #1976D2;
+}
+
+.shared-tag {
+  background-color: #E8F5E9;
+  color: #2E7D32;
+}
+
+.visibility-tag {
+  background-color: #FFF3E0;
+  color: #F57C00;
+}
+
+.list-description {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 16px;
+  padding: 12px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+}
+
+/* 进度统计 */
+.progress-section {
+  margin-bottom: 16px;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.progress-title {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+}
+
+.progress-text {
+  font-size: 13px;
+  color: #666;
+}
+
+.progress-bar {
+  height: 8px;
+  background-color: #E0E0E0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* 成员信息 */
+.members-section {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1rpx solid #eee;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.member-count {
+  font-size: 12px;
+  color: #999;
+  font-weight: normal;
+}
+
+.member-list {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.member-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.member-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.member-role {
+  font-size: 10px;
+  color: #999;
+}
+
+.add-member-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px dashed #ddd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f9f9f9;
+}
+
+.add-member-btn:active {
+  background-color: #f0f0f0;
+}
+
+/* 创建信息 */
+.create-info {
+  text-align: center;
+}
+
+.create-text {
+  font-size: 12px;
+  color: #999;
+}
+
+/* 任务列表区域 */
+.task-section {
+  flex: 1;
+  background-color: #fff;
+  margin: 0 16px 16px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.section-header {
+  padding: 16px;
+  border-bottom: 1rpx solid #eee;
+}
+
+.section-header .section-title {
+  margin-bottom: 12px;
+}
+
+.filter-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-tab {
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  background-color: #f5f5f5;
+  color: #666;
+  transition: all 0.3s;
+}
+
+.filter-tab.active {
+  background-color: #1976D2;
+  color: #fff;
+}
+
+/* 任务列表滚动区域 */
+.task-scroll {
+  height: 400px;
+  padding: 0 16px;
+}
+
+/* 任务项 */
+.task-list {
+  padding: 8px 0;
+}
+
+.task-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-bottom: 1rpx solid #f0f0f0;
+  gap: 12px;
+}
+
+.task-item:last-child {
+  border-bottom: none;
+}
+
+.task-item.completed {
+  opacity: 0.7;
+}
+
+.task-item.overdue {
+  background-color: #FFF5F5;
+  margin: 0 -16px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.task-checkbox {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.task-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.task-title {
+  font-size: 15px;
+  color: #333;
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-title.completed {
+  text-decoration: line-through;
+  color: #999;
+}
+
+.task-priority {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.priority-1 {
+  background-color: #E8F5E9;
+  color: #2E7D32;
+}
+
+.priority-2 {
+  background-color: #FFF3E0;
+  color: #F57C00;
+}
+
+.priority-3 {
+  background-color: #E3F2FD;
+  color: #1976D2;
+}
+
+.priority-4 {
+  background-color: #FFEBEE;
+  color: #C62828;
+}
+
+.task-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.task-date {
+  font-size: 12px;
+  color: #999;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.task-date.overdue {
+  color: #F44336;
+}
+
+.task-category {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.task-actions {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* 添加任务按钮 */
+.add-task-btn {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background-color: #1976D2;
+  border-radius: 24px;
+  box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4);
+  z-index: 99;
+}
+
+.add-task-btn text {
+  font-size: 14px;
+  color: #fff;
+  font-weight: 500;
+}
+
+.add-task-btn:active {
+  background-color: #1565C0;
+}
+
+/* 骨架屏 */
+.skeleton-wrapper {
+  padding: 8px 0;
+}
+
+.skeleton-task {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px 0;
+  gap: 12px;
+}
+
+.skeleton-checkbox {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  flex-shrink: 0;
+}
+
+.skeleton-content {
+  flex: 1;
+}
+
+.skeleton-title {
+  height: 16px;
+  width: 60%;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.skeleton-text {
+  height: 12px;
+  width: 40%;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* 加载更多 */
+.load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+}
+
+.load-text {
+  font-size: 13px;
+  color: #999;
+}
+
+.no-more {
+  text-align: center;
+  padding: 16px;
+  font-size: 13px;
+  color: #999;
+}
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+}
+
+.empty-title {
+  font-size: 16px;
+  color: #666;
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+.empty-desc {
+  font-size: 13px;
+  color: #999;
+}

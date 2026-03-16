@@ -1,5 +1,7 @@
 {
-  "navigationBarTitleText": "基础能力",
+  "navigationBarTitleText": "任务",
   "usingComponents": {
+    "van-checkbox": "@vant/weapp/checkbox/index",
+    "van-tag": "@vant/weapp/tag/index"
   }
 }

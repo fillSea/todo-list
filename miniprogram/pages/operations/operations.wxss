@@ -1,0 +1,174 @@
+/* 页面容器 */
+.operations-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #F5F5F5;
+}
+
+/* 顶部导航栏 */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #fff;
+  border-bottom: 1rpx solid #eee;
+}
+
+.header-left {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #333;
+}
+
+.header-right {
+  width: 40px;
+}
+
+/* 操作记录列表 */
+.operations-scroll {
+  flex: 1;
+  padding: 12px 16px;
+}
+
+.operation-list {
+  background-color: #fff;
+  border-radius: 12px;
+  padding: 8px 16px;
+}
+
+.operation-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.operation-item:last-child {
+  border-bottom: none;
+}
+
+.operation-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.icon-task_create {
+  background-color: #4CAF50;
+}
+
+.icon-task_update {
+  background-color: #1976D2;
+}
+
+.icon-task_delete {
+  background-color: #F44336;
+}
+
+.icon-task_complete {
+  background-color: #8BC34A;
+}
+
+.icon-list_create {
+  background-color: #9C27B0;
+}
+
+.icon-list_update {
+  background-color: #FF9800;
+}
+
+.icon-member_add {
+  background-color: #00BCD4;
+}
+
+.icon-member_remove {
+  background-color: #795548;
+}
+
+.operation-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.operation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.operation-text {
+  font-size: 15px;
+  color: #333;
+  flex: 1;
+  line-height: 1.4;
+}
+
+.operation-time {
+  font-size: 12px;
+  color: #999;
+  flex-shrink: 0;
+}
+
+.operation-user {
+  font-size: 12px;
+  color: #999;
+}
+
+/* 加载更多 */
+.load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+}
+
+.load-text {
+  font-size: 13px;
+  color: #999;
+}
+
+.no-more {
+  text-align: center;
+  padding: 16px;
+  font-size: 13px;
+  color: #999;
+}
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+}
+
+.empty-title {
+  font-size: 16px;
+  color: #666;
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+.empty-desc {
+  font-size: 13px;
+  color: #999;
+}

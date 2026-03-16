@@ -1,0 +1,110 @@
+<view class="list-invite-accept-container">
+  <!-- 加载状态 -->
+  <view class="loading-state" wx:if="{{isLoading}}">
+    <van-loading type="spinner" size="40px" color="#1976D2" />
+    <text class="loading-text">加载中...</text>
+  </view>
+
+  <!-- 错误状态 -->
+  <view class="error-state" wx:if="{{!isLoading && errorMsg}}">
+    <van-icon name="warning-o" size="60px" color="#ee0a24" />
+    <text class="error-title">{{errorMsg}}</text>
+    <text class="error-desc">{{errorDesc}}</text>
+    <view class="error-action" bindtap="onBack">返回首页</view>
+  </view>
+
+  <!-- 邀请内容 -->
+  <block wx:if="{{!isLoading && !errorMsg}}">
+    <!-- 顶部标题 -->
+    <view class="header">
+      <text class="header-title">协作邀请</text>
+    </view>
+
+    <!-- 邀请信息卡片 -->
+    <view class="invite-card">
+      <view class="list-info">
+        <view class="list-icon" style="background-color: {{inviteInfo.listColor ? inviteInfo.listColor + '20' : '#E3F2FD'}}; border-color: {{inviteInfo.listColor || '#1976D2'}}">
+          <van-icon name="{{inviteInfo.isShared ? 'friends-o' : 'label-o'}}" size="32px" color="{{inviteInfo.listColor || '#1976D2'}}" />
+        </view>
+        <view class="list-meta">
+          <text class="list-name">{{inviteInfo.listName}}</text>
+          <text class="list-desc">{{inviteInfo.listDescription || '共享清单'}}</text>
+        </view>
+      </view>
+
+      <view class="divider"></view>
+
+      <!-- 邀请人信息 -->
+      <view class="inviter-info">
+        <text class="info-label">邀请人</text>
+        <view class="inviter-detail">
+          <image class="inviter-avatar" src="{{inviteInfo.inviterAvatar || '/images/default-avatar.png'}}" mode="aspectFill" />
+          <text class="inviter-name">{{inviteInfo.inviterName || '未知用户'}}</text>
+        </view>
+      </view>
+
+      <!-- 角色信息 -->
+      <view class="role-info">
+        <text class="info-label">你的角色</text>
+        <view class="role-detail">
+          <view class="role-icon {{inviteInfo.role === 2 ? 'editor' : 'viewer'}}">
+            <van-icon name="{{inviteInfo.role === 2 ? 'edit' : 'eye-o'}}" size="16px" color="#fff" />
+          </view>
+          <view class="role-text">
+            <text class="role-name">{{inviteInfo.role === 2 ? '编辑者' : '查看者'}}</text>
+            <text class="role-desc">{{inviteInfo.role === 2 ? '可以编辑任务和清单信息' : '只能查看，不能编辑'}}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 成员预览 -->
+      <view class="members-preview" wx:if="{{inviteInfo.memberCount > 0}}">
+        <text class="info-label">已有 {{inviteInfo.memberCount}} 位成员</text>
+        <view class="member-avatars">
+          <image class="member-avatar" wx:for="{{inviteInfo.members}}" wx:key="index" src="{{item.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
+          <view class="member-more" wx:if="{{inviteInfo.memberCount > 5}}">+{{inviteInfo.memberCount - 5}}</view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 操作按钮 -->
+    <view class="action-section" wx:if="{{!isMember}}">
+      <!-- 需要审核的情况 -->
+      <block wx:if="{{inviteInfo.needApproval}}">
+        <view class="approval-notice">
+          <van-icon name="info-o" size="16px" color="#FF9800" />
+          <text>加入此清单需要邀请人审核</text>
+        </view>
+        <view class="action-btns">
+          <view class="btn reject" bindtap="onReject">拒绝</view>
+          <view class="btn accept" bindtap="onApplyJoin">申请加入</view>
+        </view>
+      </block>
+
+      <!-- 直接加入的情况 -->
+      <block wx:else>
+        <view class="action-btns">
+          <view class="btn reject" bindtap="onReject">拒绝</view>
+          <view class="btn accept" bindtap="onAccept">接受邀请</view>
+        </view>
+      </block>
+    </view>
+
+    <!-- 已是成员提示 -->
+    <view class="member-notice" wx:if="{{isMember}}">
+      <van-icon name="success" size="24px" color="#4CAF50" />
+      <text>你已是该清单的成员</text>
+      <view class="btn primary" bindtap="onViewList">查看清单</view>
+    </view>
+
+    <!-- 已处理提示 -->
+    <view class="processed-notice" wx:if="{{isProcessed}}">
+      <van-icon name="{{processStatus === 1 ? 'success' : 'cross'}}" size="24px" color="{{processStatus === 1 ? '#4CAF50' : '#999'}}" />
+      <text>{{processStatus === 1 ? '你已接受此邀请' : '你已拒绝此邀请'}}</text>
+      <view class="btn primary" bindtap="onBack">返回首页</view>
+    </view>
+  </block>
+
+  <!-- 确认弹窗 -->
+  <van-dialog id="confirm-dialog" show="{{showConfirmDialog}}" title="{{dialogTitle}}" message="{{dialogMessage}}" show-cancel-button confirm-button-text="{{confirmText}}" confirm-button-color="{{confirmColor}}" bind:close="onDialogClose" bind:confirm="onDialogConfirm" />
+</view>

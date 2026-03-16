@@ -1,0 +1,151 @@
+<view class="checklist-container">
+  <!-- 顶部固定区域 -->
+  <view class="header-fixed">
+    <!-- 顶部标题栏 -->
+    <view class="header">
+      <text class="header-title">我的清单</text>
+      <view class="header-actions">
+        <view class="action-btn" bindtap="onSearch">
+          <van-icon name="search" size="20px" color="#333" />
+        </view>
+        <view class="action-btn" bindtap="onCreateList">
+          <van-icon name="plus" size="20px" color="#333" />
+        </view>
+      </view>
+    </view>
+    <!-- 筛选标签栏 -->
+    <view class="filter-tabs">
+      <view class="filter-tab {{currentFilter === 'all' ? 'active' : ''}}" data-filter="all" bindtap="onFilterChange">
+        全部
+      </view>
+      <view class="filter-tab {{currentFilter === 'personal' ? 'active' : ''}}" data-filter="personal" bindtap="onFilterChange">
+        个人
+      </view>
+      <view class="filter-tab {{currentFilter === 'shared' ? 'active' : ''}}" data-filter="shared" bindtap="onFilterChange">
+        共享
+      </view>
+      <view class="filter-tab {{currentFilter === 'created' ? 'active' : ''}}" data-filter="created" bindtap="onFilterChange">
+        我创建的
+      </view>
+    </view>
+    <!-- 搜索框（搜索模式下显示） -->
+    <view class="search-box" wx:if="{{isSearching}}">
+      <view class="search-input-wrapper">
+        <van-icon name="search" size="16px" color="#999" />
+        <input class="search-input" placeholder="搜索清单名称" value="{{searchKeyword}}" bindinput="onSearchInput" confirm-type="search" bindconfirm="onSearchConfirm" />
+        <view class="search-clear" wx:if="{{searchKeyword}}" bindtap="onClearSearch">
+          <van-icon name="clear" size="16px" color="#999" />
+        </view>
+      </view>
+      <view class="search-cancel" bindtap="onCancelSearch">取消</view>
+    </view>
+  </view>
+  <!-- 清单列表 -->
+  <scroll-view class="list-scroll" style="margin-top: {{scrollMarginTop}}px; height: {{scrollHeight}}px;" scroll-y refresher-enabled refresher-triggered="{{isRefreshing}}" bindrefresherrefresh="onRefresh" bindscrolltolower="onLoadMore" lower-threshold="50">
+    <!-- 加载骨架屏 -->
+    <view class="skeleton-wrapper" wx:if="{{isLoading && !lists.length}}">
+      <view class="skeleton-card" wx:for="{{3}}" wx:key="index">
+        <view class="skeleton-icon"></view>
+        <view class="skeleton-content">
+          <view class="skeleton-title"></view>
+          <view class="skeleton-text"></view>
+          <view class="skeleton-progress"></view>
+        </view>
+      </view>
+    </view>
+    <!-- 清单列表 -->
+    <view class="list-wrapper" wx:if="{{!isLoading || lists.length}}">
+      <view class="list-card {{item.isShared ? 'shared' : 'personal'}}" wx:for="{{filteredLists}}" wx:key="_id" data-id="{{item._id}}" bindtap="onListClick" bindlongpress="onListLongPress">
+        <!-- 清单图标 -->
+        <view class="list-icon" style="background-color: {{item.color ? item.color + '20' : (item.isShared ? '#E8F5E9' : '#E3F2FD')}}; border: 2rpx solid {{item.color || (item.isShared ? '#2E7D32' : '#1976D2')}}">
+          <van-icon name="{{item.isShared ? 'friends-o' : 'label-o'}}" size="24px" color="{{item.color || (item.isShared ? '#2E7D32' : '#1976D2')}}" />
+        </view>
+        <!-- 清单内容 -->
+        <view class="list-content">
+          <view class="list-header">
+            <text class="list-name">{{item.name}}</text>
+            <view class="list-tag {{item.isShared ? 'shared-tag' : 'personal-tag'}}">
+              {{item.isShared ? '共享' : '个人'}}
+            </view>
+          </view>
+          <view class="list-stats">
+            <text class="stats-text">{{item.taskCount || 0}}个任务</text>
+            <text class="stats-dot" wx:if="{{item.pendingCount > 0}}">•</text>
+            <text class="stats-highlight" wx:if="{{item.pendingCount > 0}}">
+              {{item.pendingCount}}个待完成
+            </text>
+          </view>
+          <!-- 进度条 -->
+          <view class="progress-wrapper">
+            <view class="progress-bar">
+              <view class="progress-fill" style="width: {{item.progress || 0}}%; background-color: {{item.progressColor || '#4CAF50'}}"></view>
+            </view>
+            <text class="progress-text">{{item.progress || 0}}%</text>
+          </view>
+          <!-- 共享清单成员头像 -->
+          <view class="list-footer" wx:if="{{item.isShared}}">
+            <view class="member-avatars">
+              <image class="member-avatar" wx:for="{{item.members}}" wx:for-item="member" wx:key="index" src="{{member.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
+              <view class="member-more" wx:if="{{item.memberCount > 3}}">
+                +{{item.memberCount - 3}}
+              </view>
+            </view>
+            <text class="update-time">{{item.updateTimeText}}</text>
+          </view>
+          <!-- 个人清单更新时间 -->
+          <view class="list-footer" wx:if="{{!item.isShared}}">
+            <text class="update-time">{{item.updateTimeText}}</text>
+          </view>
+        </view>
+        <!-- 右滑操作按钮（通过手势触发） -->
+        <view class="swipe-actions" wx:if="{{item.showActions}}">
+          <view class="action-edit" data-id="{{item._id}}" catchtap="onEditList">编辑</view>
+          <view class="action-delete" data-id="{{item._id}}" catchtap="onDeleteList">删除</view>
+        </view>
+      </view>
+      <!-- 加载更多 -->
+      <view class="load-more" wx:if="{{isLoadingMore}}">
+        <van-loading type="spinner" size="20px" />
+        <text class="load-text">加载中...</text>
+      </view>
+      <!-- 没有更多 -->
+      <view class="no-more" wx:if="{{!hasMore && filteredLists.length > 0}}">
+        <text>没有更多了</text>
+      </view>
+    </view>
+    <!-- 空状态 -->
+    <view class="empty-state" wx:if="{{!isLoading && filteredLists.length === 0}}">
+      <van-icon name="records" size="80px" color="#ddd" />
+      <text class="empty-title">{{emptyTitle}}</text>
+      <text class="empty-desc">{{emptyDesc}}</text>
+      <view class="empty-action" wx:if="{{currentFilter === 'all' || currentFilter === 'created'}}">
+        <van-button type="info" size="small" bind:click="onCreateList">创建清单</van-button>
+      </view>
+    </view>
+  </scroll-view>
+  <!-- 创建/编辑清单弹窗 -->
+  <van-dialog use-slot title="{{isEditing ? '编辑清单' : '创建清单'}}" show="{{showDialog}}" show-cancel-button confirm-button-text="{{isEditing ? '保存' : '创建'}}" bind:close="onDialogClose" bind:confirm="onDialogConfirm">
+    <view class="dialog-content">
+      <input class="dialog-input" placeholder="请输入清单名称（2-50个字符）" value="{{formData.name}}" maxlength="50" bindinput="onNameInput" />
+      <textarea class="dialog-textarea" placeholder="请输入清单描述（可选，最多200个字符）" value="{{formData.description}}" maxlength="200" bindinput="onDescInput" />
+      <view class="dialog-row">
+        <text class="dialog-label">清单类型</text>
+        <van-radio-group value="{{formData.isShared ? 'shared' : 'personal'}}" bind:change="onTypeChange">
+          <van-radio name="personal">个人</van-radio>
+          <van-radio name="shared">共享</van-radio>
+        </van-radio-group>
+      </view>
+      <view class="dialog-row" wx:if="{{formData.isShared}}">
+        <text class="dialog-label">可见性</text>
+        <van-radio-group value="{{formData.visibility === 1 ? 'public' : 'private'}}" bind:change="onVisibilityChange">
+          <van-radio name="public">公开</van-radio>
+          <van-radio name="private">私密</van-radio>
+        </van-radio-group>
+      </view>
+    </view>
+  </van-dialog>
+  <!-- 操作菜单 -->
+  <van-action-sheet show="{{showActionSheet}}" actions="{{actionSheetActions}}" bind:close="onActionSheetClose" bind:select="onActionSheetSelect" />
+  <!-- 删除确认弹窗 -->
+  <van-dialog id="delete-dialog" title="确认删除" message="删除后清单内的所有任务也将被删除，是否继续？" show="{{showDeleteDialog}}" show-cancel-button confirm-button-text="删除" confirm-button-color="#ee0a24" bind:close="onDeleteDialogClose" bind:confirm="onDeleteConfirm" />
+</view>

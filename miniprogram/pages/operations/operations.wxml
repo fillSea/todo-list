@@ -1,0 +1,47 @@
+<view class="operations-container">
+  <!-- 顶部导航栏 -->
+  <view class="header">
+    <view class="header-left" bindtap="onBack">
+      <van-icon name="arrow-left" size="20px" color="#333" />
+    </view>
+    <text class="header-title">操作记录</text>
+    <view class="header-right"></view>
+  </view>
+
+  <!-- 操作记录列表 -->
+  <scroll-view class="operations-scroll" scroll-y refresher-enabled refresher-triggered="{{isRefreshing}}" bindrefresherrefresh="onRefresh" bindscrolltolower="onLoadMore">
+    <!-- 操作记录项 -->
+    <view class="operation-list" wx:if="{{operations.length > 0}}">
+      <view class="operation-item" wx:for="{{operations}}" wx:key="_id">
+        <view class="operation-icon icon-{{item.type}}">
+          <van-icon name="{{item.icon}}" size="20px" color="#fff" />
+        </view>
+        <view class="operation-content">
+          <view class="operation-header">
+            <text class="operation-text">{{item.text}}</text>
+            <text class="operation-time">{{item.timeText}}</text>
+          </view>
+          <text class="operation-user" wx:if="{{item.userName}}">操作人: {{item.userName}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 加载更多 -->
+    <view class="load-more" wx:if="{{isLoadingMore}}">
+      <van-loading type="spinner" size="20px" />
+      <text class="load-text">加载中...</text>
+    </view>
+
+    <!-- 没有更多 -->
+    <view class="no-more" wx:if="{{!hasMore && operations.length > 0}}">
+      <text>没有更多了</text>
+    </view>
+
+    <!-- 空状态 -->
+    <view class="empty-state" wx:if="{{!isLoading && operations.length === 0}}">
+      <van-icon name="records" size="60px" color="#ddd" />
+      <text class="empty-title">暂无操作记录</text>
+      <text class="empty-desc">清单的操作记录将显示在这里</text>
+    </view>
+  </scroll-view>
+</view>

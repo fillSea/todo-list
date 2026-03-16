@@ -1,0 +1,260 @@
+/* 页面容器 */
+.list-edit-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #F5F5F5;
+}
+
+/* 顶部导航栏 */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #fff;
+  border-bottom: 1rpx solid #eee;
+}
+
+.header-left {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #333;
+}
+
+.header-right {
+  width: 40px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.save-btn {
+  font-size: 16px;
+  color: #1976D2;
+  font-weight: 500;
+}
+
+/* 表单滚动区域 */
+.form-scroll {
+  flex: 1;
+  padding: 12px 16px;
+}
+
+/* 表单分组 */
+.form-section {
+  margin-bottom: 12px;
+  background-color: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.form-item {
+  padding: 16px;
+}
+
+.form-label {
+  display: block;
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.form-label.required::after {
+  content: '*';
+  color: #ee0a24;
+  margin-left: 4px;
+}
+
+/* 输入框 */
+.form-input {
+  font-size: 16px;
+  color: #333;
+  padding: 12px;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+}
+
+.form-textarea {
+  font-size: 16px;
+  color: #333;
+  padding: 12px;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  min-height: 80px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 清单类型选项 */
+.type-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.type-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background-color: #f5f5f5;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  transition: all 0.3s;
+}
+
+.type-option.active {
+  background-color: #E3F2FD;
+  border-color: #1976D2;
+}
+
+.type-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.type-icon.personal {
+  background-color: #E3F2FD;
+}
+
+.type-icon.shared {
+  background-color: #E8F5E9;
+}
+
+.type-info {
+  flex: 1;
+}
+
+.type-name {
+  font-size: 15px;
+  color: #333;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.type-desc {
+  font-size: 13px;
+  color: #999;
+}
+
+/* 可见性选项 */
+.visibility-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.visibility-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background-color: #f5f5f5;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  transition: all 0.3s;
+}
+
+.visibility-option.active {
+  background-color: #FFF3E0;
+  border-color: #F57C00;
+}
+
+.visibility-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.visibility-info {
+  flex: 1;
+}
+
+.visibility-name {
+  font-size: 15px;
+  color: #333;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.visibility-desc {
+  font-size: 13px;
+  color: #999;
+}
+
+.visibility-radio {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #ddd;
+  background-color: #fff;
+  transition: all 0.3s;
+}
+
+.visibility-radio.active {
+  background-color: #F57C00;
+  border-color: #F57C00;
+}
+
+/* 颜色选项 */
+.color-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.color-option {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid transparent;
+  transition: all 0.3s;
+}
+
+.color-option.active {
+  border-color: #333;
+  transform: scale(1.1);
+}
+
+/* 删除区域 */
+.delete-section {
+  padding: 16px;
+  background-color: #fff;
+  border-top: 1rpx solid #eee;
+}
+
+.delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px;
+  background-color: #FFEBEE;
+  border-radius: 12px;
+}
+
+.delete-btn text {
+  font-size: 15px;
+  color: #ee0a24;
+}

@@ -1,0 +1,359 @@
+/* 页面容器 */
+.list-invite-link-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #F5F5F5;
+}
+
+/* 顶部导航栏 */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #fff;
+  border-bottom: 1rpx solid #eee;
+}
+
+.header-left {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #333;
+}
+
+.header-right {
+  width: 40px;
+}
+
+/* 二维码区域 */
+.qrcode-section {
+  background-color: #fff;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.qrcode-box {
+  width: 200px;
+  height: 200px;
+  background-color: #f5f5f5;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.qrcode-image {
+  width: 180px;
+  height: 180px;
+}
+
+.qrcode-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #999;
+}
+
+.qrcode-placeholder text {
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+.qrcode-debug-tip {
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
+}
+
+.qrcode-tip {
+  font-size: 14px;
+  color: #666;
+}
+
+/* 链接区域 */
+.link-section {
+  background-color: #fff;
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.link-box {
+  background-color: #f5f5f5;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.link-text {
+  font-size: 14px;
+  color: #333;
+  word-break: break-all;
+}
+
+.link-actions {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+}
+
+.action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-btn text {
+  font-size: 13px;
+  color: #666;
+}
+
+/* 设置区域 */
+.settings-section {
+  background-color: #fff;
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.section-title {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 16px;
+}
+
+.setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.setting-item:last-child {
+  border-bottom: none;
+}
+
+.setting-info {
+  flex: 1;
+}
+
+.setting-name {
+  font-size: 15px;
+  color: #333;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.setting-desc {
+  font-size: 12px;
+  color: #999;
+}
+
+.setting-value {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #666;
+  font-size: 14px;
+}
+
+/* 统计区域 */
+.stats-section {
+  background-color: #fff;
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  background-color: #f5f5f5;
+  border-radius: 12px;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: #1976D2;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #999;
+}
+
+/* 重新生成区域 */
+.regenerate-section {
+  background-color: #fff;
+  padding: 16px;
+  margin-top: 12px;
+  margin-bottom: 24px;
+}
+
+.regenerate-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px;
+  background-color: #FFEBEE;
+  border-radius: 12px;
+}
+
+.regenerate-btn text {
+  font-size: 15px;
+  color: #ee0a24;
+}
+
+.regenerate-tip {
+  display: block;
+  text-align: center;
+  font-size: 12px;
+  color: #999;
+  margin-top: 8px;
+}
+
+/* 弹窗样式 */
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1rpx solid #eee;
+}
+
+.popup-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.popup-content {
+  padding: 16px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* 权限选项 */
+.role-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.role-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background-color: #f5f5f5;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  transition: all 0.3s;
+}
+
+.role-option.active {
+  background-color: #E3F2FD;
+  border-color: #1976D2;
+}
+
+.role-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.role-icon.editor {
+  background-color: #4CAF50;
+}
+
+.role-icon.viewer {
+  background-color: #FF9800;
+}
+
+.role-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.role-name {
+  font-size: 15px;
+  color: #333;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.role-desc {
+  font-size: 12px;
+  color: #999;
+}
+
+.role-radio {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #ddd;
+  background-color: #fff;
+  flex-shrink: 0;
+  transition: all 0.3s;
+}
+
+.role-radio.active {
+  background-color: #1976D2;
+  border-color: #1976D2;
+}
+
+/* 有效期选项 */
+.expire-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.expire-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background-color: #f5f5f5;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  transition: all 0.3s;
+}
+
+.expire-option.active {
+  background-color: #E3F2FD;
+  border-color: #1976D2;
+}
+
+.expire-name {
+  font-size: 15px;
+  color: #333;
+}

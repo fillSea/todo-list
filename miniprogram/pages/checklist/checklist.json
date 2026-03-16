@@ -1,0 +1,15 @@
+{
+  "navigationBarTitleText": "清单",
+  "navigationBarBackgroundColor": "#ffffff",
+  "navigationBarTextStyle": "black",
+  "backgroundColor": "#F5F5F5",
+  "usingComponents": {
+    "van-icon": "@vant/weapp/icon/index",
+    "van-button": "@vant/weapp/button/index",
+    "van-dialog": "@vant/weapp/dialog/index",
+    "van-radio": "@vant/weapp/radio/index",
+    "van-radio-group": "@vant/weapp/radio-group/index",
+    "van-action-sheet": "@vant/weapp/action-sheet/index",
+    "van-loading": "@vant/weapp/loading/index"
+  }
+}

@@ -1,0 +1,162 @@
+<view class="list-detail-container">
+  <!-- 顶部导航栏 -->
+  <view class="header-fixed">
+    <view class="header">
+      <view class="header-left" bindtap="onBack">
+        <van-icon name="arrow-left" size="20px" color="#333" />
+        <text class="back-text">返回</text>
+      </view>
+      <text class="header-title">{{listInfo.name || '清单详情'}}</text>
+      <view class="header-right">
+        <view class="action-btn" bindtap="onEditList" wx:if="{{canEdit}}">
+          <van-icon name="edit" size="20px" color="#333" />
+        </view>
+        <view class="action-btn" bindtap="onMoreActions">
+          <van-icon name="ellipsis" size="20px" color="#333" />
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 清单信息卡片 -->
+  <view class="list-info-card" style="margin-top: {{headerHeight}}px;">
+    <view class="list-header">
+      <view class="list-icon" style="background-color: {{listInfo.color ? listInfo.color + '20' : (listInfo.isShared ? '#E8F5E9' : '#E3F2FD')}}; border: 3rpx solid {{listInfo.color || (listInfo.isShared ? '#2E7D32' : '#1976D2')}}">
+        <van-icon name="{{listInfo.isShared ? 'friends-o' : 'label-o'}}" size="32px" color="{{listInfo.color || (listInfo.isShared ? '#2E7D32' : '#1976D2')}}" />
+      </view>
+      <view class="list-meta">
+        <text class="list-name">{{listInfo.name}}</text>
+        <view class="list-tags">
+          <text class="tag {{listInfo.isShared ? 'shared-tag' : 'personal-tag'}}">{{listInfo.isShared ? '共享' : '个人'}}</text>
+          <text class="tag visibility-tag" wx:if="{{listInfo.visibility === 1}}">公开</text>
+        </view>
+      </view>
+    </view>
+    
+    <view class="list-description" wx:if="{{listInfo.description}}">
+      {{listInfo.description}}
+    </view>
+    
+    <!-- 进度统计 -->
+    <view class="progress-section">
+      <view class="progress-header">
+        <text class="progress-title">完成进度</text>
+        <text class="progress-text">{{completedCount}}/{{taskList.length}}</text>
+      </view>
+      <view class="progress-bar">
+        <view class="progress-fill" style="width: {{progressPercent}}%; background-color: {{progressColor}}"></view>
+      </view>
+    </view>
+    
+    <!-- 成员信息（共享清单） -->
+    <view class="members-section" wx:if="{{listInfo.isShared && members.length > 0}}">
+      <view class="section-title">
+        <text>成员</text>
+        <text class="member-count">({{members.length}}人)</text>
+      </view>
+      <view class="member-list">
+        <view class="member-item" wx:for="{{members}}" wx:key="_id">
+          <image class="member-avatar" src="{{item.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
+          <text class="member-role" wx:if="{{item.role === 1}}">创建者</text>
+          <text class="member-role" wx:if="{{item.role === 2}}">编辑者</text>
+        </view>
+        <view class="add-member-btn" wx:if="{{canManageMembers}}" bindtap="onAddMember">
+          <van-icon name="plus" size="20px" color="#999" />
+        </view>
+      </view>
+    </view>
+    
+    <!-- 创建信息 -->
+    <view class="create-info">
+      <text class="create-text">创建于 {{listInfo.createTimeText}}</text>
+    </view>
+  </view>
+
+  <!-- 任务列表区域 -->
+  <view class="task-section">
+    <view class="section-header">
+      <text class="section-title">任务列表</text>
+      <view class="filter-tabs">
+        <view class="filter-tab {{taskFilter === 'all' ? 'active' : ''}}" data-filter="all" bindtap="onTaskFilterChange">全部</view>
+        <view class="filter-tab {{taskFilter === 'pending' ? 'active' : ''}}" data-filter="pending" bindtap="onTaskFilterChange">待完成</view>
+        <view class="filter-tab {{taskFilter === 'completed' ? 'active' : ''}}" data-filter="completed" bindtap="onTaskFilterChange">已完成</view>
+      </view>
+    </view>
+    
+    <!-- 任务列表 -->
+    <scroll-view class="task-scroll" scroll-y refresher-enabled refresher-triggered="{{isRefreshing}}" bindrefresherrefresh="onRefresh" bindscrolltolower="onLoadMore" lower-threshold="50">
+      <!-- 加载骨架屏 -->
+      <view class="skeleton-wrapper" wx:if="{{isLoading && !taskList.length}}">
+        <view class="skeleton-task" wx:for="{{3}}" wx:key="index">
+          <view class="skeleton-checkbox"></view>
+          <view class="skeleton-content">
+            <view class="skeleton-title"></view>
+            <view class="skeleton-text"></view>
+          </view>
+        </view>
+      </view>
+      
+      <!-- 任务列表 -->
+      <view class="task-list" wx:if="{{!isLoading || taskList.length}}">
+        <view class="task-item {{item.status === 1 ? 'completed' : ''}} {{item.isOverdue ? 'overdue' : ''}}" wx:for="{{filteredTasks}}" wx:key="_id" data-id="{{item._id}}" bindtap="onTaskClick">
+          <view class="task-checkbox" catchtap="onTaskStatusChange" data-id="{{item._id}}" data-status="{{item.status}}">
+            <van-icon name="{{item.status === 1 ? 'success' : 'circle'}}" size="20px" color="{{item.status === 1 ? '#4CAF50' : (item.isOverdue ? '#F44336' : '#999')}}" />
+          </view>
+          <view class="task-content">
+            <view class="task-header">
+              <text class="task-title {{item.status === 1 ? 'completed' : ''}}">{{item.title}}</text>
+              <view class="task-priority priority-{{item.priority}}" wx:if="{{item.priority}}">
+                {{item.priority === 4 ? '紧急重要' : (item.priority === 3 ? '重要' : (item.priority === 2 ? '紧急' : '普通'))}}
+              </view>
+            </view>
+            <view class="task-meta">
+              <text class="task-date {{item.isOverdue ? 'overdue' : ''}}" wx:if="{{item.dueDate}}">
+                <van-icon name="clock-o" size="12px" color="{{item.isOverdue ? '#F44336' : '#999'}}" />
+                {{item.dueDateText}}
+              </text>
+              <text class="task-category" wx:if="{{item.categoryName}}" style="background-color: {{item.categoryColor || '#E3F2FD'}}; color: {{item.categoryColor ? '#fff' : '#1976D2'}}">
+                {{item.categoryName}}
+              </text>
+            </view>
+          </view>
+          <view class="task-actions" catchtap="onTaskActions" data-id="{{item._id}}">
+            <van-icon name="ellipsis" size="16px" color="#999" />
+          </view>
+        </view>
+        
+        <!-- 加载更多 -->
+        <view class="load-more" wx:if="{{isLoadingMore}}">
+          <van-loading type="spinner" size="20px" />
+          <text class="load-text">加载中...</text>
+        </view>
+        
+        <!-- 没有更多 -->
+        <view class="no-more" wx:if="{{!hasMore && filteredTasks.length > 0}}">
+          <text>没有更多了</text>
+        </view>
+      </view>
+      
+      <!-- 空状态 -->
+      <view class="empty-state" wx:if="{{!isLoading && filteredTasks.length === 0}}">
+        <van-icon name="{{taskFilter === 'completed' ? 'checked' : 'records'}}" size="60px" color="#ddd" />
+        <text class="empty-title">{{emptyTitle}}</text>
+        <text class="empty-desc">{{emptyDesc}}</text>
+      </view>
+    </scroll-view>
+  </view>
+
+  <!-- 添加任务按钮 -->
+  <view class="add-task-btn" bindtap="onAddTask" wx:if="{{canAddTask}}">
+    <van-icon name="plus" size="24px" color="#fff" />
+    <text>添加任务</text>
+  </view>
+
+  <!-- 操作菜单 -->
+  <van-action-sheet show="{{showActionSheet}}" actions="{{actionSheetActions}}" bind:close="onActionSheetClose" bind:select="onActionSheetSelect" />
+
+  <!-- 删除确认弹窗 -->
+  <van-dialog id="delete-dialog" show="{{showDeleteDialog}}" title="确认删除" message="删除后无法恢复，确定要删除此任务吗？" show-cancel-button confirm-button-text="删除" confirm-button-color="#ee0a24" bind:close="onDeleteDialogClose" bind:confirm="onDeleteConfirm" />
+
+  <!-- 任务操作菜单 -->
+  <van-action-sheet show="{{showTaskActionSheet}}" actions="{{taskActionSheetActions}}" bind:close="onTaskActionSheetClose" bind:select="onTaskActionSheetSelect" />
+</view>

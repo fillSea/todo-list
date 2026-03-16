@@ -1,0 +1,114 @@
+<view class="calendar-container">
+  <!-- 日历头部 -->
+  <view class="calendar-header">
+    <view class="nav-group">
+      <view class="nav-btn" bindtap="onPrevYear">
+        <text class="nav-icon">《</text>
+      </view>
+      <view class="nav-btn" bindtap="onPrevMonth">
+        <text class="nav-icon">〈</text>
+      </view>
+    </view>
+    <view class="current-date">{{currentYear}}年{{currentMonth}}月</view>
+    <view class="nav-group">
+      <view class="nav-btn" bindtap="onNextMonth">
+        <text class="nav-icon">〉</text>
+      </view>
+      <view class="nav-btn" bindtap="onNextYear">
+        <text class="nav-icon">》</text>
+      </view>
+    </view>
+  </view>
+  <!-- 星期标题 -->
+  <view class="week-header">
+    <view wx:for="{{weekDays}}" wx:key="*this" class="week-day">{{item}}</view>
+  </view>
+  <!-- 日历网格 -->
+  <view class="calendar-grid">
+    <view wx:for="{{calendarDays}}" wx:key="date" class="day-cell {{item.isCurrentMonth ? '' : 'other-month'}} {{item.isToday ? 'today' : ''}} {{selectedDate === item.date ? 'selected' : ''}}" bindtap="onSelectDate" data-date="{{item.date}}">
+      <text class="day-number">{{item.day}}</text>
+      <view wx:if="{{item.periodicCount > 0}}" class="periodic-badge">
+        [{{item.periodicCount}}]
+      </view>
+    </view>
+  </view>
+  <!-- 分类标签 -->
+  <view class="category-tabs">
+    <view wx:for="{{categories}}" wx:key="_id" class="category-tab {{currentCategory === item._id ? 'active' : ''}}" bindtap="onCategoryChange" data-id="{{item._id}}" style="{{currentCategory === item._id ? 'color: ' + item.color + ';' : ''}}">
+      <text style="{{currentCategory === item._id ? 'color: ' + item.color + ';' : ''}}">
+        {{item.name}}
+      </text>
+      <view wx:if="{{currentCategory === item._id}}" class="active-line" style="background: {{item.color}};"></view>
+    </view>
+  </view>
+  <!-- 任务列表 -->
+  <view class="task-sections">
+    <!-- 进行中 -->
+    <view class="task-section" wx:if="{{inProgressTasks.length > 0}}">
+      <view class="section-header in-progress">
+        <text class="section-title">进行中</text>
+        <text class="section-count">{{inProgressTasks.length}}</text>
+      </view>
+      <view wx:for="{{inProgressTasks}}" wx:key="_id" class="task-item" style="border-left-color: {{item.priorityColor}}" bindtap="onTaskTap" data-id="{{item._id}}">
+        <van-checkbox value="{{item.status === 1}}" bind:change="onTaskComplete" data-id="{{item._id}}" shape="round" catchtap="onCheckboxTap" />
+        <view class="task-content">
+          <view class="task-title">{{item.title}}</view>
+          <view class="task-meta">
+            <van-tag wx:if="{{item.repeatType > 0}}" type="primary" size="small">周期</van-tag>
+            <van-tag wx:if="{{currentCategory === 'all' && item.categoryName}}" color="{{item.categoryColor}}" size="small">
+              {{item.categoryName}}
+            </van-tag>
+          </view>
+        </view>
+        <view class="task-time">{{item.time}}</view>
+      </view>
+    </view>
+    <!-- 已过期 -->
+    <view class="task-section" wx:if="{{overdueTasks.length > 0}}">
+      <view class="section-header overdue">
+        <text class="section-title">已过期</text>
+        <text class="section-count">{{overdueTasks.length}}</text>
+      </view>
+      <view wx:for="{{overdueTasks}}" wx:key="_id" class="task-item" style="border-left-color: {{item.priorityColor}}" bindtap="onTaskTap" data-id="{{item._id}}">
+        <van-checkbox value="{{item.status === 1}}" bind:change="onTaskComplete" data-id="{{item._id}}" shape="round" catchtap="onCheckboxTap" />
+        <view class="task-content">
+          <view class="task-title">{{item.title}}</view>
+          <view class="task-meta">
+            <van-tag wx:if="{{item.repeatType > 0}}" type="primary" size="small">周期</van-tag>
+            <van-tag wx:if="{{currentCategory === 'all' && item.categoryName}}" color="{{item.categoryColor}}" size="small">
+              {{item.categoryName}}
+            </van-tag>
+          </view>
+        </view>
+        <view class="task-time overdue">{{item.time}}</view>
+      </view>
+    </view>
+    <!-- 已完成 -->
+    <view class="task-section" wx:if="{{completedTasks.length > 0}}">
+      <view class="section-header completed">
+        <text class="section-title">已完成</text>
+        <text class="section-count">{{completedTasks.length}}</text>
+      </view>
+      <view wx:for="{{completedTasks}}" wx:key="_id" class="task-item completed" style="border-left-color: {{item.priorityColor}}" bindtap="onTaskTap" data-id="{{item._id}}">
+        <van-checkbox value="{{item.status === 1}}" bind:change="onTaskComplete" data-id="{{item._id}}" shape="round" catchtap="onCheckboxTap" />
+        <view class="task-content">
+          <view class="task-title">{{item.title}}</view>
+          <view class="task-meta">
+            <van-tag wx:if="{{item.repeatType > 0}}" type="primary" size="small">周期</van-tag>
+            <van-tag wx:if="{{currentCategory === 'all' && item.categoryName}}" color="{{item.categoryColor}}" size="small">
+              {{item.categoryName}}
+            </van-tag>
+          </view>
+        </view>
+        <view class="task-time">{{item.time}}</view>
+      </view>
+    </view>
+    <!-- 空状态 -->
+    <view class="empty-state" wx:if="{{selectedDateTasks.length === 0}}">
+      <text class="empty-text">该日期暂无任务</text>
+    </view>
+  </view>
+</view>
+<view class="fab-button" bindtap="onCreateTask">
+  <text class="fab-icon">+</text>
+</view>

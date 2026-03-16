@@ -1,0 +1,281 @@
+.calendar-container {
+  padding: 0;
+  background: #f5f5f5;
+  min-height: 100vh;
+}
+
+/* 日历头部 */
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx 20rpx;
+  background: white;
+}
+
+.nav-group {
+  display: flex;
+  gap: 10rpx;
+}
+
+.nav-btn {
+  padding: 10rpx 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-icon {
+  font-size: 28rpx;
+  color: #666;
+  font-weight: bold;
+}
+
+.current-date {
+  font-size: 36rpx;
+  font-weight: 500;
+  color: #333;
+}
+
+/* 星期标题 */
+.week-header {
+  display: flex;
+  background: white;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.week-day {
+  flex: 1;
+  text-align: center;
+  font-size: 28rpx;
+  color: #666;
+}
+
+/* 日历网格 */
+.calendar-grid {
+  display: flex;
+  flex-wrap: wrap;
+  background: white;
+  padding-bottom: 20rpx;
+}
+
+.day-cell {
+  width: 14.28%;
+  height: 100rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.day-number {
+  font-size: 30rpx;
+  color: #333;
+}
+
+.day-cell.other-month .day-number {
+  color: #ccc;
+}
+
+.day-cell.today {
+  background: #e6f2ff;
+  border-radius: 8rpx;
+}
+
+.day-cell.today .day-number {
+  color: #1989fa;
+  font-weight: 500;
+}
+
+.day-cell.selected {
+  background: #1989fa;
+  border-radius: 8rpx;
+}
+
+.day-cell.selected .day-number {
+  color: white;
+  font-weight: 500;
+}
+
+.day-cell.selected .periodic-badge {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.periodic-badge {
+  font-size: 20rpx;
+  color: #ff6b6b;
+  margin-top: 4rpx;
+}
+
+/* 分类标签 */
+.category-tabs {
+  display: flex;
+  background: white;
+  padding: 20rpx 0;
+  margin-top: 20rpx;
+  border-top: 1rpx solid #f0f0f0;
+}
+
+.category-tab {
+  flex: 1;
+  text-align: center;
+  padding: 16rpx 0;
+  font-size: 30rpx;
+  color: #666;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.category-tab.active {
+  font-weight: 500;
+}
+
+.active-line {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60rpx;
+  height: 4rpx;
+  border-radius: 2rpx;
+}
+
+/* 任务列表 */
+.task-sections {
+  padding: 20rpx;
+}
+
+.task-section {
+  margin-bottom: 30rpx;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx;
+  border-radius: 12rpx;
+  margin-bottom: 16rpx;
+}
+
+.section-header.in-progress {
+  background: #e6f7e6;
+}
+
+.section-header.in-progress .section-title {
+  color: #07c160;
+}
+
+.section-header.overdue {
+  background: #ffe6e6;
+}
+
+.section-header.overdue .section-title {
+  color: #ee0a24;
+}
+
+.section-header.completed {
+  background: #f5f5f5;
+}
+
+.section-header.completed .section-title {
+  color: #999;
+}
+
+.section-title {
+  font-size: 32rpx;
+  font-weight: 500;
+  color: #333;
+}
+
+.section-count {
+  font-size: 28rpx;
+  color: #999;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 4rpx 16rpx;
+  border-radius: 20rpx;
+}
+
+.task-item {
+  display: flex;
+  align-items: center;
+  background: white;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+  border-left: 8rpx solid #1989fa;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+
+.task-item.completed {
+  opacity: 0.6;
+}
+
+.task-item.completed .task-title {
+  text-decoration: line-through;
+}
+
+.task-content {
+  flex: 1;
+  margin-left: 20rpx;
+}
+
+.task-title {
+  font-size: 32rpx;
+  color: #333;
+  margin-bottom: 12rpx;
+}
+
+.task-meta {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.task-time {
+  font-size: 28rpx;
+  color: #666;
+  font-weight: 500;
+}
+
+.task-time.overdue {
+  color: #ee0a24;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 100rpx 0;
+}
+
+.empty-text {
+  font-size: 30rpx;
+  color: #999;
+}
+
+/* 悬浮按钮 */
+.fab-button {
+  position: fixed;
+  right: 40rpx;
+  bottom: 120rpx;
+  width: 100rpx;
+  height: 100rpx;
+  background: linear-gradient(135deg, #1989fa 0%, #07c160 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8rpx 24rpx rgba(25, 137, 250, 0.4);
+  z-index: 100;
+}
+
+.fab-icon {
+  color: white;
+  font-size: 48rpx;
+  line-height: 1;
+  font-weight: 300;
+}

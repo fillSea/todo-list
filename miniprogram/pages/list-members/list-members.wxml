@@ -1,0 +1,150 @@
+<view class="list-members-container">
+  <!-- 顶部导航栏 -->
+  <view class="header">
+    <view class="header-left" bindtap="onBack">
+      <van-icon name="arrow-left" size="20px" color="#333" />
+    </view>
+    <text class="header-title">成员管理</text>
+    <view class="header-right" bindtap="onInviteMember" wx:if="{{canManageMembers}}">
+      <van-icon name="plus" size="20px" color="#1976D2" />
+    </view>
+  </view>
+  <!-- 清单信息 -->
+  <view class="list-info">
+    <view class="list-icon" style="background-color: {{listInfo.isShared ? '#E8F5E9' : '#E3F2FD'}}">
+      <van-icon name="{{listInfo.isShared ? 'friends-o' : 'label-o'}}" size="24px" color="{{listInfo.isShared ? '#2E7D32' : '#1976D2'}}" />
+    </view>
+    <text class="list-name">{{listInfo.name}}</text>
+    <text class="member-count">{{members.length}}人</text>
+  </view>
+
+  <!-- 邀请管理入口 -->
+  <view class="invite-manage-bar" bindtap="onManageInvites" wx:if="{{canManageMembers}}">
+    <view class="invite-manage-left">
+      <van-icon name="envelope-o" size="20px" color="#1976D2" />
+      <text class="invite-manage-text">邀请管理</text>
+    </view>
+    <view class="invite-manage-right">
+      <view class="invite-badge" wx:if="{{pendingInviteCount > 0}}">{{pendingInviteCount}}</view>
+      <van-icon name="arrow" size="16px" color="#999" />
+    </view>
+  </view>
+  <!-- 成员列表 -->
+  <scroll-view class="members-scroll" scroll-y refresher-enabled refresher-triggered="{{isRefreshing}}" bindrefresherrefresh="onRefresh">
+    <!-- 创建者 -->
+    <view class="member-section" wx:if="{{creators.length > 0}}">
+      <view class="section-title">创建者</view>
+      <view class="member-list">
+        <view class="member-item" wx:for="{{creators}}" wx:key="_id">
+          <image class="member-avatar" src="{{item.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
+          <view class="member-info">
+            <text class="member-name">{{item.nickname || '未命名用户'}}</text>
+            <text class="member-id" wx:if="{{DEBUG_MODE}}">ID: {{item.userId}}</text>
+          </view>
+          <view class="member-role role-creator">创建者</view>
+        </view>
+      </view>
+    </view>
+    <!-- 编辑者 -->
+    <view class="member-section" wx:if="{{editors.length > 0}}">
+      <view class="section-title">编辑者</view>
+      <view class="member-list">
+        <view class="member-item" wx:for="{{editors}}" wx:key="_id">
+          <image class="member-avatar" src="{{item.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
+          <view class="member-info">
+            <text class="member-name">{{item.nickname || '未命名用户'}}</text>
+            <text class="member-id" wx:if="{{DEBUG_MODE}}">ID: {{item.userId}}</text>
+          </view>
+          <view class="member-role role-editor" wx:if="{{!canManageMembers}}">编辑者</view>
+          <view class="member-actions" wx:if="{{canManageMembers}}">
+            <view class="action-btn" bindtap="onChangeRole" data-id="{{item._id}}" data-userid="{{item.userId}}" data-role="2">
+              <text>编辑者</text>
+              <van-icon name="arrow-down" size="12px" color="#999" />
+            </view>
+            <view class="remove-btn" bindtap="onRemoveMember" data-id="{{item._id}}" data-name="{{item.nickname}}">
+              <van-icon name="cross" size="16px" color="#ee0a24" />
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+    <!-- 查看者 -->
+    <view class="member-section" wx:if="{{viewers.length > 0}}">
+      <view class="section-title">查看者</view>
+      <view class="member-list">
+        <view class="member-item" wx:for="{{viewers}}" wx:key="_id">
+          <image class="member-avatar" src="{{item.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
+          <view class="member-info">
+            <text class="member-name">{{item.nickname || '未命名用户'}}</text>
+            <text class="member-id" wx:if="{{DEBUG_MODE}}">ID: {{item.userId}}</text>
+          </view>
+          <view class="member-role role-viewer" wx:if="{{!canManageMembers}}">查看者</view>
+          <view class="member-actions" wx:if="{{canManageMembers}}">
+            <view class="action-btn" bindtap="onChangeRole" data-id="{{item._id}}" data-userid="{{item.userId}}" data-role="3">
+              <text>查看者</text>
+              <van-icon name="arrow-down" size="12px" color="#999" />
+            </view>
+            <view class="remove-btn" bindtap="onRemoveMember" data-id="{{item._id}}" data-name="{{item.nickname}}">
+              <van-icon name="cross" size="16px" color="#ee0a24" />
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+    <!-- 空状态 -->
+    <view class="empty-state" wx:if="{{members.length === 0 && !isLoading}}">
+      <van-icon name="friends-o" size="60px" color="#ddd" />
+      <text class="empty-title">暂无成员</text>
+      <text class="empty-desc">点击右上角添加成员</text>
+    </view>
+  </scroll-view>
+  <!-- 添加成员弹窗 -->
+  <van-popup show="{{showAddPopup}}" position="bottom" bind:close="onAddPopupClose">
+    <view class="popup-header">
+      <text class="popup-title">添加成员</text>
+      <van-icon name="cross" size="20px" color="#999" bindtap="onAddPopupClose" />
+    </view>
+    <view class="popup-content">
+      <view class="form-item">
+        <text class="form-label">用户ID</text>
+        <input class="form-input" placeholder="请输入用户ID" value="{{newMemberId}}" bindinput="onMemberIdInput" />
+      </view>
+      <view class="form-item">
+        <text class="form-label">权限角色</text>
+        <view class="role-options">
+          <view class="role-option {{newMemberRole === 2 ? 'active' : ''}}" data-role="2" bindtap="onRoleSelect">
+            <text class="role-name">编辑者</text>
+            <text class="role-desc">可以编辑任务和清单信息</text>
+          </view>
+          <view class="role-option {{newMemberRole === 3 ? 'active' : ''}}" data-role="3" bindtap="onRoleSelect">
+            <text class="role-name">查看者</text>
+            <text class="role-desc">只能查看，不能编辑</text>
+          </view>
+        </view>
+      </view>
+      <view class="submit-btn" bindtap="onSubmitAdd">添加</view>
+    </view>
+  </van-popup>
+  <!-- 修改权限弹窗 -->
+  <van-popup show="{{showRolePopup}}" position="bottom" bind:close="onRolePopupClose">
+    <view class="popup-header">
+      <text class="popup-title">修改权限</text>
+      <van-icon name="cross" size="20px" color="#999" bindtap="onRolePopupClose" />
+    </view>
+    <view class="popup-content">
+      <view class="role-options">
+        <view class="role-option {{selectedRole === 2 ? 'active' : ''}}" data-role="2" bindtap="onNewRoleSelect">
+          <text class="role-name">编辑者</text>
+          <text class="role-desc">可以编辑任务和清单信息</text>
+        </view>
+        <view class="role-option {{selectedRole === 3 ? 'active' : ''}}" data-role="3" bindtap="onNewRoleSelect">
+          <text class="role-name">查看者</text>
+          <text class="role-desc">只能查看，不能编辑</text>
+        </view>
+      </view>
+      <view class="submit-btn" bindtap="onSubmitRoleChange">保存</view>
+    </view>
+  </van-popup>
+  <!-- 删除确认弹窗 -->
+  <van-dialog id="remove-dialog" show="{{showRemoveDialog}}" title="确认移除" message="确定要将 {{removeMemberName}} 移出清单吗？" show-cancel-button confirm-button-text="移除" confirm-button-color="#ee0a24" bind:close="onRemoveDialogClose" bind:confirm="onConfirmRemove" />
+</view>

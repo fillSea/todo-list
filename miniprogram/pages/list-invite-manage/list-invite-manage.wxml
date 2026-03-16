@@ -1,0 +1,146 @@
+<view class="list-invite-manage-container">
+  <!-- 顶部导航栏 -->
+  <view class="header">
+    <view class="header-left" bindtap="onBack">
+      <van-icon name="arrow-left" size="20px" color="#333" />
+    </view>
+    <text class="header-title">邀请管理</text>
+    <view class="header-right" bindtap="onClearAll" wx:if="{{canClear}}">
+      <text class="clear-text">清空</text>
+    </view>
+  </view>
+  <!-- 标签切换 -->
+  <view class="tab-bar">
+    <view class="tab-item {{currentTab === 'pending' ? 'active' : ''}}" data-tab="pending" bindtap="onTabChange">
+      <text>待处理</text>
+      <view class="tab-badge" wx:if="{{pendingCount > 0}}">{{pendingCount}}</view>
+    </view>
+    <view class="tab-item {{currentTab === 'applications' ? 'active' : ''}}" data-tab="applications" bindtap="onTabChange">
+      <text>申请审核</text>
+      <view class="tab-badge" wx:if="{{applicationCount > 0}}">{{applicationCount}}</view>
+    </view>
+    <view class="tab-item {{currentTab === 'accepted' ? 'active' : ''}}" data-tab="accepted" bindtap="onTabChange">
+      <text>已接受</text>
+    </view>
+    <view class="tab-item {{currentTab === 'expired' ? 'active' : ''}}" data-tab="expired" bindtap="onTabChange">
+      <text>已过期</text>
+    </view>
+  </view>
+  <!-- 邀请列表 -->
+  <scroll-view class="invite-scroll" scroll-y refresher-enabled refresher-triggered="{{isRefreshing}}" bindrefresherrefresh="onRefresh" bindscrolltolower="onLoadMore">
+    <!-- 待处理列表 -->
+    <view class="invite-list" wx:if="{{currentTab === 'pending' && pendingInvites.length > 0}}">
+      <view class="invite-item" wx:for="{{pendingInvites}}" wx:key="_id">
+        <image class="invite-avatar" src="{{item.inviteeInfo.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
+        <view class="invite-info">
+          <text class="invite-name">{{item.inviteeInfo.nickname || '未知用户'}}</text>
+          <view class="invite-meta">
+            <text class="invite-role {{item.role === 2 ? 'editor' : 'viewer'}}">
+              {{item.role === 2 ? '编辑者' : '查看者'}}
+            </text>
+            <text class="invite-time">{{item.timeText}}</text>
+          </view>
+          <text class="invite-type" wx:if="{{item.inviteType}}">
+            通过{{item.inviteType === 'wechat' ? '微信' : (item.inviteType === 'link' ? '链接' : '搜索')}}邀请
+          </text>
+        </view>
+        <view class="invite-actions">
+          <view class="action-btn remind" bindtap="onRemind" data-id="{{item._id}}" wx:if="{{item.status === 0}}">
+            提醒
+          </view>
+          <view class="action-btn cancel" bindtap="onCancel" data-id="{{item._id}}">取消</view>
+        </view>
+      </view>
+    </view>
+    <!-- 申请审核列表 -->
+    <view class="invite-list" wx:if="{{currentTab === 'applications' && applications.length > 0}}">
+      <view class="invite-item application" wx:for="{{applications}}" wx:key="_id">
+        <image class="invite-avatar" src="{{item.applicantInfo.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
+        <view class="invite-info">
+          <text class="invite-name">{{item.applicantInfo.nickname || '未知用户'}}</text>
+          <view class="invite-meta">
+            <text class="invite-role {{item.role === 2 ? 'editor' : 'viewer'}}">
+              {{item.role === 2 ? '编辑者' : '查看者'}}
+            </text>
+            <text class="invite-status pending">申请加入</text>
+          </view>
+          <text class="invite-time">{{item.timeText}}申请</text>
+          <text class="apply-message" wx:if="{{item.message}}">"{{item.message}}"</text>
+        </view>
+        <view class="invite-actions application-actions">
+          <view class="action-btn reject" bindtap="onRejectApplication" data-id="{{item._id}}">
+            拒绝
+          </view>
+          <view class="action-btn approve" bindtap="onApproveApplication" data-id="{{item._id}}">
+            同意
+          </view>
+        </view>
+      </view>
+    </view>
+    <!-- 已接受列表 -->
+    <view class="invite-list" wx:if="{{currentTab === 'accepted' && acceptedInvites.length > 0}}">
+      <view class="invite-item" wx:for="{{acceptedInvites}}" wx:key="_id">
+        <image class="invite-avatar" src="{{item.inviteeInfo.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
+        <view class="invite-info">
+          <text class="invite-name">{{item.inviteeInfo.nickname || '未知用户'}}</text>
+          <view class="invite-meta">
+            <text class="invite-role {{item.role === 2 ? 'editor' : 'viewer'}}">
+              {{item.role === 2 ? '编辑者' : '查看者'}}
+            </text>
+            <text class="invite-status accepted">已加入</text>
+          </view>
+          <text class="invite-time">{{item.timeText}}接受</text>
+        </view>
+      </view>
+    </view>
+    <!-- 已过期列表 -->
+    <view class="invite-list" wx:if="{{currentTab === 'expired' && expiredInvites.length > 0}}">
+      <view class="invite-item expired" wx:for="{{expiredInvites}}" wx:key="_id">
+        <image class="invite-avatar" src="{{item.inviteeInfo.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
+        <view class="invite-info">
+          <text class="invite-name">{{item.inviteeInfo.nickname || '未知用户'}}</text>
+          <view class="invite-meta">
+            <text class="invite-role {{item.role === 2 ? 'editor' : 'viewer'}}">
+              {{item.role === 2 ? '编辑者' : '查看者'}}
+            </text>
+            <text class="invite-status expired">已过期</text>
+          </view>
+          <text class="invite-time">{{item.timeText}}过期</text>
+        </view>
+        <view class="invite-actions">
+          <view class="action-btn reinvite" bindtap="onReinvite" data-user="{{item.inviteeInfo}}">
+            重新邀请
+          </view>
+        </view>
+      </view>
+    </view>
+    <!-- 空状态 -->
+    <view class="empty-state" wx:if="{{(currentTab === 'pending' && pendingInvites.length === 0) || (currentTab === 'applications' && applications.length === 0) || (currentTab === 'accepted' && acceptedInvites.length === 0) || (currentTab === 'expired' && expiredInvites.length === 0)}}">
+      <van-icon name="{{currentTab === 'pending' ? 'clock-o' : (currentTab === 'applications' ? 'user-o' : (currentTab === 'accepted' ? 'success' : 'passed'))}}" size="60px" color="#ddd" />
+      <text class="empty-title">
+        {{currentTab === 'pending' ? '暂无待处理邀请' : (currentTab === 'applications' ? '暂无待审核申请' : (currentTab === 'accepted' ? '暂无已接受邀请' : '暂无已过期邀请'))}}
+      </text>
+      <text class="empty-desc">
+        {{currentTab === 'pending' ? '邀请的成员将显示在这里' : (currentTab === 'applications' ? '成员的加入申请将显示在这里' : (currentTab === 'accepted' ? '已接受的成员将显示在这里' : '过期的邀请将显示在这里'))}}
+      </text>
+    </view>
+    <!-- 加载更多 -->
+    <view class="load-more" wx:if="{{isLoadingMore}}">
+      <van-loading type="spinner" size="20px" />
+      <text class="load-text">加载中...</text>
+    </view>
+  </scroll-view>
+  <!-- 底部操作栏 -->
+  <view class="footer-bar">
+    <view class="invite-btn" bindtap="onNewInvite">
+      <van-icon name="plus" size="18px" color="#fff" />
+      <text>发起新邀请</text>
+    </view>
+  </view>
+  <!-- 取消确认弹窗 -->
+  <van-dialog id="cancel-dialog" show="{{showCancelDialog}}" title="取消邀请" message="确定要取消对 {{cancelUserName}} 的邀请吗？" show-cancel-button confirm-button-text="取消邀请" confirm-button-color="#ee0a24" bind:close="onCancelDialogClose" bind:confirm="onConfirmCancel" />
+  <!-- 清空确认弹窗 -->
+  <van-dialog id="clear-dialog" show="{{showClearDialog}}" title="清空邀请记录" message="确定要清空所有{{currentTab === 'expired' ? '已过期' : '已处理'}}的邀请记录吗？此操作不可恢复。" show-cancel-button confirm-button-text="清空" confirm-button-color="#ee0a24" bind:close="onClearDialogClose" bind:confirm="onConfirmClear" />
+  <!-- 提示弹窗 -->
+  <van-dialog id="tip-dialog" show="{{showTipDialog}}" title="{{tipTitle}}" message="{{tipMessage}}" confirm-button-text="知道了" bind:close="onTipDialogClose" />
+</view>

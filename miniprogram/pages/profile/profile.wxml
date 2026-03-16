@@ -1,0 +1,107 @@
+<view class="profile-container">
+  <!-- 用户信息卡片 -->
+  <view class="user-card" bindtap="onUserCardTap">
+    <view class="user-info">
+      <image class="user-avatar" src="{{userInfo.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
+      <view class="user-detail">
+        <text class="user-name">{{userInfo.nickname || '未设置昵称'}}</text>
+        <text class="user-signature">{{userInfo.signature || '点击编辑个人资料'}}</text>
+      </view>
+      <van-icon name="arrow" color="rgba(255,255,255,0.8)" />
+    </view>
+  </view>
+  <!-- 快捷统计区域 -->
+  <view class="statistics-card">
+    <view class="stat-item" bindtap="onStatisticTap" data-type="myLists">
+      <text class="stat-number">{{statistics.myLists}}</text>
+      <text class="stat-label">我的清单</text>
+    </view>
+    <view class="stat-divider"></view>
+    <view class="stat-item" bindtap="onStatisticTap" data-type="sharedLists">
+      <text class="stat-number">{{statistics.sharedLists}}</text>
+      <text class="stat-label">共享清单</text>
+    </view>
+    <view class="stat-divider"></view>
+    <view class="stat-item" bindtap="onStatisticTap" data-type="completedTasks">
+      <text class="stat-number">{{statistics.completedTasks}}</text>
+      <text class="stat-label">已完成任务</text>
+    </view>
+  </view>
+  <!-- 数据看板区域 -->
+  <!-- 扇形图 - 任务完成情况 -->
+  <view class="dashboard-card">
+    <view class="dashboard-header">
+      <text class="dashboard-title">📊 任务完成情况</text>
+    </view>
+    <view class="pie-chart-container">
+      <view class="pie-chart">
+        <!-- 使用CSS实现的简易环形图 -->
+        <view class="pie-ring" style="background: conic-gradient(
+          #07C160 0deg {{(dashboardData.pieChart.completed / dashboardData.pieChart.total) * 360 || 0}}deg,
+          #FAAD14 {{(dashboardData.pieChart.completed / dashboardData.pieChart.total) * 360 || 0}}deg {{((dashboardData.pieChart.completed + dashboardData.pieChart.uncompleted) / dashboardData.pieChart.total) * 360 || 0}}deg,
+          #FF4D4F {{((dashboardData.pieChart.completed + dashboardData.pieChart.uncompleted) / dashboardData.pieChart.total) * 360 || 0}}deg 360deg
+        );">
+          <view class="pie-center">
+            <text class="pie-total">{{dashboardData.pieChart.total}}</text>
+            <text class="pie-label">总任务</text>
+          </view>
+        </view>
+      </view>
+      <view class="pie-legend">
+        <view class="legend-item" bindtap="onPieChartTap" data-type="completed">
+          <view class="legend-color" style="background: #07C160;"></view>
+          <text class="legend-text">已完成</text>
+          <text class="legend-value">{{dashboardData.pieChart.completed}}</text>
+        </view>
+        <view class="legend-item" bindtap="onPieChartTap" data-type="uncompleted">
+          <view class="legend-color" style="background: #FAAD14;"></view>
+          <text class="legend-text">未完成</text>
+          <text class="legend-value">{{dashboardData.pieChart.uncompleted}}</text>
+        </view>
+        <view class="legend-item" bindtap="onPieChartTap" data-type="overdue">
+          <view class="legend-color" style="background: #FF4D4F;"></view>
+          <text class="legend-text">已逾期</text>
+          <text class="legend-value">{{dashboardData.pieChart.overdue}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+  <!-- 柱状图 - 近7天任务完成趋势 -->
+  <view class="dashboard-card">
+    <view class="dashboard-header">
+      <text class="dashboard-title">📈 近7天完成趋势</text>
+    </view>
+    <view class="bar-chart-container">
+      <view class="bar-chart" wx:if="{{dashboardData.barChart.length > 0}}">
+        <view class="bar-item" wx:for="{{dashboardData.barChart}}" wx:key="date" bindtap="onBarChartTap" data-date="{{item.date}}" data-count="{{item.count}}">
+          <view class="bar-wrapper">
+            <view class="bar" style="height: {{item.count > 0 ? (item.count / maxBarValue * 100) : 0}}%; background: #07C160;"></view>
+          </view>
+          <text class="bar-label">{{item.date}}</text>
+          <text class="bar-value" wx:if="{{item.count > 0}}">{{item.count}}</text>
+        </view>
+      </view>
+      <view class="empty-chart" wx:else>
+        <van-icon name="chart-trending-o" size="60rpx" color="#ddd" />
+        <text class="empty-text">暂无数据</text>
+      </view>
+    </view>
+  </view>
+  <!-- 功能列表区域 -->
+  <view class="feature-list">
+    <view class="feature-item" wx:for="{{featureList}}" wx:key="name" bindtap="onFeatureTap" data-index="{{index}}">
+      <view class="feature-icon">
+        <van-icon name="{{item.icon}}" size="40rpx" color="#1989fa" />
+      </view>
+      <text class="feature-name">{{item.name}}</text>
+      <view class="feature-badge" wx:if="{{item.badge > 0}}">
+        <text class="badge-text">{{item.badge > 99 ? '99+' : item.badge}}</text>
+      </view>
+      <van-icon name="arrow" color="#ccc" />
+    </view>
+  </view>
+  <!-- 版本信息 -->
+  <view class="version-info">
+    <text>待办清单 v1.0.0</text>
+  </view>
+</view>

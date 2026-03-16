@@ -4,15 +4,16 @@
 
 根据系统功能需求，设计以下云数据库集合：
 
-| 集合名称          | 描述   | 主要功能          |
-| ------------- | ---- | ------------- |
-| users         | 用户信息 | 存储用户基本信息      |
-| tasks         | 任务信息 | 存储个人和共享任务     |
-| lists         | 清单信息 | 存储个人和共享清单     |
-| categories    | 分类标签 | 存储用户自定义分类标签   |
-| list\_members | 清单成员 | 存储清单与成员的关系及权限 |
-| operations    | 操作记录 | 存储任务和清单的操作历史  |
-| notifications | 通知信息 | 存储系统通知和提醒     |
+| 集合名称          | 描述     | 主要功能          |
+| ------------- | ------ | ------------- |
+| users         | 用户信息   | 存储用户基本信息      |
+| tasks         | 任务信息   | 存储个人和共享任务     |
+| lists         | 清单信息   | 存储个人和共享清单     |
+| categories    | 分类标签   | 存储用户自定义分类标签   |
+| list\_members | 清单成员   | 存储清单与成员的关系及权限 |
+| list\_invites | 清单邀请记录 | 存储清单邀请信息      |
+| operations    | 操作记录   | 存储任务和清单的操作历史  |
+| notifications | 通知信息   | 存储系统通知和提醒     |
 
 ## 2. 集合详细设计
 
@@ -41,22 +42,24 @@
 
 ### 2.3 tasks 集合
 
-| 字段名         | 数据类型      | 描述                          | 索引   |
-| ----------- | --------- | --------------------------- | ---- |
-| \_id        | String    | 任务唯一标识（默认）                  | 主键   |
-| title       | String    | 任务标题                        | 普通索引 |
-| description | String    | 任务描述                        | 无    |
-| dueDate     | Timestamp | 截止日期                        | 普通索引 |
-| priority    | Number    | 优先级（1-高，2-中，3-低）            | 普通索引 |
-| status      | Number    | 状态（0-未完成，1-已完成，2-逾期）        | 普通索引 |
-| listId      | String    | 所属清单ID                      | 普通索引 |
-| creatorId   | String    | 创建者ID                       | 普通索引 |
-| categoryId  | String    | 分类ID（关联 categories 集合）      | 普通索引 |
-| repeatType  | Number    | 重复类型（0-不重复，1-重复，2-每周，3-每月）  | 普通索引 |
-| repeatValue | String    | 重复值（周重复：1-7表示周一到周日，多个用逗号分隔） | 普通索引 |
-| attachments | Array     | 附件列表                        | 无    |
-| createdAt   | Timestamp | 创建时间                        | 无    |
-| updatedAt   | Timestamp | 更新时间                        | 无    |
+| 字段名          | 数据类型      | 描述                                                       | 索引   |
+| ------------ | --------- | -------------------------------------------------------- | ---- |
+| \_id         | String    | 任务唯一标识（默认）                                               | 主键   |
+| title        | String    | 任务标题                                                     | 普通索引 |
+| description  | String    | 任务描述                                                     | 无    |
+| dueDate      | Timestamp | 截止日期                                                     | 普通索引 |
+| priority     | Number    | 优先级（1-不重要不紧急，2-紧急不重要，3-重要不紧急，4-重要且紧急）                    | 普通索引 |
+| status       | Number    | 状态（0-未完成，1-已完成，2-逾期）                                     | 普通索引 |
+| listId       | String    | 所属清单ID                                                   | 普通索引 |
+| creatorId    | String    | 创建者ID                                                    | 普通索引 |
+| categoryId   | String    | 分类ID（关联 categories 集合）                                   | 普通索引 |
+| repeatType   | Number    | 重复类型（0-不重复，1-周重复，2-月重复）                                  | 普通索引 |
+| repeatValue  | String    | 重复值（周重复：1-7表示周一到周日，多个用逗号分隔；月重复：1-31表示在每个的哪个日期重复，多个用逗号分隔） | 普通索引 |
+| reminderAt   | Timestamp | 提醒时间                                                     | 普通索引 |
+| reminderSent | Boolean   | 提醒是否已发送                                                  | 普通索引 |
+| attachments  | Array     | 附件列表                                                     | 无    |
+| createdAt    | Timestamp | 创建时间                                                     | 无    |
+| updatedAt    | Timestamp | 更新时间                                                     | 无    |
 
 ### 2.4 lists 集合
 
@@ -73,13 +76,32 @@
 
 ### 2.5 list\_members 集合
 
-| 字段名      | 数据类型      | 描述                    | 索引                   |
-| -------- | --------- | --------------------- | -------------------- |
-| \_id     | String    | 记录唯一标识（默认）            | 主键                   |
-| listId   | String    | 清单ID                  | 复合索引(listId, userId) |
-| userId   | String    | 用户ID                  | 复合索引(listId, userId) |
-| role     | Number    | 角色（1-创建者，2-编辑者，3-查看者） | 无                    |
-| joinedAt | Timestamp | 加入时间                  | 无                    |
+| 字段名      | 数据类型      | 描述                                    | 索引                   |
+| -------- | --------- | ------------------------------------- | -------------------- |
+| \_id     | String    | 记录唯一标识（默认）                            | 主键                   |
+| listId   | String    | 清单ID                                  | 复合索引(listId, userId) |
+| userId   | String    | 用户ID                                  | 复合索引(listId, userId) |
+| role     | Number    | 角色（1-创建者，2-编辑者，3-查看者）                 | 无                    |
+| joinType | String    | 加入方式（invite-被邀请，link-链接加入，create-创建者） | <br />               |
+| inviteId | String    | 关联的邀请记录ID                             | <br />               |
+| joinedAt | Timestamp | 加入时间                                  | 无                    |
+
+### 3.1 list\_invites 集合
+
+| 字段名         | 数据类型      | 描述                            | 索引   |
+| ----------- | --------- | ----------------------------- | ---- |
+| \_id        | String    | 邀请记录唯一标识                      | 主键   |
+| listId      | String    | 清单ID                          | 普通索引 |
+| inviterId   | String    | 邀请人ID                         | 普通索引 |
+| inviteeId   | String    | 被邀请人ID（可选，链接邀请时为空）            | 普通索引 |
+| inviteeInfo | Object    | 被邀请人信息（微信邀请时存储）               | 无    |
+| role        | Number    | 邀请角色（2-编辑者，3-查看者）             | 无    |
+| inviteType  | String    | 邀请类型（wechat/link/search）      | 无    |
+| inviteCode  | String    | 邀请码（链接邀请时生成）                  | 唯一索引 |
+| status      | Number    | 邀请状态（0-待接受，1-已接受，2-已拒绝，3-已过期） | 普通索引 |
+| expireAt    | Timestamp | 过期时间                          | 普通索引 |
+| createdAt   | Timestamp | 创建时间                          | 无    |
+| updatedAt   | Timestamp | 更新时间                          | 无    |
 
 ### 2.6 operations 集合
 
@@ -94,15 +116,15 @@
 
 ### 2.7 notifications 集合
 
-| 字段名       | 数据类型      | 描述                                                                    | 索引   |
-| --------- | --------- | --------------------------------------------------------------------- | ---- |
-| \_id      | String    | 通知唯一标识（默认）                                                            | 主键   |
-| type      | String    | 通知类型（task\_assigned, task\_updated, list\_shared, deadline\_reminder） | 普通索引 |
-| userId    | String    | 接收用户ID                                                                | 普通索引 |
-| relatedId | String    | 相关对象ID（任务ID或清单ID）                                                     | 普通索引 |
-| content   | String    | 通知内容                                                                  | 无    |
-| isRead    | Boolean   | 是否已读                                                                  | 普通索引 |
-| createdAt | Timestamp | 创建时间                                                                  | 无    |
+| 字段名       | 数据类型      | 描述                                                                                    | 索引   |
+| --------- | --------- | ------------------------------------------------------------------------------------- | ---- |
+| \_id      | String    | 通知唯一标识（默认）                                                                            | 主键   |
+| type      | String    | 通知类型（task\_assigned, task\_updated, list\_shared, deadline\_reminder, task\_reminder） | 普通索引 |
+| userId    | String    | 接收用户ID                                                                                | 普通索引 |
+| relatedId | String    | 相关对象ID（任务ID或清单ID）                                                                     | 普通索引 |
+| content   | String    | 通知内容                                                                                  | 无    |
+| isRead    | Boolean   | 是否已读                                                                                  | 普通索引 |
+| createdAt | Timestamp | 创建时间                                                                                  | 无    |
 
 ## 3. 权限设计
 
@@ -145,10 +167,11 @@
 2. **tasks 集合**：建立复合索引 (assigneeId, dueDate) 用于快速查询用户待办任务
 3. **tasks 集合**：建立复合索引 (creatorId, categoryId) 用于快速查询用户按分类筛选的任务
 4. **tasks 集合**：建立复合索引 (repeatType, repeatStartDate) 用于快速查找重复任务
-5. **categories 集合**：建立复合索引 (userId, sortOrder) 用于快速查询用户分类并排序
-6. **lists 集合**：建立复合索引 (creatorId, isShared) 用于快速查询用户的个人和共享清单
-7. **list\_members 集合**：建立复合索引 (listId, role) 用于快速查询清单成员及权限
-8. **notifications 集合**：建立复合索引 (userId, isRead) 用于快速查询未读通知
+5. **tasks 集合**：建立复合索引 (reminderAt, reminderSent, status) 用于快速查询待发送的提醒任务
+6. **categories 集合**：建立复合索引 (userId, sortOrder) 用于快速查询用户分类并排序
+7. **lists 集合**：建立复合索引 (creatorId, isShared) 用于快速查询用户的个人和共享清单
+8. **list\_members 集合**：建立复合索引 (listId, role) 用于快速查询清单成员及权限
+9. **notifications 集合**：建立复合索引 (userId, isRead) 用于快速查询未读通知
 
 ## 5. 数据安全
 
@@ -335,6 +358,135 @@ await db.collection('notifications').add({
   createdAt: new Date()
 })
 ```
+
+### 7.4 任务提醒功能
+
+**reminderAt 字段：**
+
+- 存储任务的提醒时间
+- 当到达提醒时间时，系统会向任务创建者发送通知
+- 提醒时间必须早于或等于截止日期
+
+**reminderSent 字段：**
+
+- `false`：提醒未发送（默认）
+- `true`：提醒已发送
+- 用于避免重复发送提醒
+
+**数据结构示例：**
+
+```javascript
+// 设置了提醒的任务
+{
+  _id: "task_001",
+  title: "提交项目报告",
+  description: "需要提交季度项目报告",
+  dueDate: new Date("2024-03-15T18:00:00"),
+  reminderAt: new Date("2024-03-15T09:00:00"),  // 当天上午9点提醒
+  reminderSent: false,
+  status: 0,
+  creatorId: "user_001",
+  // ... 其他字段
+}
+
+// 提醒已发送的任务
+{
+  _id: "task_002",
+  title: "参加会议",
+  dueDate: new Date("2024-03-10T14:00:00"),
+  reminderAt: new Date("2024-03-10T13:30:00"),
+  reminderSent: true,  // 提醒已发送
+  status: 0,
+  creatorId: "user_001",
+  // ... 其他字段
+}
+```
+
+**提醒检查逻辑（云函数定时触发器）：**
+
+```javascript
+// 每分钟执行一次，检查待发送的提醒
+exports.checkReminders = async function() {
+  const now = new Date()
+  const fiveMinutesLater = new Date(now.getTime() + 5 * 60 * 1000)
+  
+  // 查询即将到达提醒时间且未发送提醒的未完成任务
+  const tasks = await db.collection('tasks').where({
+    reminderAt: db.command.lte(fiveMinutesLater),
+    reminderSent: false,
+    status: 0  // 仅未完成的任务需要提醒
+  }).get()
+  
+  for (const task of tasks.data) {
+    // 检查用户是否开启通知
+    const user = await db.collection('users').doc(task.creatorId).get()
+    
+    if (user.data.enableNotifications) {
+      // 创建提醒通知
+      await db.collection('notifications').add({
+        type: 'task_reminder',
+        userId: task.creatorId,
+        relatedId: task._id,
+        content: `任务提醒：${task.title} 即将到期`,
+        isRead: false,
+        createdAt: new Date()
+      })
+      
+      // 发送订阅消息（微信小程序）
+      await sendSubscribeMessage(task.creatorId, {
+        taskTitle: task.title,
+        dueDate: formatDate(task.dueDate),
+        reminderTime: formatDate(task.reminderAt)
+      })
+    }
+    
+    // 标记提醒已发送
+    await db.collection('tasks').doc(task._id).update({
+      reminderSent: true,
+      updatedAt: new Date()
+    })
+  }
+}
+```
+
+**查询示例：**
+
+```javascript
+// 查询设置了提醒的任务
+await db.collection('tasks').where({
+  creatorId: 'user_001',
+  reminderAt: db.command.neq(null)
+}).get()
+
+// 查询即将到达提醒时间的任务
+const now = new Date()
+const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000)
+
+await db.collection('tasks').where({
+  reminderAt: db.command.gte(now).and(db.command.lte(oneHourLater)),
+  reminderSent: false,
+  status: 0
+}).get()
+
+// 查询已发送提醒的任务
+await db.collection('tasks').where({
+  creatorId: 'user_001',
+  reminderSent: true
+}).get()
+```
+
+**使用场景：**
+
+- 重要会议前30分钟提醒
+- 截止日期当天上午提醒
+- 周期性任务的重复提醒
+
+**注意事项：**
+
+1. 提醒时间修改时，需要将 `reminderSent` 重置为 `false`
+2. 任务完成后，不再发送提醒
+3. 重复任务的每次实例都需要单独设置提醒
+4. 建议提醒时间设置范围：截止前5分钟到截止前7天
 
 ## 8. 扩展考虑
 

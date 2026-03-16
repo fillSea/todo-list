@@ -1,14 +1,68 @@
 {
   "pages": [
-    "pages/index/index"
+    "pages/index/index",
+    "pages/calendar/calendar",
+    "pages/checklist/checklist",
+    "pages/profile/profile",
+    "pages/register/register",
+    "pages/task-detail/task-detail",
+    "pages/list-detail/list-detail",
+    "pages/task-edit/task-edit",
+    "pages/list-members/list-members",
+    "pages/operations/operations",
+    "pages/list-edit/list-edit",
+    "pages/list-invite/list-invite",
+    "pages/list-invite-link/list-invite-link",
+    "pages/list-invite-accept/list-invite-accept",
+    "pages/list-invite-manage/list-invite-manage"
   ],
   "window": {
     "backgroundColor": "#F6F6F6",
     "backgroundTextStyle": "light",
-    "navigationBarBackgroundColor": "#F6F6F6",
-    "navigationBarTitleText": "云开发 QuickStart",
-    "navigationBarTextStyle": "black"
+    "navigationBarBackgroundColor": "#1989fa",
+    "navigationBarTitleText": "任务",
+    "navigationBarTextStyle": "white"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#1989fa",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "任务",
+        "iconPath": "images/tabbar/task.png",
+        "selectedIconPath": "images/tabbar/task-active.png"
+      },
+      {
+        "pagePath": "pages/calendar/calendar",
+        "text": "日历",
+        "iconPath": "images/tabbar/calendar.png",
+        "selectedIconPath": "images/tabbar/calendar-active.png"
+      },
+      {
+        "pagePath": "pages/checklist/checklist",
+        "text": "清单",
+        "iconPath": "images/tabbar/checklist.png",
+        "selectedIconPath": "images/tabbar/checklist-active.png"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的",
+        "iconPath": "images/tabbar/profile.png",
+        "selectedIconPath": "images/tabbar/profile-active.png"
+      }
+    ]
   },
   "sitemapLocation": "sitemap.json",
-  "lazyCodeLoading": "requiredComponents"
+  "lazyCodeLoading": "requiredComponents",
+  "usingComponents": {
+    "van-button": "@vant/weapp/button/index",
+    "van-tab": "@vant/weapp/tab/index",
+    "van-tabs": "@vant/weapp/tabs/index",
+    "van-checkbox": "@vant/weapp/checkbox/index",
+    "van-tag": "@vant/weapp/tag/index",
+    "van-dialog": "@vant/weapp/dialog/index"
+  }
 }

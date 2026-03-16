@@ -1,0 +1,159 @@
+<view class="list-invite-container">
+  <!-- 顶部导航栏 -->
+  <view class="header">
+    <view class="header-left" bindtap="onBack">
+      <van-icon name="arrow-left" size="20px" color="#333" />
+    </view>
+    <text class="header-title">邀请成员</text>
+    <view class="header-right"></view>
+  </view>
+
+  <!-- 清单信息 -->
+  <view class="list-info">
+    <view class="list-icon" style="background-color: {{listInfo.color ? listInfo.color + '20' : '#E3F2FD'}}; border-color: {{listInfo.color || '#1976D2'}}">
+      <van-icon name="{{listInfo.isShared ? 'friends-o' : 'label-o'}}" size="24px" color="{{listInfo.color || '#1976D2'}}" />
+    </view>
+    <view class="list-meta">
+      <text class="list-name">{{listInfo.name}}</text>
+      <text class="list-desc">{{listInfo.memberCount || 0}}/{{maxMemberCount}} 成员</text>
+    </view>
+  </view>
+
+  <!-- 邀请方式选择 -->
+  <view class="invite-methods">
+    <view class="section-title">选择邀请方式</view>
+    <view class="methods-grid">
+      <view class="method-item" bindtap="onWechatInvite">
+        <view class="method-icon wechat">
+          <van-icon name="chat-o" size="28px" color="#fff" />
+        </view>
+        <text class="method-name">微信好友</text>
+        <text class="method-desc">发送给微信好友</text>
+      </view>
+      <view class="method-item" bindtap="onLinkInvite">
+        <view class="method-icon link">
+          <van-icon name="link-o" size="28px" color="#fff" />
+        </view>
+        <text class="method-name">邀请链接</text>
+        <text class="method-desc">生成分享链接</text>
+      </view>
+      <view class="method-item" bindtap="onSearchInvite">
+        <view class="method-icon search">
+          <van-icon name="search" size="28px" color="#fff" />
+        </view>
+        <text class="method-name">搜索用户</text>
+        <text class="method-desc">输入用户ID</text>
+      </view>
+      <view class="method-item" bindtap="onRecentInvite">
+        <view class="method-icon recent">
+          <van-icon name="clock-o" size="28px" color="#fff" />
+        </view>
+        <text class="method-name">最近协作</text>
+        <text class="method-desc">从历史选择</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 待处理邀请 -->
+  <view class="pending-section" wx:if="{{pendingInvites.length > 0}}">
+    <view class="section-header">
+      <text class="section-title">待处理邀请 ({{pendingInvites.length}})</text>
+      <text class="view-all" bindtap="onViewAllInvites">查看全部</text>
+    </view>
+    <view class="pending-list">
+      <view class="pending-item" wx:for="{{pendingInvites}}" wx:key="_id">
+        <image class="pending-avatar" src="{{item.inviteeInfo.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
+        <view class="pending-info">
+          <text class="pending-name">{{item.inviteeInfo.nickname || '未知用户'}}</text>
+          <text class="pending-role">{{item.role === 2 ? '编辑者' : '查看者'}} · {{item.timeText}}</text>
+        </view>
+        <view class="pending-status {{item.status === 0 ? 'waiting' : 'expired'}}">
+          {{item.status === 0 ? '等待接受' : '已过期'}}
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 最近协作成员 -->
+  <view class="recent-section" wx:if="{{recentMembers.length > 0}}">
+    <view class="section-header">
+      <text class="section-title">最近协作</text>
+    </view>
+    <view class="recent-list">
+      <view class="recent-item" wx:for="{{recentMembers}}" wx:key="userId" bindtap="onInviteRecent" data-user="{{item}}">
+        <image class="recent-avatar" src="{{item.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
+        <text class="recent-name">{{item.nickname || '未知用户'}}</text>
+        <view class="invite-btn">
+          <van-icon name="plus" size="14px" color="#1976D2" />
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 权限设置弹窗 -->
+  <van-popup show="{{showRolePopup}}" position="bottom" bind:close="onRolePopupClose">
+    <view class="popup-header">
+      <text class="popup-title">设置权限</text>
+      <van-icon name="cross" size="20px" color="#999" bindtap="onRolePopupClose" />
+    </view>
+    <view class="popup-content">
+      <view class="role-options">
+        <view class="role-option {{selectedRole === 2 ? 'active' : ''}}" data-role="2" bindtap="onRoleSelect">
+          <view class="role-icon editor">
+            <van-icon name="edit" size="20px" color="#fff" />
+          </view>
+          <view class="role-info">
+            <text class="role-name">编辑者</text>
+            <text class="role-desc">可以创建、编辑、删除任务，查看和编辑清单信息</text>
+          </view>
+          <view class="role-radio {{selectedRole === 2 ? 'active' : ''}}"></view>
+        </view>
+        <view class="role-option {{selectedRole === 3 ? 'active' : ''}}" data-role="3" bindtap="onRoleSelect">
+          <view class="role-icon viewer">
+            <van-icon name="eye-o" size="20px" color="#fff" />
+          </view>
+          <view class="role-info">
+            <text class="role-name">查看者</text>
+            <text class="role-desc">只能查看任务和清单信息，不能进行任何编辑操作</text>
+          </view>
+          <view class="role-radio {{selectedRole === 3 ? 'active' : ''}}"></view>
+        </view>
+      </view>
+      <view class="submit-btn" bindtap="onConfirmRole">确认邀请</view>
+    </view>
+  </van-popup>
+
+  <!-- 搜索用户弹窗 -->
+  <van-popup show="{{showSearchPopup}}" position="bottom" bind:close="onSearchPopupClose">
+    <view class="popup-header">
+      <text class="popup-title">搜索用户</text>
+      <van-icon name="cross" size="20px" color="#999" bindtap="onSearchPopupClose" />
+    </view>
+    <view class="popup-content">
+      <view class="search-box">
+        <van-icon name="search" size="18px" color="#999" />
+        <input class="search-input" placeholder="输入用户ID或昵称" value="{{searchKeyword}}" bindinput="onSearchInput" confirm-type="search" bindconfirm="onSearchConfirm" />
+        <view class="search-clear" wx:if="{{searchKeyword}}" bindtap="onClearSearch">
+          <van-icon name="clear" size="16px" color="#999" />
+        </view>
+      </view>
+      <view class="search-result" wx:if="{{searchResults.length > 0}}">
+        <view class="result-item" wx:for="{{searchResults}}" wx:key="userId">
+          <image class="result-avatar" src="{{item.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
+          <view class="result-info">
+            <text class="result-name">{{item.nickname || '未知用户'}}</text>
+            <text class="result-id">ID: {{item.userId}}</text>
+          </view>
+          <view class="result-btn" bindtap="onInviteUser" data-user="{{item}}">邀请</view>
+        </view>
+      </view>
+      <view class="search-empty" wx:if="{{hasSearched && searchResults.length === 0}}">
+        <van-icon name="search" size="48px" color="#ddd" />
+        <text>未找到相关用户</text>
+      </view>
+    </view>
+  </van-popup>
+
+  <!-- 成员上限提示 -->
+  <van-dialog id="limit-dialog" show="{{showLimitDialog}}" title="成员数量已达上限" message="当前清单成员数量已达上限（{{maxMemberCount}}人），如需添加更多成员，请升级会员或移除现有成员。" show-cancel-button confirm-button-text="知道了" bind:close="onLimitDialogClose" />
+</view>

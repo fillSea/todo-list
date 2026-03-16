@@ -1,0 +1,160 @@
+<view class="list-invite-link-container">
+  <!-- 顶部导航栏 -->
+  <view class="header">
+    <view class="header-left" bindtap="onBack">
+      <van-icon name="arrow-left" size="20px" color="#333" />
+    </view>
+    <text class="header-title">邀请链接</text>
+    <view class="header-right"></view>
+  </view>
+  <!-- 二维码区域 -->
+  <view class="qrcode-section">
+    <view class="qrcode-box">
+      <image class="qrcode-image" src="{{qrcodeUrl}}" mode="aspectFit" wx:if="{{qrcodeUrl && qrcodeUrl !== '/images/qrcode-placeholder.png'}}" />
+      <view class="qrcode-placeholder" wx:else>
+        <van-icon name="qr" size="80px" color="#ddd" />
+        <text>{{qrcodeUrl === '/images/qrcode-placeholder.png' ? '调试模式' : '生成中...'}}</text>
+        <text class="qrcode-debug-tip" wx:if="{{qrcodeUrl === '/images/qrcode-placeholder.png'}}">
+          真机调试时生成真实小程序码
+        </text>
+      </view>
+    </view>
+    <text class="qrcode-tip">微信扫描二维码加入清单</text>
+  </view>
+  <!-- 链接区域 -->
+  <view class="link-section">
+    <view class="link-box">
+      <text class="link-text">{{inviteLink}}</text>
+    </view>
+    <view class="link-actions">
+      <view class="action-btn" bindtap="onCopyLink">
+        <van-icon name="description" size="20px" color="#1976D2" />
+        <text>复制链接</text>
+      </view>
+      <view class="action-btn" bindtap="onShareLink">
+        <van-icon name="share-o" size="20px" color="#1976D2" />
+        <text>分享</text>
+      </view>
+    </view>
+  </view>
+  <!-- 设置区域 -->
+  <view class="settings-section">
+    <view class="section-title">链接设置</view>
+    <!-- 权限设置 -->
+    <view class="setting-item">
+      <view class="setting-info">
+        <text class="setting-name">默认权限</text>
+        <text class="setting-desc">通过此链接加入的成员将获得此权限</text>
+      </view>
+      <view class="setting-value" bindtap="onChangeRole">
+        <text>{{role === 2 ? '编辑者' : '查看者'}}</text>
+        <van-icon name="arrow" size="16px" color="#999" />
+      </view>
+    </view>
+    <!-- 有效期设置 -->
+    <view class="setting-item">
+      <view class="setting-info">
+        <text class="setting-name">有效期</text>
+        <text class="setting-desc">链接过期后将无法使用</text>
+      </view>
+      <view class="setting-value" bindtap="onChangeExpire">
+        <text>{{expireText}}</text>
+        <van-icon name="arrow" size="16px" color="#999" />
+      </view>
+    </view>
+    <!-- 加入方式 -->
+    <view class="setting-item">
+      <view class="setting-info">
+        <text class="setting-name">加入方式</text>
+        <text class="setting-desc">是否需要审核</text>
+      </view>
+      <van-switch checked="{{needApproval}}" bind:change="onApprovalChange" size="20px" />
+    </view>
+  </view>
+  <!-- 使用统计 -->
+  <view class="stats-section" wx:if="{{inviteStats}}">
+    <view class="section-title">使用统计</view>
+    <view class="stats-grid">
+      <view class="stat-item">
+        <text class="stat-value">{{inviteStats.clickCount || 0}}</text>
+        <text class="stat-label">点击次数</text>
+      </view>
+      <view class="stat-item">
+        <text class="stat-value">{{inviteStats.joinCount || 0}}</text>
+        <text class="stat-label">已加入</text>
+      </view>
+      <view class="stat-item">
+        <text class="stat-value">{{inviteStats.pendingCount || 0}}</text>
+        <text class="stat-label">待审核</text>
+      </view>
+    </view>
+  </view>
+  <!-- 重新生成按钮 -->
+  <view class="regenerate-section">
+    <view class="regenerate-btn" bindtap="onRegenerate">
+      <van-icon name="replay" size="18px" color="#ee0a24" />
+      <text>重新生成链接</text>
+    </view>
+    <text class="regenerate-tip">重新生成后，旧链接将失效</text>
+  </view>
+  <!-- 权限选择弹窗 -->
+  <van-popup show="{{showRolePopup}}" position="bottom" bind:close="onRolePopupClose">
+    <view class="popup-header">
+      <text class="popup-title">选择默认权限</text>
+      <van-icon name="cross" size="20px" color="#999" bindtap="onRolePopupClose" />
+    </view>
+    <view class="popup-content">
+      <view class="role-options">
+        <view class="role-option {{role === 2 ? 'active' : ''}}" data-role="2" bindtap="onRoleSelect">
+          <view class="role-icon editor">
+            <van-icon name="edit" size="20px" color="#fff" />
+          </view>
+          <view class="role-info">
+            <text class="role-name">编辑者</text>
+            <text class="role-desc">可以创建、编辑、删除任务</text>
+          </view>
+          <view class="role-radio {{role === 2 ? 'active' : ''}}"></view>
+        </view>
+        <view class="role-option {{role === 3 ? 'active' : ''}}" data-role="3" bindtap="onRoleSelect">
+          <view class="role-icon viewer">
+            <van-icon name="eye-o" size="20px" color="#fff" />
+          </view>
+          <view class="role-info">
+            <text class="role-name">查看者</text>
+            <text class="role-desc">只能查看，不能编辑</text>
+          </view>
+          <view class="role-radio {{role === 3 ? 'active' : ''}}"></view>
+        </view>
+      </view>
+    </view>
+  </van-popup>
+  <!-- 有效期选择弹窗 -->
+  <van-popup show="{{showExpirePopup}}" position="bottom" bind:close="onExpirePopupClose">
+    <view class="popup-header">
+      <text class="popup-title">选择有效期</text>
+      <van-icon name="cross" size="20px" color="#999" bindtap="onExpirePopupClose" />
+    </view>
+    <view class="popup-content">
+      <view class="expire-options">
+        <view class="expire-option {{expireDays === 1 ? 'active' : ''}}" data-days="1" bindtap="onExpireSelect">
+          <text class="expire-name">1天</text>
+          <van-icon name="success" size="18px" color="#1976D2" wx:if="{{expireDays === 1}}" />
+        </view>
+        <view class="expire-option {{expireDays === 7 ? 'active' : ''}}" data-days="7" bindtap="onExpireSelect">
+          <text class="expire-name">7天</text>
+          <van-icon name="success" size="18px" color="#1976D2" wx:if="{{expireDays === 7}}" />
+        </view>
+        <view class="expire-option {{expireDays === 30 ? 'active' : ''}}" data-days="30" bindtap="onExpireSelect">
+          <text class="expire-name">30天</text>
+          <van-icon name="success" size="18px" color="#1976D2" wx:if="{{expireDays === 30}}" />
+        </view>
+        <view class="expire-option {{expireDays === 0 ? 'active' : ''}}" data-days="0" bindtap="onExpireSelect">
+          <text class="expire-name">永久有效</text>
+          <van-icon name="success" size="18px" color="#1976D2" wx:if="{{expireDays === 0}}" />
+        </view>
+      </view>
+    </view>
+  </van-popup>
+  <!-- 重新生成确认弹窗 -->
+  <van-dialog id="regenerate-dialog" show="{{showRegenerateDialog}}" title="重新生成链接" message="重新生成后，旧链接将立即失效，是否继续？" show-cancel-button confirm-button-text="重新生成" confirm-button-color="#ee0a24" bind:close="onRegenerateDialogClose" bind:confirm="onConfirmRegenerate" />
+</view>

@@ -1,0 +1,333 @@
+/* 页面容器 */
+.list-members-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #F5F5F5;
+}
+
+/* 顶部导航栏 */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #fff;
+  border-bottom: 1rpx solid #eee;
+}
+
+.header-left {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #333;
+}
+
+.header-right {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 清单信息 */
+.list-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background-color: #fff;
+  margin-bottom: 12px;
+}
+
+.list-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.list-name {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 500;
+  color: #333;
+}
+
+.member-count {
+  font-size: 14px;
+  color: #999;
+}
+
+/* 邀请管理入口 */
+.invite-manage-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background-color: #fff;
+  margin-bottom: 12px;
+}
+
+.invite-manage-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.invite-manage-text {
+  font-size: 15px;
+  color: #333;
+}
+
+.invite-manage-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.invite-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background-color: #ee0a24;
+  color: #fff;
+  font-size: 11px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 成员列表滚动区域 */
+.members-scroll {
+  flex: 1;
+  padding: 0 16px;
+}
+
+/* 成员分组 */
+.member-section {
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-size: 13px;
+  color: #999;
+  padding: 12px 0;
+  border-bottom: 1rpx solid #eee;
+}
+
+/* 成员列表 */
+.member-list {
+  background-color: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.member-item:last-child {
+  border-bottom: none;
+}
+
+.member-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.member-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.member-name {
+  font-size: 15px;
+  color: #333;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.member-id {
+  font-size: 11px;
+  color: #999;
+}
+
+/* 角色标签 */
+.member-role {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.role-creator {
+  background-color: #E3F2FD;
+  color: #1976D2;
+}
+
+.role-editor {
+  background-color: #E8F5E9;
+  color: #2E7D32;
+}
+
+.role-viewer {
+  background-color: #FFF3E0;
+  color: #F57C00;
+}
+
+/* 成员操作 */
+.member-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background-color: #f5f5f5;
+  border-radius: 12px;
+}
+
+.action-btn text {
+  font-size: 12px;
+  color: #666;
+}
+
+.remove-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+}
+
+.empty-title {
+  font-size: 16px;
+  color: #666;
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+.empty-desc {
+  font-size: 13px;
+  color: #999;
+}
+
+/* 弹窗样式 */
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1rpx solid #eee;
+}
+
+.popup-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.popup-content {
+  padding: 16px;
+}
+
+/* 表单样式 */
+.form-item {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.form-input {
+  font-size: 16px;
+  color: #333;
+  padding: 12px;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+}
+
+/* 角色选项 */
+.role-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.role-option {
+  padding: 16px;
+  background-color: #f5f5f5;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  transition: all 0.3s;
+}
+
+.role-option.active {
+  background-color: #E3F2FD;
+  border-color: #1976D2;
+}
+
+.role-name {
+  font-size: 15px;
+  color: #333;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.role-desc {
+  font-size: 13px;
+  color: #999;
+}
+
+/* 提交按钮 */
+.submit-btn {
+  margin-top: 24px;
+  padding: 14px;
+  background-color: #1976D2;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: center;
+  border-radius: 24px;
+}
+
+.submit-btn:active {
+  background-color: #1565C0;
+}

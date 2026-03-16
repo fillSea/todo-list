@@ -1,0 +1,208 @@
+<view class="task-edit-container">
+  <!-- 顶部导航栏 -->
+  <view class="header">
+    <view class="header-left" bindtap="onCancel">
+      <van-icon name="cross" size="20px" color="#333" />
+    </view>
+    <text class="header-title">{{isEditing ? '编辑任务' : '添加任务'}}</text>
+    <view class="header-right">
+      <text class="save-btn" bindtap="onSave">保存</text>
+    </view>
+  </view>
+
+  <!-- 表单内容 -->
+  <scroll-view class="form-scroll" scroll-y>
+    <!-- 任务标题 -->
+    <view class="form-section">
+      <view class="form-item">
+        <text class="form-label required">任务标题</text>
+        <input class="form-input" placeholder="请输入任务标题" value="{{formData.title}}" bindinput="onTitleInput" maxlength="100" />
+      </view>
+    </view>
+
+    <!-- 任务描述 -->
+    <view class="form-section">
+      <view class="form-item">
+        <text class="form-label">任务描述</text>
+        <textarea class="form-textarea" placeholder="请输入任务描述（可选）" value="{{formData.description}}" bindinput="onDescInput" maxlength="500" auto-height />
+      </view>
+    </view>
+
+    <!-- 所属清单 -->
+    <view class="form-section">
+      <view class="form-item" bindtap="onSelectList">
+        <text class="form-label required">所属清单</text>
+        <view class="form-picker">
+          <text class="picker-value {{formData.listName ? '' : 'placeholder'}}">{{formData.listName || '请选择清单'}}</text>
+          <van-icon name="arrow" size="16px" color="#999" />
+        </view>
+      </view>
+    </view>
+
+    <!-- 截止日期 -->
+    <view class="form-section">
+      <view class="form-item">
+        <text class="form-label">截止日期</text>
+        <picker mode="date" value="{{formData.dueDate}}" bindchange="onDueDateChange">
+          <view class="form-picker">
+            <text class="picker-value {{formData.dueDate ? '' : 'placeholder'}}">{{formData.dueDate || '请选择截止日期'}}</text>
+            <van-icon name="arrow" size="16px" color="#999" />
+          </view>
+        </picker>
+      </view>
+    </view>
+
+    <!-- 截止时间 -->
+    <view class="form-section" wx:if="{{formData.dueDate}}">
+      <view class="form-item">
+        <text class="form-label">截止时间</text>
+        <picker mode="time" value="{{formData.dueTime || '23:59'}}" bindchange="onDueTimeChange">
+          <view class="form-picker">
+            <text class="picker-value">{{formData.dueTime || '23:59'}}</text>
+            <van-icon name="arrow" size="16px" color="#999" />
+          </view>
+        </picker>
+      </view>
+    </view>
+
+    <!-- 优先级 -->
+    <view class="form-section">
+      <view class="form-item">
+        <text class="form-label">优先级</text>
+        <view class="priority-options">
+          <view class="priority-option {{formData.priority === 1 ? 'active' : ''}} priority-1" data-priority="1" bindtap="onPriorityChange">
+            <text>普通</text>
+          </view>
+          <view class="priority-option {{formData.priority === 2 ? 'active' : ''}} priority-2" data-priority="2" bindtap="onPriorityChange">
+            <text>紧急</text>
+          </view>
+          <view class="priority-option {{formData.priority === 3 ? 'active' : ''}} priority-3" data-priority="3" bindtap="onPriorityChange">
+            <text>重要</text>
+          </view>
+          <view class="priority-option {{formData.priority === 4 ? 'active' : ''}} priority-4" data-priority="4" bindtap="onPriorityChange">
+            <text>紧急重要</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 分类 -->
+    <view class="form-section">
+      <view class="form-item" bindtap="onSelectCategory">
+        <text class="form-label">分类</text>
+        <view class="form-picker">
+          <text class="picker-value {{formData.categoryName ? '' : 'placeholder'}}" wx:if="{{!formData.categoryName}}">请选择分类</text>
+          <view class="category-tag" wx:if="{{formData.categoryName}}" style="background-color: {{formData.categoryColor || '#E3F2FD'}}; color: {{formData.categoryColor ? '#fff' : '#1976D2'}}">
+            {{formData.categoryName}}
+          </view>
+          <van-icon name="arrow" size="16px" color="#999" />
+        </view>
+      </view>
+    </view>
+
+    <!-- 提醒时间 -->
+    <view class="form-section">
+      <view class="form-item">
+        <text class="form-label">提醒时间</text>
+        <picker mode="multiSelector" range="{{reminderRanges}}" value="{{reminderIndex}}" bindchange="onReminderChange" bindcolumnchange="onReminderColumnChange">
+          <view class="form-picker">
+            <text class="picker-value {{formData.reminderText ? '' : 'placeholder'}}">{{formData.reminderText || '不提醒'}}</text>
+            <van-icon name="arrow" size="16px" color="#999" />
+          </view>
+        </picker>
+      </view>
+    </view>
+
+    <!-- 重复设置 -->
+    <view class="form-section">
+      <view class="form-item">
+        <text class="form-label">重复</text>
+        <view class="repeat-options">
+          <view class="repeat-option {{formData.repeatType === 0 ? 'active' : ''}}" data-type="0" bindtap="onRepeatTypeChange">
+            <text>不重复</text>
+          </view>
+          <view class="repeat-option {{formData.repeatType === 1 ? 'active' : ''}}" data-type="1" bindtap="onRepeatTypeChange">
+            <text>每天</text>
+          </view>
+          <view class="repeat-option {{formData.repeatType === 2 ? 'active' : ''}}" data-type="2" bindtap="onRepeatTypeChange">
+            <text>每周</text>
+          </view>
+          <view class="repeat-option {{formData.repeatType === 3 ? 'active' : ''}}" data-type="3" bindtap="onRepeatTypeChange">
+            <text>每月</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 周重复选择 -->
+    <view class="form-section" wx:if="{{formData.repeatType === 2}}">
+      <view class="form-item">
+        <text class="form-label">选择星期</text>
+        <view class="weekday-options">
+          <view class="weekday-option {{item.selected ? 'active' : ''}}" wx:for="{{weekdays}}" wx:key="value" data-index="{{index}}" bindtap="onWeekdayToggle">
+            <text>{{item.label}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 月重复选择 -->
+    <view class="form-section" wx:if="{{formData.repeatType === 3}}">
+      <view class="form-item">
+        <text class="form-label">选择日期</text>
+        <view class="monthday-options">
+          <view class="monthday-option {{item.selected ? 'active' : ''}}" wx:for="{{monthdays}}" wx:key="value" data-index="{{index}}" bindtap="onMonthdayToggle">
+            <text>{{item.label}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+
+  <!-- 删除按钮（编辑模式） -->
+  <view class="delete-section" wx:if="{{isEditing}}">
+    <view class="delete-btn" bindtap="onDelete">
+      <van-icon name="delete-o" size="18px" color="#ee0a24" />
+      <text>删除任务</text>
+    </view>
+  </view>
+
+  <!-- 删除确认弹窗 -->
+  <van-dialog id="delete-dialog" show="{{showDeleteDialog}}" title="确认删除" message="删除后无法恢复，确定要删除此任务吗？" show-cancel-button confirm-button-text="删除" confirm-button-color="#ee0a24" bind:close="onDeleteDialogClose" bind:confirm="onDeleteConfirm" />
+
+  <!-- 清单选择弹窗 -->
+  <van-popup show="{{showListPopup}}" position="bottom" bind:close="onListPopupClose">
+    <view class="popup-header">
+      <text class="popup-title">选择清单</text>
+      <van-icon name="cross" size="20px" color="#999" bindtap="onListPopupClose" />
+    </view>
+    <scroll-view class="popup-scroll" scroll-y>
+      <view class="list-option {{formData.listId === item._id ? 'active' : ''}}" wx:for="{{availableLists}}" wx:key="_id" data-id="{{item._id}}" bindtap="onListSelect">
+        <view class="list-icon-small" style="background-color: {{item.isShared ? '#E8F5E9' : '#E3F2FD'}}">
+          <van-icon name="{{item.isShared ? 'friends-o' : 'label-o'}}" size="16px" color="{{item.isShared ? '#2E7D32' : '#1976D2'}}" />
+        </view>
+        <text class="list-name">{{item.name}}</text>
+        <van-icon name="success" size="18px" color="#1976D2" wx:if="{{formData.listId === item._id}}" />
+      </view>
+    </scroll-view>
+  </van-popup>
+
+  <!-- 分类选择弹窗 -->
+  <van-popup show="{{showCategoryPopup}}" position="bottom" bind:close="onCategoryPopupClose">
+    <view class="popup-header">
+      <text class="popup-title">选择分类</text>
+      <van-icon name="cross" size="20px" color="#999" bindtap="onCategoryPopupClose" />
+    </view>
+    <scroll-view class="popup-scroll" scroll-y>
+      <view class="category-option {{!formData.categoryId ? 'active' : ''}}" data-id="" bindtap="onCategorySelect">
+        <text class="category-name">不设置分类</text>
+        <van-icon name="success" size="18px" color="#1976D2" wx:if="{{!formData.categoryId}}" />
+      </view>
+      <view class="category-option {{formData.categoryId === item._id ? 'active' : ''}}" wx:for="{{availableCategories}}" wx:key="_id" data-id="{{item._id}}" data-name="{{item.name}}" data-color="{{item.color}}" bindtap="onCategorySelect">
+        <view class="category-dot" style="background-color: {{item.color || '#1976D2'}}"></view>
+        <text class="category-name">{{item.name}}</text>
+        <van-icon name="success" size="18px" color="#1976D2" wx:if="{{formData.categoryId === item._id}}" />
+      </view>
+    </scroll-view>
+  </van-popup>
+</view>

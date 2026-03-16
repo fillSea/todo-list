@@ -1,0 +1,312 @@
+/* 页面容器 */
+.list-invite-accept-container {
+  min-height: 100vh;
+  background-color: #F5F5F5;
+  padding-bottom: 32px;
+}
+
+/* 加载状态 */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 32px;
+}
+
+.loading-text {
+  margin-top: 16px;
+  font-size: 14px;
+  color: #999;
+}
+
+/* 错误状态 */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 80px 32px;
+}
+
+.error-title {
+  margin-top: 16px;
+  font-size: 16px;
+  color: #333;
+  font-weight: 500;
+}
+
+.error-desc {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #999;
+  text-align: center;
+}
+
+.error-action {
+  margin-top: 24px;
+  padding: 12px 32px;
+  background-color: #1976D2;
+  color: #fff;
+  font-size: 15px;
+  border-radius: 24px;
+}
+
+/* 顶部标题 */
+.header {
+  padding: 16px;
+  text-align: center;
+  background-color: #fff;
+  border-bottom: 1rpx solid #eee;
+}
+
+.header-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* 邀请卡片 */
+.invite-card {
+  background-color: #fff;
+  margin: 16px;
+  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* 清单信息 */
+.list-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.list-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3rpx solid;
+}
+
+.list-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.list-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.list-desc {
+  font-size: 14px;
+  color: #999;
+}
+
+/* 分隔线 */
+.divider {
+  height: 1rpx;
+  background-color: #eee;
+  margin: 24px 0;
+}
+
+/* 信息标签 */
+.info-label {
+  font-size: 13px;
+  color: #999;
+  display: block;
+  margin-bottom: 12px;
+}
+
+/* 邀请人信息 */
+.inviter-info {
+  margin-bottom: 24px;
+}
+
+.inviter-detail {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.inviter-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+}
+
+.inviter-name {
+  font-size: 15px;
+  color: #333;
+  font-weight: 500;
+}
+
+/* 角色信息 */
+.role-info {
+  margin-bottom: 24px;
+}
+
+.role-detail {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background-color: #f5f5f5;
+  border-radius: 12px;
+}
+
+.role-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.role-icon.editor {
+  background-color: #4CAF50;
+}
+
+.role-icon.viewer {
+  background-color: #FF9800;
+}
+
+.role-text {
+  flex: 1;
+}
+
+.role-name {
+  font-size: 15px;
+  color: #333;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.role-desc {
+  font-size: 13px;
+  color: #999;
+}
+
+/* 成员预览 */
+.members-preview {
+  margin-bottom: 8px;
+}
+
+.member-avatars {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.member-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2rpx solid #fff;
+}
+
+.member-more {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #999;
+}
+
+/* 操作区域 */
+.action-section {
+  margin: 0 16px;
+}
+
+.approval-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background-color: #FFF3E0;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.approval-notice text {
+  font-size: 13px;
+  color: #F57C00;
+}
+
+.action-btns {
+  display: flex;
+  gap: 16px;
+}
+
+.btn {
+  flex: 1;
+  padding: 14px;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: center;
+  border-radius: 24px;
+}
+
+.btn.reject {
+  background-color: #f5f5f5;
+  color: #666;
+}
+
+.btn.accept {
+  background-color: #1976D2;
+  color: #fff;
+}
+
+.btn.primary {
+  background-color: #1976D2;
+  color: #fff;
+  margin-top: 16px;
+}
+
+/* 成员提示 */
+.member-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px;
+  margin: 0 16px;
+  background-color: #E8F5E9;
+  border-radius: 12px;
+}
+
+.member-notice text {
+  margin-top: 12px;
+  font-size: 15px;
+  color: #2E7D32;
+}
+
+/* 已处理提示 */
+.processed-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px;
+  margin: 0 16px;
+  background-color: #f5f5f5;
+  border-radius: 12px;
+}
+
+.processed-notice text {
+  margin-top: 12px;
+  font-size: 15px;
+  color: #666;
+}

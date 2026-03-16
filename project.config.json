@@ -42,7 +42,14 @@
     "useCompilerPlugins": false,
     "condition": false,
     "swc": false,
-    "disableSWC": true
+    "disableSWC": true,
+    "packNpmManually": true,
+    "packNpmRelationList": [
+      {
+        "packageJsonPath": "./package.json",
+        "miniprogramNpmDistDir": "./miniprogram/"
+      }
+    ]
   },
   "appid": "wx8df2ddc87a657d37",
   "projectname": "quickstart-wx-cloud",

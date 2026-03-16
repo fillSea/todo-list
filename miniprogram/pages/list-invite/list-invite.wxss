@@ -1,0 +1,470 @@
+/* 页面容器 */
+.list-invite-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #F5F5F5;
+}
+
+/* 顶部导航栏 */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #fff;
+  border-bottom: 1rpx solid #eee;
+}
+
+.header-left {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #333;
+}
+
+.header-right {
+  width: 40px;
+}
+
+/* 清单信息 */
+.list-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background-color: #fff;
+  margin-bottom: 12px;
+}
+
+.list-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2rpx solid;
+}
+
+.list-meta {
+  flex: 1;
+}
+
+.list-name {
+  font-size: 16px;
+  font-weight: 500;
+  color: #333;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.list-desc {
+  font-size: 13px;
+  color: #999;
+}
+
+/* 邀请方式选择 */
+.invite-methods {
+  background-color: #fff;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 16px;
+}
+
+.methods-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.method-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 8px;
+  background-color: #f5f5f5;
+  border-radius: 12px;
+  transition: all 0.3s;
+}
+
+.method-item:active {
+  transform: scale(0.95);
+  opacity: 0.8;
+}
+
+.method-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.method-icon.wechat {
+  background-color: #07C160;
+}
+
+.method-icon.link {
+  background-color: #1976D2;
+}
+
+.method-icon.search {
+  background-color: #FF9800;
+}
+
+.method-icon.recent {
+  background-color: #9C27B0;
+}
+
+.method-name {
+  font-size: 13px;
+  color: #333;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.method-desc {
+  font-size: 11px;
+  color: #999;
+}
+
+/* 待处理邀请 */
+.pending-section {
+  background-color: #fff;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.view-all {
+  font-size: 13px;
+  color: #1976D2;
+}
+
+.pending-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pending-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background-color: #f5f5f5;
+  border-radius: 12px;
+}
+
+.pending-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pending-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pending-name {
+  font-size: 15px;
+  color: #333;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.pending-role {
+  font-size: 12px;
+  color: #999;
+}
+
+.pending-status {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.pending-status.waiting {
+  background-color: #E3F2FD;
+  color: #1976D2;
+}
+
+.pending-status.expired {
+  background-color: #F5F5F5;
+  color: #999;
+}
+
+/* 最近协作成员 */
+.recent-section {
+  background-color: #fff;
+  padding: 16px;
+  flex: 1;
+}
+
+.recent-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.recent-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background-color: #f5f5f5;
+  border-radius: 12px;
+  width: calc(25% - 12px);
+  min-width: 70px;
+  position: relative;
+}
+
+.recent-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+.recent-name {
+  font-size: 12px;
+  color: #666;
+  text-align: center;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invite-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  background-color: #E3F2FD;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 弹窗样式 */
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1rpx solid #eee;
+}
+
+.popup-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.popup-content {
+  padding: 16px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* 权限选项 */
+.role-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.role-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background-color: #f5f5f5;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  transition: all 0.3s;
+}
+
+.role-option.active {
+  background-color: #E3F2FD;
+  border-color: #1976D2;
+}
+
+.role-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.role-icon.editor {
+  background-color: #4CAF50;
+}
+
+.role-icon.viewer {
+  background-color: #FF9800;
+}
+
+.role-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.role-name {
+  font-size: 15px;
+  color: #333;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.role-desc {
+  font-size: 12px;
+  color: #999;
+  line-height: 1.4;
+}
+
+.role-radio {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #ddd;
+  background-color: #fff;
+  flex-shrink: 0;
+  transition: all 0.3s;
+}
+
+.role-radio.active {
+  background-color: #1976D2;
+  border-color: #1976D2;
+}
+
+.submit-btn {
+  padding: 14px;
+  background-color: #1976D2;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: center;
+  border-radius: 24px;
+}
+
+.submit-btn:active {
+  background-color: #1565C0;
+}
+
+/* 搜索弹窗 */
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background-color: #f5f5f5;
+  border-radius: 24px;
+  margin-bottom: 16px;
+}
+
+.search-input {
+  flex: 1;
+  font-size: 15px;
+  color: #333;
+}
+
+.search-clear {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.result-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background-color: #f5f5f5;
+  border-radius: 12px;
+}
+
+.result-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.result-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.result-name {
+  font-size: 15px;
+  color: #333;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.result-id {
+  font-size: 12px;
+  color: #999;
+}
+
+.result-btn {
+  padding: 8px 16px;
+  background-color: #1976D2;
+  color: #fff;
+  font-size: 14px;
+  border-radius: 16px;
+}
+
+.search-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 16px;
+  color: #999;
+}
+
+.search-empty text {
+  margin-top: 12px;
+  font-size: 14px;
+}

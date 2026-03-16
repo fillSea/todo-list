@@ -1,0 +1,384 @@
+.profile-container {
+  min-height: 100vh;
+  background: #F5F5F5;
+  padding-bottom: 40rpx;
+}
+
+/* 登录卡片 */
+.login-card {
+  margin: 20rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 40rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+  transition: opacity 0.2s;
+}
+
+.login-card:active {
+  opacity: 0.7;
+}
+
+.login-content {
+  display: flex;
+  align-items: center;
+}
+
+.login-avatar {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+  background: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 30rpx;
+}
+
+.login-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-title {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 10rpx;
+}
+
+.login-subtitle {
+  font-size: 28rpx;
+  color: #999;
+}
+
+/* 用户卡片 */
+.user-card {
+  margin: 20rpx;
+  background: linear-gradient(135deg, #07C160 0%, #05A050 100%);
+  border-radius: 16rpx;
+  padding: 40rpx;
+  box-shadow: 0 8rpx 24rpx rgba(7, 193, 96, 0.3);
+  transition: transform 0.1s, box-shadow 0.2s;
+}
+
+.user-card:active {
+  transform: scale(0.98);
+  box-shadow: 0 4rpx 12rpx rgba(7, 193, 96, 0.2);
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+}
+
+.user-avatar {
+  width: 128rpx;
+  height: 128rpx;
+  border-radius: 50%;
+  border: 4rpx solid rgba(255, 255, 255, 0.3);
+  margin-right: 30rpx;
+}
+
+.user-detail {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.user-name {
+  font-size: 40rpx;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 12rpx;
+}
+
+.user-signature {
+  font-size: 28rpx;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* 快捷统计卡片 */
+.statistics-card {
+  margin: 20rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 30rpx 20rpx;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+
+.stat-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10rpx 0;
+  transition: opacity 0.2s;
+}
+
+.stat-item:active {
+  opacity: 0.6;
+}
+
+.stat-number {
+  font-size: 48rpx;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 8rpx;
+}
+
+.stat-label {
+  font-size: 26rpx;
+  color: #666;
+}
+
+.stat-divider {
+  width: 2rpx;
+  height: 60rpx;
+  background: #eee;
+}
+
+/* 数据看板卡片 */
+.dashboard-card {
+  margin: 20rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+
+.dashboard-header {
+  margin-bottom: 30rpx;
+}
+
+.dashboard-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #333;
+}
+
+/* 扇形图 */
+.pie-chart-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pie-chart {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.pie-ring {
+  width: 240rpx;
+  height: 240rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.pie-center {
+  width: 160rpx;
+  height: 160rpx;
+  background: #fff;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.pie-total {
+  font-size: 48rpx;
+  font-weight: 700;
+  color: #333;
+}
+
+.pie-label {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.pie-legend {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  padding-left: 30rpx;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  padding: 10rpx;
+  border-radius: 8rpx;
+  transition: background 0.2s;
+}
+
+.legend-item:active {
+  background: #f5f5f5;
+}
+
+.legend-color {
+  width: 24rpx;
+  height: 24rpx;
+  border-radius: 4rpx;
+  margin-right: 16rpx;
+}
+
+.legend-text {
+  flex: 1;
+  font-size: 28rpx;
+  color: #666;
+}
+
+.legend-value {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #333;
+}
+
+/* 柱状图 */
+.bar-chart-container {
+  height: 300rpx;
+}
+
+.bar-chart {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-end;
+  height: 100%;
+  padding: 20rpx 0;
+}
+
+.bar-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  padding: 0 10rpx;
+  transition: opacity 0.2s;
+}
+
+.bar-item:active {
+  opacity: 0.6;
+}
+
+.bar-wrapper {
+  width: 100%;
+  height: 200rpx;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+}
+
+.bar {
+  width: 40rpx;
+  min-height: 4rpx;
+  border-radius: 8rpx 8rpx 0 0;
+  transition: height 0.3s ease;
+}
+
+.bar-label {
+  font-size: 22rpx;
+  color: #999;
+  margin-top: 10rpx;
+}
+
+.bar-value {
+  font-size: 20rpx;
+  color: #07C160;
+  margin-bottom: 4rpx;
+}
+
+.empty-chart {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-text {
+  font-size: 28rpx;
+  color: #ccc;
+  margin-top: 20rpx;
+}
+
+/* 功能列表 */
+.feature-list {
+  margin: 20rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  padding: 30rpx;
+  border-bottom: 1rpx solid #f5f5f5;
+  transition: background 0.2s;
+}
+
+.feature-item:last-child {
+  border-bottom: none;
+}
+
+.feature-item:active {
+  background: #f9f9f9;
+}
+
+.feature-icon {
+  width: 48rpx;
+  height: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 20rpx;
+}
+
+.feature-name {
+  flex: 1;
+  font-size: 30rpx;
+  color: #333;
+}
+
+.feature-badge {
+  background: #FF4D4F;
+  min-width: 36rpx;
+  height: 36rpx;
+  border-radius: 18rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10rpx;
+  margin-right: 20rpx;
+}
+
+.badge-text {
+  font-size: 22rpx;
+  color: #fff;
+  font-weight: 500;
+}
+
+/* 版本信息 */
+.version-info {
+  text-align: center;
+  padding: 40rpx 0;
+}
+
+.version-info text {
+  font-size: 24rpx;
+  color: #ccc;
+}
