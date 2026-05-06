@@ -62,11 +62,12 @@
 
 .day-cell {
   width: 14.28%;
-  height: 100rpx;
+  height: 120rpx;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  padding-top: 20rpx;
   position: relative;
   box-sizing: border-box;
 }
@@ -101,13 +102,29 @@
 }
 
 .day-cell.selected .periodic-badge {
-  color: rgba(255, 255, 255, 0.9);
+  color: white;
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .periodic-badge {
-  font-size: 20rpx;
+  font-size: 22rpx;
   color: #ff6b6b;
-  margin-top: 4rpx;
+  margin-top: 8rpx;
+  min-width: 36rpx;
+  height: 36rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 107, 107, 0.15);
+  border-radius: 18rpx;
+  padding: 0 10rpx;
+  font-weight: 500;
+}
+
+/* 选中日期后，后续日期的周期任务标记使用不同样式 */
+.periodic-badge.following {
+  color: #1989fa;
+  background: rgba(25, 137, 250, 0.15);
 }
 
 /* 分类标签 */
@@ -235,6 +252,28 @@
   display: flex;
   align-items: center;
   gap: 16rpx;
+}
+
+.task-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8rpx;
+}
+
+.stats-btn {
+  width: 48rpx;
+  height: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f0f0;
+  border-radius: 50%;
+  margin-bottom: 4rpx;
+}
+
+.stats-icon {
+  font-size: 28rpx;
 }
 
 .task-time {

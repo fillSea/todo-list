@@ -1,5 +1,5 @@
 // 调试模式开关
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 
 Page({
   data: {
@@ -26,11 +26,14 @@ Page({
     pendingAction: '',
 
     // 用户信息
-    userInfo: null
+    userInfo: null,
+
+    // 邀请角色
+    pendingRole: 3
   },
 
   onLoad: function (options) {
-    const { code, scene } = options;
+    const { code, scene, role } = options;
 
     // 支持两种方式传入邀请码
     const inviteCode = code || scene;
@@ -48,7 +51,8 @@ Page({
 
     this.setData({
       inviteCode,
-      userInfo
+      userInfo,
+      pendingRole: parseInt(role) || 3
     });
 
     // 加载邀请信息
@@ -91,8 +95,11 @@ Page({
         });
       } else {
         const result = await wx.cloud.callFunction({
-          name: 'getInviteInfo',
-          data: { inviteCode: this.data.inviteCode }
+          name: 'listFunctions',
+          data: {
+            action: 'getInviteInfo',
+            data: { inviteCode: this.data.inviteCode }
+          }
         });
 
         if (result.result && result.result.success) {
@@ -233,18 +240,27 @@ Page({
 
         if (pendingAction === 'accept') {
           result = await wx.cloud.callFunction({
-            name: 'acceptInvite',
-            data: { inviteCode }
+            name: 'listFunctions',
+            data: {
+              action: 'acceptInvite',
+              data: { inviteCode }
+            }
           });
         } else if (pendingAction === 'apply') {
           result = await wx.cloud.callFunction({
-            name: 'applyJoinList',
-            data: { inviteCode }
+            name: 'listFunctions',
+            data: {
+              action: 'applyJoinList',
+              data: { inviteCode }
+            }
           });
         } else if (pendingAction === 'reject') {
           result = await wx.cloud.callFunction({
-            name: 'rejectInvite',
-            data: { inviteCode }
+            name: 'listFunctions',
+            data: {
+              action: 'rejectInvite',
+              data: { inviteCode }
+            }
           });
         }
 

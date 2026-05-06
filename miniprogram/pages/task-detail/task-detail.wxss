@@ -1,127 +1,463 @@
-.container {
-  padding: 20rpx;
-  background: #f5f5f5;
+/* 页面容器 */
+.task-edit-container {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
+  background-color: #F5F5F5;
 }
 
-.form-item {
+/* 顶部导航栏 */
+.header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: white;
-  padding: 30rpx;
-  margin-bottom: 20rpx;
-  border-radius: 16rpx;
+  padding: 12px 16px;
+  background-color: #fff;
+  border-bottom: 1rpx solid #eee;
+}
+
+.header-left {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #333;
+}
+
+.header-right {
+  width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.save-btn {
+  font-size: 15px;
+  color: #1976D2;
+  font-weight: 500;
+}
+
+.save-btn:active {
+  opacity: 0.7;
+}
+
+/* 表单滚动区域 */
+.form-scroll {
+  flex: 1;
+  padding: 12px 0;
+}
+
+/* 表单分组 */
+.form-section {
+  background-color: #fff;
+  margin-bottom: 12px;
+  padding: 0 16px;
+}
+
+.form-item {
+  padding: 16px 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.form-item:last-child {
+  border-bottom: none;
 }
 
 .form-label {
+  display: block;
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.form-label.required::after {
+  content: '*';
+  color: #ee0a24;
+  margin-left: 4px;
+}
+
+/* 标题行（带复选框） */
+.title-row {
   display: flex;
   align-items: center;
-  gap: 20rpx;
+  gap: 12px;
 }
 
-.form-label-text {
-  font-size: 32rpx;
-  color: #333;
-  font-weight: 500;
-}
-
-.label-text {
-  font-size: 32rpx;
-  color: #333;
-  font-weight: 500;
-}
-
-.form-input {
+.title-input {
   flex: 1;
-  text-align: right;
-  font-size: 30rpx;
+}
+
+/* 输入框 */
+.form-input {
+  font-size: 16px;
   color: #333;
+  height: 24px;
+  line-height: 24px;
+}
+
+/* 文本域 */
+.form-textarea {
+  font-size: 16px;
+  color: #333;
+  min-height: 80px;
+  line-height: 1.6;
+  width: 100%;
+}
+
+/* 选择器 */
+.form-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .picker-value {
+  font-size: 16px;
+  color: #333;
+  flex: 1;
+}
+
+.picker-value.placeholder {
+  color: #999;
+}
+
+/* 优先级选项 */
+.priority-options {
   display: flex;
-  align-items: center;
-  gap: 10rpx;
-  font-size: 30rpx;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.priority-option {
+  padding: 8px 16px;
+  border-radius: 16px;
+  font-size: 13px;
+  border: 1rpx solid transparent;
+  transition: all 0.3s;
+}
+
+.priority-option.priority-1 {
+  background-color: #f5f5f5;
   color: #666;
 }
 
-.arrow {
-  color: #999;
-  font-size: 28rpx;
+.priority-option.priority-2 {
+  background-color: #FFF3E0;
+  color: #F57C00;
 }
 
-.form-item-textarea {
-  flex-direction: column;
-  align-items: flex-start;
+.priority-option.priority-3 {
+  background-color: #E3F2FD;
+  color: #1976D2;
 }
 
-.form-textarea {
-  width: 100%;
-  height: 200rpx;
-  margin-top: 20rpx;
-  font-size: 30rpx;
-  color: #333;
-  line-height: 1.6;
+.priority-option.priority-4 {
+  background-color: #FFEBEE;
+  color: #C62828;
 }
 
-/* 星期选择器 */
-.weekday-selector {
+.priority-option.active {
+  border-color: currentColor;
+  font-weight: 500;
+}
+
+/* 重复选项 */
+.repeat-options {
   display: flex;
-  gap: 16rpx;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.weekday-item {
-  width: 64rpx;
-  height: 64rpx;
+.repeat-option {
+  padding: 8px 16px;
+  border-radius: 16px;
+  font-size: 13px;
+  background-color: #f5f5f5;
+  color: #666;
+  border: 1rpx solid transparent;
+  transition: all 0.3s;
+}
+
+.repeat-option.active {
+  background-color: #E3F2FD;
+  color: #1976D2;
+  border-color: #1976D2;
+  font-weight: 500;
+}
+
+/* 星期选择 */
+.weekday-options {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.weekday-option {
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #f5f5f5;
-  font-size: 28rpx;
+  background-color: #f5f5f5;
+  font-size: 13px;
   color: #666;
+  transition: all 0.3s;
 }
 
-.weekday-item.selected {
-  background: #1989fa;
-  color: white;
+.weekday-option.active {
+  background-color: #1976D2;
+  color: #fff;
 }
 
-/* 底部按钮 */
-.button-group {
+/* 日期选择 */
+.monthday-options {
   display: flex;
-  gap: 20rpx;
-  margin-top: 40rpx;
-  padding: 20rpx;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.btn {
+.monthday-option {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: #f5f5f5;
+  font-size: 12px;
+  color: #666;
+  transition: all 0.3s;
+}
+
+.monthday-option.active {
+  background-color: #1976D2;
+  color: #fff;
+}
+
+/* 分类标签 */
+.category-tag {
+  font-size: 13px;
+  padding: 4px 12px;
+  border-radius: 12px;
+}
+
+/* 底部按钮区域 */
+.bottom-actions {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  background-color: #fff;
+  border-top: 1rpx solid #eee;
+}
+
+.action-btn {
   flex: 1;
-  height: 88rpx;
-  line-height: 88rpx;
-  text-align: center;
-  border-radius: 44rpx;
-  font-size: 32rpx;
-  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  transition: all 0.3s;
 }
 
-.btn-cancel {
-  background: #f5f5f5;
+.action-btn:active {
+  opacity: 0.8;
+}
+
+.delete-btn {
+  background-color: #ffebee;
+  color: #ee0a24;
+}
+
+.cancel-btn {
+  background-color: #f5f5f5;
   color: #666;
 }
 
-.btn-delete {
-  background: #ff4d4f;
-  color: white;
+.save-btn {
+  background-color: #1976D2;
+  color: #fff;
 }
 
-.btn-save {
-  background: #1989fa;
-  color: white;
+/* 弹窗样式 */
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1rpx solid #eee;
 }
 
-.btn::after {
-  border: none;
+.popup-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.popup-scroll {
+  max-height: 400px;
+  padding: 8px 0;
+}
+
+/* 清单选项 */
+.list-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  transition: background-color 0.3s;
+}
+
+.list-option:active {
+  background-color: #f5f5f5;
+}
+
+.list-option.active {
+  background-color: #E3F2FD;
+}
+
+.list-icon-small {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.list-option .list-name {
+  flex: 1;
+  font-size: 15px;
+  color: #333;
+}
+
+/* 分类选项 */
+.category-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  transition: background-color 0.3s;
+}
+
+.category-option:active {
+  background-color: #f5f5f5;
+}
+
+.category-option.active {
+  background-color: #E3F2FD;
+}
+
+.category-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.category-name {
+  flex: 1;
+  font-size: 15px;
+  color: #333;
+}
+
+/* 附件样式 */
+.attachment-list {
+  margin-bottom: 12px;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+
+.attachment-item:last-child {
+  border-bottom: none;
+}
+
+.attachment-info {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.attachment-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.attachment-icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+  border-radius: 6px;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.attachment-detail {
+  flex: 1;
+  overflow: hidden;
+}
+
+.attachment-name {
+  display: block;
+  font-size: 14px;
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-size {
+  display: block;
+  font-size: 12px;
+  color: #999;
+  margin-top: 2px;
+}
+
+.attachment-delete {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.attachment-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  border: 2rpx dashed #ddd;
+  border-radius: 8px;
+  margin-top: 8px;
+}
+
+.attachment-add-text {
+  font-size: 14px;
+  color: #999;
 }

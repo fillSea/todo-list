@@ -1,0 +1,80 @@
+@startuml 数据看板加载流程图
+' 图5.14 数据看板加载流程图
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+
+skinparam activity {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  DiamondBackgroundColor #FFF8E1
+  DiamondBorderColor #F57F17
+}
+
+start
+
+:前端调用云函数\nprofileFunctions.getDashboardData;
+
+partition "云函数 getDashboardData" {
+
+  :通过 OpenID 查询 users 集合\n获取 userId;
+  
+  if (用户存在?) then (是)
+  else (否)
+    :返回空数据;
+    stop
+  endif
+  
+  :获取今天零点时间 todayStart;
+  
+  ' ===== 饼图数据：并行查询 =====
+  partition "饼图数据（Promise.all 并行）" {
+    fork
+      :查询已完成的非周期任务\nWHERE creatorId=userId\nAND status=1\nAND repeatType<=0;
+      :结果 → normalCompleted;
+    fork again
+      :查询未完成未逾期的非周期任务\nWHERE status=0\nAND dueDate>=todayStart\nAND repeatType<=0;
+      :结果 → normalUncompleted;
+    fork again
+      :查询已逾期的非周期任务\nWHERE status=0\nAND dueDate<todayStart\nAND repeatType<=0;
+      :结果 → normalOverdue;
+    end fork
+    
+    ' 周期任务智能过滤
+    fork
+      :filterPeriodicTasksForStats\n(userId, {status:1})\n已完成的周期实例;
+      :结果 → periodicCompleted;
+    fork again
+      :filterPeriodicTasksForStats\n(userId, {status:0, not_overdue})\n未完成未逾期的周期实例;
+      :结果 → periodicUncompleted;
+    fork again
+      :filterPeriodicTasksForStats\n(userId, {status:0, overdue})\n已逾期的周期实例;
+      :结果 → periodicOverdue;
+    end fork
+    
+    :合并统计\ncompleted = normalCompleted + periodicCompleted\nuncompleted = normalUncompleted + periodicUncompleted\noverdue = normalOverdue + periodicOverdue;
+  }
+  
+  ' ===== 柱状图数据：近7天 =====
+  partition "柱状图数据（近7天逐日查询）" {
+    :i = 6（从6天前到今天）;
+    while (i >= 0 ?) is (是)
+      :计算第 i 天的\nstartOfDay 和 endOfDay;
+      :查询该天完成的任务数\nWHERE creatorId=userId\nAND status=1\nAND updatedAt 在当天范围内;
+      :记录 {date, count}\n加入 barChart 数组;
+      :i = i - 1;
+    endwhile (否)
+  }
+  
+  :组装返回数据\n{ pieChart, barChart };
+}
+
+:前端接收数据;
+
+fork
+  :渲染饼图\n已完成(绿) / 未完成(蓝) / 已逾期(红);
+fork again
+  :渲染柱状图\n横轴=日期 / 纵轴=完成数量;
+end fork
+
+stop
+
+@enduml

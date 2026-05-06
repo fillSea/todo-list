@@ -1,0 +1,43 @@
+@startuml 分类实体E-R图
+' ============================================
+' 图4.6 分类实体属性图
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+' ============================================
+
+skinparam defaultFontSize 13
+skinparam defaultFontName Microsoft YaHei
+skinparam backgroundColor white
+skinparam shadowing false
+
+skinparam rectangle {
+  BorderColor #000000
+  BackgroundColor #FFFFFF
+  FontSize 14
+  FontStyle bold
+  BorderThickness 2
+}
+
+skinparam usecase {
+  BorderColor #000000
+  BackgroundColor #FFFFFF
+  FontSize 12
+  BorderThickness 1.5
+}
+
+rectangle "分类表\ncategories" as E1
+
+usecase "分类ID" as A1
+usecase "名称" as A2
+usecase "颜色" as A3
+usecase "所属用户ID" as A4
+usecase "创建时间" as A5
+usecase "更新时间" as A6
+
+E1 -- A1
+E1 -- A2
+E1 -- A3
+E1 -- A4
+E1 -- A5
+E1 -- A6
+
+@enduml

@@ -1,0 +1,64 @@
+<view class="my-lists-container">
+  <!-- 清单列表 -->
+  <view class="lists-wrapper">
+    <view class="list-card {{item.isShared ? 'shared' : 'personal'}}" wx:for="{{lists}}" wx:key="_id" bindtap="onListTap" data-id="{{item._id}}">
+      <!-- 清单图标 -->
+      <view class="list-icon" style="background-color: {{item.isShared ? '#E8F5E9' : '#E3F2FD'}}; border: 2rpx solid {{item.isShared ? '#2E7D32' : '#1976D2'}}">
+        <van-icon name="{{item.isShared ? 'friends-o' : 'label-o'}}" size="24px" color="{{item.isShared ? '#2E7D32' : '#1976D2'}}" />
+      </view>
+      <!-- 清单内容 -->
+      <view class="list-content">
+        <view class="list-header">
+          <text class="list-name">{{item.name}}</text>
+          <view class="list-tag {{item.isShared ? 'shared-tag' : 'personal-tag'}}">
+            {{item.isShared ? '共享' : '个人'}}
+          </view>
+        </view>
+        <view class="list-stats">
+          <text class="stats-text">{{item.taskCount || 0}}个任务</text>
+          <text class="stats-dot" wx:if="{{item.pendingCount > 0}}">•</text>
+          <text class="stats-highlight" wx:if="{{item.pendingCount > 0}}">
+            {{item.pendingCount}}个待完成
+          </text>
+        </view>
+        <!-- 进度条 -->
+        <view class="progress-wrapper">
+          <view class="progress-bar">
+            <view class="progress-fill" style="width: {{item.progress || 0}}%; background-color: {{item.progressColor || '#4CAF50'}}"></view>
+          </view>
+          <text class="progress-text">{{item.progress || 0}}%</text>
+        </view>
+        <!-- 共享清单成员头像 -->
+        <view class="list-footer" wx:if="{{item.isShared}}">
+          <view class="member-avatars">
+            <image class="member-avatar" wx:for="{{item.members}}" wx:for-item="member" wx:key="index" src="{{member.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
+            <view class="member-more" wx:if="{{item.memberCount > 3}}">
+              +{{item.memberCount - 3}}
+            </view>
+          </view>
+          <text class="update-time">{{item.updatedAtFormatted}}</text>
+        </view>
+        <!-- 个人清单更新时间 -->
+        <view class="list-footer" wx:if="{{!item.isShared}}">
+          <text class="update-time">{{item.updatedAtFormatted}}</text>
+        </view>
+      </view>
+    </view>
+    <!-- 空状态 -->
+    <view class="empty-state" wx:if="{{!loading && lists.length === 0}}">
+      <van-icon name="orders-o" size="120rpx" color="#ddd" />
+      <text class="empty-text">{{type === 'shared' ? '暂无共享清单' : '暂无清单'}}</text>
+      <text class="empty-subtext">点击右下角按钮创建新清单</text>
+    </view>
+  </view>
+  <!-- 加载更多 -->
+  <view class="loading-more" wx:if="{{loading && lists.length > 0}}">
+    <van-loading type="spinner" size="24rpx" />
+    加载中...
+  </view>
+  <view class="no-more" wx:if="{{!hasMore && lists.length > 0}}">没有更多了</view>
+  <!-- 创建按钮 -->
+  <view class="fab-btn" bindtap="onCreateList">
+    <text class="fab-icon">+</text>
+  </view>
+</view>

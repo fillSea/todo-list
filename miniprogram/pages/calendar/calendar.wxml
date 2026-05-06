@@ -27,8 +27,8 @@
   <view class="calendar-grid">
     <view wx:for="{{calendarDays}}" wx:key="date" class="day-cell {{item.isCurrentMonth ? '' : 'other-month'}} {{item.isToday ? 'today' : ''}} {{selectedDate === item.date ? 'selected' : ''}}" bindtap="onSelectDate" data-date="{{item.date}}">
       <text class="day-number">{{item.day}}</text>
-      <view wx:if="{{item.periodicCount > 0}}" class="periodic-badge">
-        [{{item.periodicCount}}]
+      <view wx:if="{{item.periodicCount > 0}}" class="periodic-badge {{selectedDate && item.date !== selectedDate ? 'following' : ''}}">
+        {{item.periodicCount}}
       </view>
     </view>
   </view>
@@ -49,9 +49,9 @@
         <text class="section-title">进行中</text>
         <text class="section-count">{{inProgressTasks.length}}</text>
       </view>
-      <view wx:for="{{inProgressTasks}}" wx:key="_id" class="task-item" style="border-left-color: {{item.priorityColor}}" bindtap="onTaskTap" data-id="{{item._id}}">
+      <view wx:for="{{inProgressTasks}}" wx:key="_id" class="task-item" style="border-left-color: {{item.priorityColor}}">
         <van-checkbox value="{{item.status === 1}}" bind:change="onTaskComplete" data-id="{{item._id}}" shape="round" catchtap="onCheckboxTap" />
-        <view class="task-content">
+        <view class="task-content" bindtap="onTaskTap" data-id="{{item._id}}">
           <view class="task-title">{{item.title}}</view>
           <view class="task-meta">
             <van-tag wx:if="{{item.repeatType > 0}}" type="primary" size="small">周期</van-tag>
@@ -60,7 +60,12 @@
             </van-tag>
           </view>
         </view>
-        <view class="task-time">{{item.time}}</view>
+        <view class="task-actions">
+          <view wx:if="{{item.repeatType > 0}}" class="stats-btn" catchtap="onViewStats" data-id="{{item.parentTaskId || item._id}}" data-title="{{item.title}}">
+            <text class="stats-icon">📊</text>
+          </view>
+          <view class="task-time">{{item.time}}</view>
+        </view>
       </view>
     </view>
     <!-- 已过期 -->
@@ -69,9 +74,9 @@
         <text class="section-title">已过期</text>
         <text class="section-count">{{overdueTasks.length}}</text>
       </view>
-      <view wx:for="{{overdueTasks}}" wx:key="_id" class="task-item" style="border-left-color: {{item.priorityColor}}" bindtap="onTaskTap" data-id="{{item._id}}">
+      <view wx:for="{{overdueTasks}}" wx:key="_id" class="task-item" style="border-left-color: {{item.priorityColor}}">
         <van-checkbox value="{{item.status === 1}}" bind:change="onTaskComplete" data-id="{{item._id}}" shape="round" catchtap="onCheckboxTap" />
-        <view class="task-content">
+        <view class="task-content" bindtap="onTaskTap" data-id="{{item._id}}">
           <view class="task-title">{{item.title}}</view>
           <view class="task-meta">
             <van-tag wx:if="{{item.repeatType > 0}}" type="primary" size="small">周期</van-tag>
@@ -80,7 +85,12 @@
             </van-tag>
           </view>
         </view>
-        <view class="task-time overdue">{{item.time}}</view>
+        <view class="task-actions">
+          <view wx:if="{{item.repeatType > 0}}" class="stats-btn" catchtap="onViewStats" data-id="{{item.parentTaskId || item._id}}" data-title="{{item.title}}">
+            <text class="stats-icon">📊</text>
+          </view>
+          <view class="task-time overdue">{{item.time}}</view>
+        </view>
       </view>
     </view>
     <!-- 已完成 -->
@@ -89,9 +99,9 @@
         <text class="section-title">已完成</text>
         <text class="section-count">{{completedTasks.length}}</text>
       </view>
-      <view wx:for="{{completedTasks}}" wx:key="_id" class="task-item completed" style="border-left-color: {{item.priorityColor}}" bindtap="onTaskTap" data-id="{{item._id}}">
+      <view wx:for="{{completedTasks}}" wx:key="_id" class="task-item completed" style="border-left-color: {{item.priorityColor}}">
         <van-checkbox value="{{item.status === 1}}" bind:change="onTaskComplete" data-id="{{item._id}}" shape="round" catchtap="onCheckboxTap" />
-        <view class="task-content">
+        <view class="task-content" bindtap="onTaskTap" data-id="{{item._id}}">
           <view class="task-title">{{item.title}}</view>
           <view class="task-meta">
             <van-tag wx:if="{{item.repeatType > 0}}" type="primary" size="small">周期</van-tag>
@@ -100,7 +110,12 @@
             </van-tag>
           </view>
         </view>
-        <view class="task-time">{{item.time}}</view>
+        <view class="task-actions">
+          <view wx:if="{{item.repeatType > 0}}" class="stats-btn" catchtap="onViewStats" data-id="{{item.parentTaskId || item._id}}" data-title="{{item.title}}">
+            <text class="stats-icon">📊</text>
+          </view>
+          <view class="task-time">{{item.time}}</view>
+        </view>
       </view>
     </view>
     <!-- 空状态 -->

@@ -1,0 +1,76 @@
+@startuml 日历生成流程图
+' 图5.7 日历生成流程图
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+
+skinparam activity {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  DiamondBackgroundColor #FFF8E1
+  DiamondBorderColor #F57F17
+}
+
+start
+
+:获取当前年份 currentYear\n和当前月份 currentMonth;
+
+:计算当月第一天 firstDay\n和最后一天 lastDay;
+:获取当月天数 daysInMonth;
+:获取第一天是星期几 firstDayOfWeek;
+
+:初始化日历数组 calendarDays = [];
+:获取今天日期字符串 todayStr;
+
+' ===== 填充上月末尾 =====
+partition "填充上月末尾日期" {
+  :获取上月总天数 daysInPrevMonth;
+  :从 (daysInPrevMonth - firstDayOfWeek + 1)\n到 daysInPrevMonth;
+  while (还有上月日期需要填充?) is (是)
+    :添加日期格子\nisCurrentMonth = false;
+  endwhile (否)
+}
+
+' ===== 填充当月日期 =====
+partition "填充当月日期（核心）" {
+  :i = 1;
+  while (i <= daysInMonth?) is (是)
+    :生成日期字符串 dateStr\nYYYY-MM-DD 格式;
+    :判断是否是今天\nisToday = (dateStr == todayStr);
+    
+    :调用 calculatePeriodicCount(dateStr)\n计算该日期的周期任务数量;
+    
+    note right
+      calculatePeriodicCount 逻辑：
+      1. 遍历所有任务
+      2. 对每个周期任务调用
+         isTaskRepeatingOnDate()
+      3. 根据 repeatType 判断：
+         · repeatType=1 每天 → 匹配
+         · repeatType=2 每周 → 
+           检查 repeatValue 是否
+           包含该日期的星期几
+         · repeatType=3 每月 → 
+           检查 repeatValue 是否
+           包含该日期的日号
+      4. 返回匹配的任务数量
+    end note
+    
+    :添加日期格子\n{day, date, isCurrentMonth=true,\nisToday, periodicCount};
+    :i = i + 1;
+  endwhile (否)
+}
+
+' ===== 填充下月开头 =====
+partition "填充下月开头日期" {
+  :计算剩余格子数\nremaining = 42 - calendarDays.length;
+  :j = 1;
+  while (j <= remaining?) is (是)
+    :添加日期格子\nisCurrentMonth = false;
+    :j = j + 1;
+  endwhile (否)
+}
+
+:调用 setData({ calendarDays })\n渲染日历网格（6行×7列 = 42格）;
+
+stop
+
+@enduml

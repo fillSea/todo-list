@@ -61,7 +61,7 @@
               <text>编辑者</text>
               <van-icon name="arrow-down" size="12px" color="#999" />
             </view>
-            <view class="remove-btn" bindtap="onRemoveMember" data-id="{{item._id}}" data-name="{{item.nickname}}">
+            <view class="remove-btn" bindtap="onRemoveMember" data-id="{{item._id}}" data-userid="{{item.userId}}" data-name="{{item.nickname}}">
               <van-icon name="cross" size="16px" color="#ee0a24" />
             </view>
           </view>
@@ -84,7 +84,7 @@
               <text>查看者</text>
               <van-icon name="arrow-down" size="12px" color="#999" />
             </view>
-            <view class="remove-btn" bindtap="onRemoveMember" data-id="{{item._id}}" data-name="{{item.nickname}}">
+            <view class="remove-btn" bindtap="onRemoveMember" data-id="{{item._id}}" data-userid="{{item.userId}}" data-name="{{item.nickname}}">
               <van-icon name="cross" size="16px" color="#ee0a24" />
             </view>
           </view>

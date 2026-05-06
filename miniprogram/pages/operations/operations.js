@@ -1,5 +1,5 @@
 // 调试模式开关
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 
 Page({
   data: {
@@ -102,16 +102,19 @@ Page({
       } else {
         // 生产模式：调用云函数
         const result = await wx.cloud.callFunction({
-          name: 'getOperations',
+          name: 'listFunctions',
           data: {
-            listId: this.data.listId,
-            page: this.data.page,
-            pageSize: this.data.pageSize
+            action: 'getOperations',
+            data: {
+              listId: this.data.listId,
+              page: this.data.page,
+              pageSize: this.data.pageSize
+            }
           }
         });
 
-        if (result.result && result.result.success) {
-          const { operations, hasMore } = result.result;
+        if (result.result && result.result.code === 0) {
+          const { operations, hasMore } = result.result.data;
 
           // 处理时间显示
           const processedOperations = operations.map(op => ({

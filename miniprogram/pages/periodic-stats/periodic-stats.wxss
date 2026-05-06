@@ -1,0 +1,264 @@
+.container {
+  min-height: 100vh;
+  background: #f5f5f5;
+  padding-bottom: 40rpx;
+}
+
+.loading-container,
+.error-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 60vh;
+}
+
+.content {
+  padding: 20rpx;
+}
+
+.card-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 24rpx;
+}
+
+/* 任务信息 */
+.task-info-card {
+  background: white;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+}
+
+.task-title {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 16rpx;
+}
+
+.task-meta {
+  display: flex;
+  align-items: center;
+}
+
+/* 统计概览 */
+.stats-overview-card {
+  background: white;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+}
+
+.stats-grid {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 30rpx;
+}
+
+.stats-item {
+  text-align: center;
+}
+
+.stats-value {
+  font-size: 40rpx;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8rpx;
+}
+
+.stats-value.highlight { color: #1989fa; }
+.stats-value.green { color: #07c160; }
+.stats-value.red { color: #ee0a24; }
+
+.stats-label {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.progress-section {
+  margin-top: 20rpx;
+}
+
+/* 连续完成 */
+.streak-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 20rpx;
+  color: white;
+}
+
+.streak-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  margin-bottom: 24rpx;
+}
+
+.streak-content {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.streak-item {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  justify-content: center;
+}
+
+.streak-icon {
+  font-size: 48rpx;
+  margin-right: 16rpx;
+}
+
+.streak-info { text-align: left; }
+
+.streak-value {
+  font-size: 36rpx;
+  font-weight: 600;
+  margin-bottom: 4rpx;
+}
+
+.streak-label {
+  font-size: 24rpx;
+  opacity: 0.9;
+}
+
+.streak-divider {
+  width: 2rpx;
+  height: 80rpx;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* 日历 */
+.calendar-card {
+  background: white;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+}
+
+.weekday-header {
+  display: flex;
+  margin-bottom: 12rpx;
+}
+
+.weekday {
+  width: calc(100% / 7);
+  text-align: center;
+  font-size: 24rpx;
+  color: #999;
+  padding: 8rpx 0;
+}
+
+.calendar-grid {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.calendar-day {
+  width: calc(100% / 7);
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.day-number {
+  font-size: 26rpx;
+  color: #333;
+  margin-bottom: 4rpx;
+}
+
+.status-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+}
+
+.completed-dot { background: #07c160; }
+.incomplete-dot { background: #ee0a24; }
+.future-dot { background: #ccc; }
+
+.calendar-day.completed { background: #f0faf0; border-radius: 8rpx; }
+.calendar-day.incomplete { background: #fff5f5; border-radius: 8rpx; }
+.calendar-day.future { background: #f8f8f8; border-radius: 8rpx; }
+
+/* 图例 */
+.legend {
+  display: flex;
+  justify-content: center;
+  gap: 40rpx;
+  margin-bottom: 20rpx;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  font-size: 24rpx;
+  color: #666;
+}
+
+.legend-dot {
+  width: 20rpx;
+  height: 20rpx;
+  border-radius: 50%;
+  margin-right: 8rpx;
+}
+
+.legend-dot.completed-bg { background: #07c160; }
+.legend-dot.incomplete-bg { background: #ee0a24; }
+.legend-dot.future-bg { background: #ccc; }
+
+/* 历史记录 */
+.history-card {
+  background: white;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+}
+
+.history-list {
+  max-height: 600rpx;
+  overflow-y: auto;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.history-item:last-child { border-bottom: none; }
+
+.history-date {
+  font-size: 28rpx;
+  color: #333;
+}
+
+.history-status {
+  font-size: 24rpx;
+  padding: 8rpx 20rpx;
+  border-radius: 20rpx;
+}
+
+.history-status.status-completed {
+  background: #e6f7e6;
+  color: #07c160;
+}
+
+.history-status.status-incomplete {
+  background: #ffe6e6;
+  color: #ee0a24;
+}

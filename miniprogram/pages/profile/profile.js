@@ -1,55 +1,4 @@
 const app = getApp();
-const db = wx.cloud.database();
-
-// 测试数据模式 - 始终使用本地测试数据
-const USE_TEST_DATA = true;
-
-// 本地测试数据
-const TEST_DATA = {
-  // 测试用户信息
-  userInfo: {
-    _id: 'test_user_001',
-    openid: 'test_openid_001',
-    nickname: '测试用户',
-    avatarUrl: 'https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJNbrg/132',
-    signature: '这是一个测试签名，用于展示效果',
-    enableNotifications: true,
-    notificationSettings: {
-      taskReminder: true,
-      listCollaboration: true,
-      systemNotice: true
-    }
-  },
-
-  // 测试统计数据
-  statistics: {
-    myLists: 12,
-    sharedLists: 5,
-    completedTasks: 156
-  },
-
-  // 测试数据看板
-  dashboardData: {
-    pieChart: {
-      completed: 156,
-      uncompleted: 23,
-      overdue: 8,
-      total: 187
-    },
-    barChart: [
-      { date: '3-10', count: 5 },
-      { date: '3-11', count: 8 },
-      { date: '3-12', count: 12 },
-      { date: '3-13', count: 7 },
-      { date: '3-14', count: 15 },
-      { date: '3-15', count: 10 },
-      { date: '3-16', count: 6 }
-    ]
-  },
-
-  // 测试未读通知数量
-  unreadCount: 8
-};
 
 Page({
   data: {
@@ -98,35 +47,53 @@ Page({
   },
 
   onLoad: function (options) {
-    // 使用测试数据加载页面
-    this.setData({ isLogin: true });
-    this.loadAllData();
+    this.checkLoginStatus();
   },
 
   onShow: function () {
-    // 始终加载数据（使用测试数据）
-    this.loadAllData();
+    this.checkLoginStatus();
+    if (this.data.isLogin) {
+      this.loadAllData();
+    }
   },
 
   onPullDownRefresh: function () {
-    // 模拟刷新操作
+    if (!this.data.isLogin) {
+      wx.stopPullDownRefresh();
+      return;
+    }
+
     wx.showLoading({ title: '刷新中...' });
 
-    setTimeout(() => {
-      this.loadAllData().finally(() => {
-        wx.hideLoading();
-        wx.stopPullDownRefresh();
-        wx.showToast({
-          title: '刷新成功',
-          icon: 'success'
-        });
+    this.loadAllData().finally(() => {
+      wx.hideLoading();
+      wx.stopPullDownRefresh();
+      wx.showToast({
+        title: '刷新成功',
+        icon: 'success'
       });
-    }, 800);
+    });
   },
 
   // 检查登录状态
+  checkLoginStatus: function () {
+    const isLoggedIn = wx.getStorageSync('isLoggedIn') || false;
+    const userInfo = wx.getStorageSync('userInfo') || null;
+
+    this.setData({
+      isLogin: isLoggedIn,
+      userInfo: userInfo
+    });
+
+    if (isLoggedIn) {
+      this.loadAllData();
+    }
+  },
+
   // 加载所有数据
   loadAllData: async function () {
+    if (!this.data.isLogin) return;
+
     this.setData({
       'loading.userInfo': true,
       'loading.statistics': true,
@@ -157,124 +124,148 @@ Page({
     }
   },
 
-  // 加载用户信息 - 使用本地测试数据
+  // 加载用户信息
   loadUserInfo: async function () {
-    console.log('[测试数据] 加载用户信息');
-
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    this.setData({
-      userInfo: TEST_DATA.userInfo
-    });
-    wx.setStorageSync('userInfo', TEST_DATA.userInfo);
-
-    console.log('[测试数据] 用户信息:', TEST_DATA.userInfo);
-  },
-
-  // 加载统计数据 - 使用本地测试数据
-  loadStatistics: async function () {
-    console.log('[测试数据] 加载统计数据');
-
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 400));
-
-    this.setData({
-      statistics: TEST_DATA.statistics
-    });
-
-    console.log('[测试数据] 统计数据:', TEST_DATA.statistics);
-  },
-
-  // 加载数据看板 - 使用本地测试数据
-  loadDashboardData: async function () {
-    console.log('[测试数据] 加载数据看板');
-
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // 计算柱状图最大值
-    const maxBarValue = Math.max(...TEST_DATA.dashboardData.barChart.map(item => item.count), 1);
-
-    this.setData({
-      dashboardData: TEST_DATA.dashboardData,
-      maxBarValue: maxBarValue
-    });
-
-    console.log('[测试数据] 数据看板:', TEST_DATA.dashboardData);
-  },
-
-  // 加载未读通知数量 - 使用本地测试数据
-  loadUnreadCount: async function () {
-    console.log('[测试数据] 加载未读通知数量');
-
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 200));
-
-    const count = TEST_DATA.unreadCount;
-
-    // 更新功能列表中的通知角标
-    const featureList = this.data.featureList.map((item, index) => {
-      if (index === 2) { // 我的通知
-        return { ...item, badge: count };
-      }
-      return item;
-    });
-
-    this.setData({
-      unreadCount: count,
-      featureList: featureList
-    });
-
-    // 设置TabBar红点
-    if (count > 0) {
-      wx.setTabBarBadge({
-        index: 3,
-        text: count > 99 ? '99+' : String(count)
+    try {
+      const res = await wx.cloud.callFunction({
+        name: 'profileFunctions',
+        data: {
+          action: 'getUserInfo'
+        }
       });
-    } else {
-      wx.removeTabBarBadge({ index: 3 });
-    }
 
-    console.log('[测试数据] 未读通知数量:', count);
+      if (res.result && res.result.code === 0) {
+        const userInfo = res.result.data;
+        this.setData({ userInfo });
+        wx.setStorageSync('userInfo', userInfo);
+      }
+    } catch (error) {
+      console.error('加载用户信息失败:', error);
+      // 使用本地缓存数据
+      const localUserInfo = wx.getStorageSync('userInfo');
+      if (localUserInfo) {
+        this.setData({ userInfo: localUserInfo });
+      }
+    }
+  },
+
+  // 加载统计数据
+  loadStatistics: async function () {
+    try {
+      const res = await wx.cloud.callFunction({
+        name: 'profileFunctions',
+        data: {
+          action: 'getUserStatistics'
+        }
+      });
+
+      if (res.result && res.result.code === 0) {
+        this.setData({
+          statistics: res.result.data
+        });
+      }
+    } catch (error) {
+      console.error('加载统计数据失败:', error);
+    }
+  },
+
+  // 加载数据看板
+  loadDashboardData: async function () {
+    try {
+      const res = await wx.cloud.callFunction({
+        name: 'profileFunctions',
+        data: {
+          action: 'getDashboardData'
+        }
+      });
+
+      if (res.result && res.result.code === 0) {
+        const dashboardData = res.result.data;
+        const maxBarValue = Math.max(...dashboardData.barChart.map(item => item.count), 1);
+
+        this.setData({
+          dashboardData: dashboardData,
+          maxBarValue: maxBarValue
+        });
+      }
+    } catch (error) {
+      console.error('加载数据看板失败:', error);
+    }
+  },
+
+  // 加载未读通知数量
+  loadUnreadCount: async function () {
+    try {
+      const res = await wx.cloud.callFunction({
+        name: 'profileFunctions',
+        data: {
+          action: 'getUnreadNotificationCount'
+        }
+      });
+
+      if (res.result && res.result.code === 0) {
+        const count = res.result.data.count;
+
+        // 更新功能列表中的通知角标
+        const featureList = this.data.featureList.map((item, index) => {
+          if (index === 2) { // 我的通知
+            return { ...item, badge: count };
+          }
+          return item;
+        });
+
+        this.setData({
+          unreadCount: count,
+          featureList: featureList
+        });
+
+        // 设置TabBar红点
+        if (count > 0) {
+          wx.setTabBarBadge({
+            index: 3,
+            text: count > 99 ? '99+' : String(count)
+          });
+        } else {
+          wx.removeTabBarBadge({ index: 3 });
+        }
+      }
+    } catch (error) {
+      console.error('加载未读通知数量失败:', error);
+    }
   },
 
   // 点击用户卡片 - 编辑资料
   onUserCardTap: function () {
-    // 添加点击反馈
-    wx.vibrateShort({ type: 'light' });
-
-    console.log('[点击事件] 用户卡片');
-    wx.showModal({
-      title: '用户资料',
-      content: `昵称: ${this.data.userInfo.nickname}\n签名: ${this.data.userInfo.signature}`,
-      showCancel: false
-    });
+    if (!this.data.isLogin) {
+      wx.navigateTo({
+        url: '/pages/register/register'
+      });
+    } else {
+      wx.navigateTo({
+        url: '/pages/register/register'
+      });
+    }
   },
 
   // 点击统计项
   onStatisticTap: function (e) {
     const type = e.currentTarget.dataset.type;
-    const typeNames = {
-      myLists: '我的清单',
-      sharedLists: '共享清单',
-      completedTasks: '已完成任务'
-    };
-    const typeValues = {
-      myLists: this.data.statistics.myLists,
-      sharedLists: this.data.statistics.sharedLists,
-      completedTasks: this.data.statistics.completedTasks
-    };
 
-    // 添加点击反馈
-    wx.vibrateShort({ type: 'light' });
-
-    console.log(`[点击事件] 统计项: ${typeNames[type]}`);
-    wx.showModal({
-      title: typeNames[type],
-      content: `数量: ${typeValues[type]}`,
-      showCancel: false
-    });
+    // 跳转到对应页面
+    if (type === 'myLists') {
+      wx.navigateTo({
+        url: '/pages/profile/my-lists/my-lists'
+      });
+    } else if (type === 'sharedLists') {
+      wx.navigateTo({
+        url: '/pages/profile/my-lists/my-lists?type=shared'
+      });
+    } else if (type === 'completedTasks') {
+      // 跳转到任务页面并筛选已完成
+      wx.switchTab({
+        url: '/pages/index/index'
+      });
+    }
   },
 
   // 点击功能项
@@ -282,26 +273,11 @@ Page({
     const index = e.currentTarget.dataset.index;
     const feature = this.data.featureList[index];
 
-    // 添加点击反馈
-    wx.vibrateShort({ type: 'light' });
-
-    console.log(`[点击事件] 功能项: ${feature.name}`);
-
-    // 根据功能显示不同的提示
-    const featureDescriptions = {
-      '我的清单': '查看和管理您的所有待办清单',
-      '分类标签': '管理任务分类标签',
-      '我的通知': `您有 ${this.data.unreadCount} 条未读通知`,
-      '通知设置': '配置消息提醒方式',
-      '帮助中心': '查看使用帮助和常见问题',
-      '关于我们': '应用版本信息和开发者信息'
-    };
-
-    wx.showModal({
-      title: feature.name,
-      content: featureDescriptions[feature.name] || '功能详情',
-      showCancel: false
-    });
+    if (feature.path) {
+      wx.navigateTo({
+        url: feature.path
+      });
+    }
   },
 
   // 扇形图点击事件
@@ -312,19 +288,10 @@ Page({
       uncompleted: '未完成',
       overdue: '已逾期'
     };
-    const typeValues = {
-      completed: this.data.dashboardData.pieChart.completed,
-      uncompleted: this.data.dashboardData.pieChart.uncompleted,
-      overdue: this.data.dashboardData.pieChart.overdue
-    };
 
-    // 添加点击反馈
-    wx.vibrateShort({ type: 'light' });
-
-    console.log(`[点击事件] 扇形图: ${typeNames[type]}`);
     wx.showModal({
       title: `${typeNames[type]}任务`,
-      content: `数量: ${typeValues[type]}`,
+      content: `数量: ${this.data.dashboardData.pieChart[type]}`,
       showCancel: false
     });
   },
@@ -334,10 +301,6 @@ Page({
     const date = e.currentTarget.dataset.date;
     const count = e.currentTarget.dataset.count;
 
-    // 添加点击反馈
-    wx.vibrateShort({ type: 'light' });
-
-    console.log(`[点击事件] 柱状图: ${date}`);
     wx.showModal({
       title: `${date} 完成统计`,
       content: `完成任务数: ${count || 0}`,

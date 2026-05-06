@@ -1,0 +1,108 @@
+@startuml 成员邀请流程图
+' 图5.9 成员邀请流程图
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+
+skinparam activity {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  DiamondBackgroundColor #FFF8E1
+  DiamondBorderColor #F57F17
+}
+
+|创建者|
+start
+
+:进入清单详情页\n点击"邀请成员";
+
+:选择邀请方式;
+
+switch (邀请方式?)
+case (微信好友邀请)
+  :调用云函数\ncreateWechatInvite;
+  :生成16位随机邀请码;
+  :创建邀请记录\nstatus=0, expireAt=7天后;
+  :通过微信分享\n发送邀请卡片给好友;
+
+case (链接邀请)
+  :设置邀请参数\n角色 / 有效期 / 是否审批;
+  :调用云函数\ngenerateInviteLink;
+  :生成16位随机邀请码;
+  :计算过期时间;
+  :创建邀请记录\nstatus=0, inviteType=link;
+  :展示邀请链接和小程序码\n支持复制链接;
+
+case (搜索用户邀请)
+  :输入用户昵称;
+  :调用云函数 searchUser\n模糊搜索匹配用户;
+  :选择目标用户\n设置邀请角色;
+  :调用云函数 inviteMember;
+  :检查是否已是成员;
+  if (已是成员?) then (是)
+    :提示"该用户已是清单成员";
+    stop
+  else (否)
+  endif
+  :添加成员记录到 list_members;
+  :创建通知给被邀请人;
+endswitch
+
+|被邀请人|
+
+:收到邀请\n（通知消息 / 微信分享 / 邀请链接）;
+
+:查看邀请详情\n清单名称 / 邀请人 / 角色;
+
+if (选择接受?) then (接受)
+  
+  :调用云函数 acceptInvite;
+  :验证邀请有效性;
+  
+  if (邀请已过期?) then (是)
+    :提示"邀请已过期";
+    stop
+  else (否)
+  endif
+  
+  if (已是清单成员?) then (是)
+    :提示"您已是该清单成员";
+    stop
+  else (否)
+  endif
+  
+  if (需要审批?) then (是)
+    :更新邀请状态 status=4（待审批）;
+    :创建通知给创建者\n"XXX申请加入清单";
+    
+    |创建者|
+    :收到审批通知;
+    if (同意加入?) then (同意)
+      :调用 approveApplication;
+      :创建成员记录\nrole=邀请角色;
+      :更新邀请状态 status=1;
+      |被邀请人|
+      :收到通知"申请已通过";
+    else (拒绝)
+      :调用 rejectApplication;
+      :更新邀请状态 status=2;
+      |被邀请人|
+      :收到通知"申请已被拒绝";
+      stop
+    endif
+    
+  else (否)
+    :直接创建成员记录\nlistId, userId, role;
+    :更新邀请状态 status=1（已接受）;
+    :记录操作日志;
+  endif
+  
+  :成功加入清单;
+  
+else (拒绝)
+  :调用云函数 rejectInvite;
+  :更新邀请状态 status=2（已拒绝）;
+  stop
+endif
+
+stop
+
+@enduml

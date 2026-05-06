@@ -53,11 +53,11 @@
 | listId       | String    | 所属清单ID                                                   | 普通索引 |
 | creatorId    | String    | 创建者ID                                                    | 普通索引 |
 | categoryId   | String    | 分类ID（关联 categories 集合）                                   | 普通索引 |
-| repeatType   | Number    | 重复类型（0-不重复，1-周重复，2-月重复）                                  | 普通索引 |
+| repeatType   | Number    | 重复类型（0-不重复，1-每天，2-周重复，3-月重复）                             | 普通索引 |
 | repeatValue  | String    | 重复值（周重复：1-7表示周一到周日，多个用逗号分隔；月重复：1-31表示在每个的哪个日期重复，多个用逗号分隔） | 普通索引 |
 | reminderAt   | Timestamp | 提醒时间                                                     | 普通索引 |
 | reminderSent | Boolean   | 提醒是否已发送                                                  | 普通索引 |
-| attachments  | Array     | 附件列表                                                     | 无    |
+| attachments  | Array     | 附件列表，每项包含 {fileId, name, size, type}，最多9个，单文件不超过10MB     | 无    |
 | createdAt    | Timestamp | 创建时间                                                     | 无    |
 | updatedAt    | Timestamp | 更新时间                                                     | 无    |
 
@@ -88,20 +88,20 @@
 
 ### 3.1 list\_invites 集合
 
-| 字段名         | 数据类型      | 描述                            | 索引   |
-| ----------- | --------- | ----------------------------- | ---- |
-| \_id        | String    | 邀请记录唯一标识                      | 主键   |
-| listId      | String    | 清单ID                          | 普通索引 |
-| inviterId   | String    | 邀请人ID                         | 普通索引 |
-| inviteeId   | String    | 被邀请人ID（可选，链接邀请时为空）            | 普通索引 |
-| inviteeInfo | Object    | 被邀请人信息（微信邀请时存储）               | 无    |
-| role        | Number    | 邀请角色（2-编辑者，3-查看者）             | 无    |
-| inviteType  | String    | 邀请类型（wechat/link/search）      | 无    |
-| inviteCode  | String    | 邀请码（链接邀请时生成）                  | 唯一索引 |
-| status      | Number    | 邀请状态（0-待接受，1-已接受，2-已拒绝，3-已过期） | 普通索引 |
-| expireAt    | Timestamp | 过期时间                          | 普通索引 |
-| createdAt   | Timestamp | 创建时间                          | 无    |
-| updatedAt   | Timestamp | 更新时间                          | 无    |
+| 字段名         | 数据类型      | 描述                                  | 索引   |
+| ----------- | --------- | ----------------------------------- | ---- |
+| \_id        | String    | 邀请记录唯一标识                            | 主键   |
+| listId      | String    | 清单ID                                | 普通索引 |
+| inviterId   | String    | 邀请人ID                               | 普通索引 |
+| inviteeId   | String    | 被邀请人ID（可选，链接邀请时为空）                  | 普通索引 |
+| inviteeInfo | Object    | 被邀请人信息（微信邀请时存储）                     | 无    |
+| role        | Number    | 邀请角色（2-编辑者，3-查看者）                   | 无    |
+| inviteType  | String    | 邀请类型（wechat/link/search）            | 无    |
+| inviteCode  | String    | 邀请码（链接邀请时生成）                        | 唯一索引 |
+| status      | Number    | 邀请状态（0-待接受，1-已接受，2-已拒绝，3-已过期，4-待审批） | 普通索引 |
+| expireAt    | Timestamp | 过期时间                                | 普通索引 |
+| createdAt   | Timestamp | 创建时间                                | 无    |
+| updatedAt   | Timestamp | 更新时间                                | 无    |
 
 ### 2.6 operations 集合
 

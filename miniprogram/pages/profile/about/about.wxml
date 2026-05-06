@@ -1,0 +1,79 @@
+<view class="about-container">
+  <!-- 应用信息 -->
+  <view class="app-info-section">
+    <view class="app-logo">
+      <image src="/images/logo.png" mode="aspectFit" />
+    </view>
+    <text class="app-name">{{appInfo.name}}</text>
+    <text class="app-version">版本 {{appInfo.version}}</text>
+    <text class="app-slogan">{{appInfo.slogan}}</text>
+    <text class="app-description">{{appInfo.description}}</text>
+  </view>
+
+  <!-- 功能特点 -->
+  <view class="features-section">
+    <view class="section-title">功能特点</view>
+    <view class="features-grid">
+      <view class="feature-item" wx:for="{{features}}" wx:key="title">
+        <view class="feature-icon">
+          <van-icon name="{{item.icon}}" size="48rpx" color="#07C160" />
+        </view>
+        <text class="feature-title">{{item.title}}</text>
+        <text class="feature-desc">{{item.desc}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 开发团队 -->
+  <view class="team-section">
+    <view class="section-title">开发团队</view>
+    <view class="team-list">
+      <view class="team-item" wx:for="{{team}}" wx:key="role">
+        <text class="team-role">{{item.role}}</text>
+        <text class="team-name">{{item.name}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 更新日志 -->
+  <view class="changelog-section">
+    <view class="section-title">更新日志</view>
+    <view class="changelog-list">
+      <view class="changelog-item" wx:for="{{changelog}}" wx:key="version">
+        <view class="changelog-header">
+          <text class="changelog-version">{{item.version}}</text>
+          <text class="changelog-date">{{item.date}}</text>
+        </view>
+        <view class="changelog-content">
+          <text wx:for="{{item.changes}}" wx:key="*this" wx:for-item="change">• {{change}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 底部操作 -->
+  <view class="footer-section">
+    <button class="footer-btn" bindtap="onCheckUpdate">
+      <van-icon name="upgrade" size="32rpx" color="#07C160" />
+      <text>检查更新</text>
+    </button>
+    <button class="footer-btn" bindtap="onCopyEmail">
+      <van-icon name="envelope-o" size="32rpx" color="#1989fa" />
+      <text>联系邮箱</text>
+    </button>
+    <button class="footer-btn" open-type="share">
+      <van-icon name="share-o" size="32rpx" color="#FAAD14" />
+      <text>分享给朋友</text>
+    </button>
+  </view>
+
+  <!-- 版权信息 -->
+  <view class="copyright-section">
+    <text class="copyright-text">© 2024 协同待办清单 版权所有</text>
+    <view class="copyright-links">
+      <text bindtap="onViewAgreement">用户协议</text>
+      <text class="divider">|</text>
+      <text bindtap="onViewPrivacy">隐私政策</text>
+    </view>
+  </view>
+</view>

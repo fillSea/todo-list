@@ -1,0 +1,47 @@
+@startuml 用例图1-用户管理与个人任务管理
+' 图3.1(a) 用户管理与个人任务管理用例图
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+
+left to right direction
+skinparam usecase {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+}
+
+actor "未注册用户" as Guest
+actor "已注册用户" as User
+
+rectangle "用户管理" {
+  usecase "微信授权登录" as UC_Login
+  usecase "用户注册" as UC_Register
+  usecase "修改个人信息" as UC_EditProfile
+}
+
+rectangle "个人任务管理" {
+  usecase "创建任务" as UC_CreateTask
+  usecase "编辑任务" as UC_EditTask
+  usecase "删除任务" as UC_DeleteTask
+  usecase "完成/取消完成任务" as UC_ToggleTask
+  usecase "搜索任务" as UC_SearchTask
+  usecase "按分类筛选任务" as UC_FilterTask
+  usecase "设置任务优先级" as UC_Priority
+  usecase "设置周期性任务" as UC_Periodic
+  usecase "设置任务提醒" as UC_Reminder
+}
+
+Guest --> UC_Login
+Guest --> UC_Register
+
+User --> UC_EditProfile
+User --> UC_CreateTask
+User --> UC_EditTask
+User --> UC_DeleteTask
+User --> UC_ToggleTask
+User --> UC_SearchTask
+User --> UC_FilterTask
+
+UC_Priority ..> UC_CreateTask : <<extend>>
+UC_Periodic ..> UC_CreateTask : <<extend>>
+UC_Reminder ..> UC_CreateTask : <<extend>>
+
+@enduml

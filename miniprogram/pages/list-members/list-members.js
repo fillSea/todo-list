@@ -1,5 +1,5 @@
 // 调试模式开关
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 
 Page({
   data: {
@@ -37,6 +37,7 @@ Page({
     // 移除确认弹窗
     showRemoveDialog: false,
     removeMemberId: '',
+    removeUserId: '',
     removeMemberName: '',
 
     // 待处理邀请数量
@@ -142,12 +143,15 @@ Page({
       } else {
         // 生产模式：调用云函数
         const result = await wx.cloud.callFunction({
-          name: 'getListMembers',
-          data: { listId: this.data.listId }
+          name: 'listFunctions',
+          data: {
+            action: 'getListMembers',
+            data: { listId: this.data.listId }
+          }
         });
 
-        if (result.result && result.result.success) {
-          const { listInfo, members, myRole } = result.result;
+        if (result.result && result.result.code === 0) {
+          const { listInfo, members, myRole } = result.result.data;
 
           const creators = members.filter(m => m.role === 1);
           const editors = members.filter(m => m.role === 2);
@@ -297,15 +301,18 @@ Page({
         });
       } else {
         const result = await wx.cloud.callFunction({
-          name: 'addListMember',
+          name: 'listFunctions',
           data: {
-            listId,
-            userId: newMemberId.trim(),
-            role: newMemberRole
+            action: 'inviteMember',
+            data: {
+              listId,
+              userId: newMemberId.trim(),
+              role: newMemberRole
+            }
           }
         });
 
-        if (result.result && result.result.success) {
+        if (result.result && result.result.code === 0) {
           this.setData({
             showAddPopup: false,
             newMemberId: ''
@@ -388,15 +395,18 @@ Page({
         });
       } else {
         const result = await wx.cloud.callFunction({
-          name: 'updateMemberRole',
+          name: 'listFunctions',
           data: {
-            listId,
-            memberId: selectedMemberId,
-            role: selectedRole
+            action: 'updateMemberRole',
+            data: {
+              listId,
+              memberId: selectedMemberId,
+              role: selectedRole
+            }
           }
         });
 
-        if (result.result && result.result.success) {
+        if (result.result && result.result.code === 0) {
           this.setData({ showRolePopup: false });
           this.loadMembers();
           wx.showToast({
@@ -422,10 +432,11 @@ Page({
 
   // 显示移除确认
   onRemoveMember(e) {
-    const { id, name } = e.currentTarget.dataset;
+    const { id, userid, name } = e.currentTarget.dataset;
     this.setData({
       showRemoveDialog: true,
       removeMemberId: id,
+      removeUserId: userid,
       removeMemberName: name || '该成员'
     });
   },
@@ -437,7 +448,7 @@ Page({
 
   // 确认移除
   async onConfirmRemove() {
-    const { listId, removeMemberId } = this.data;
+    const { listId, removeMemberId, removeUserId } = this.data;
 
     this.setData({ showRemoveDialog: false });
 
@@ -449,11 +460,13 @@ Page({
 
         // 更新本地数据
         const members = this.data.members.filter(m => m._id !== removeMemberId);
+        const creators = members.filter(m => m.role === 1);
         const editors = members.filter(m => m.role === 2);
         const viewers = members.filter(m => m.role === 3);
 
         this.setData({
           members,
+          creators,
           editors,
           viewers
         });
@@ -464,14 +477,17 @@ Page({
         });
       } else {
         const result = await wx.cloud.callFunction({
-          name: 'removeListMember',
+          name: 'listFunctions',
           data: {
-            listId,
-            memberId: removeMemberId
+            action: 'removeMember',
+            data: {
+              listId,
+              userId: removeUserId
+            }
           }
         });
 
-        if (result.result && result.result.success) {
+        if (result.result && result.result.code === 0) {
           this.loadMembers();
           wx.showToast({
             title: '移除成功',

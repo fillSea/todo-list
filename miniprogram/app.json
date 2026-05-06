@@ -14,7 +14,14 @@
     "pages/list-invite/list-invite",
     "pages/list-invite-link/list-invite-link",
     "pages/list-invite-accept/list-invite-accept",
-    "pages/list-invite-manage/list-invite-manage"
+    "pages/list-invite-manage/list-invite-manage",
+    "pages/profile/my-lists/my-lists",
+    "pages/profile/categories/categories",
+    "pages/profile/notifications/notifications",
+    "pages/profile/notification-settings/notification-settings",
+    "pages/profile/help/help",
+    "pages/profile/about/about",
+    "pages/periodic-stats/periodic-stats"
   ],
   "window": {
     "backgroundColor": "#F6F6F6",

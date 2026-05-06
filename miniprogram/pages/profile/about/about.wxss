@@ -1,0 +1,258 @@
+.about-container {
+  min-height: 100vh;
+  background: #F5F5F5;
+  padding-bottom: 40rpx;
+}
+
+/* 应用信息 */
+.app-info-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60rpx 40rpx;
+  background: linear-gradient(135deg, #07C160 0%, #05A050 100%);
+}
+
+.app-logo {
+  width: 160rpx;
+  height: 160rpx;
+  background: #fff;
+  border-radius: 32rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 30rpx;
+  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.1);
+}
+
+.app-logo image {
+  width: 100rpx;
+  height: 100rpx;
+}
+
+.app-name {
+  font-size: 44rpx;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 12rpx;
+}
+
+.app-version {
+  font-size: 26rpx;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 16rpx;
+}
+
+.app-slogan {
+  font-size: 28rpx;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 20rpx;
+}
+
+.app-description {
+  font-size: 26rpx;
+  color: rgba(255, 255, 255, 0.8);
+  text-align: center;
+  line-height: 1.6;
+  padding: 0 40rpx;
+}
+
+/* 功能特点 */
+.features-section {
+  padding: 40rpx 20rpx;
+}
+
+.section-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 24rpx;
+  padding-left: 10rpx;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20rpx;
+}
+
+.feature-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 30rpx 20rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+
+.feature-icon {
+  width: 80rpx;
+  height: 80rpx;
+  background: #f0f9ff;
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16rpx;
+}
+
+.feature-title {
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 8rpx;
+}
+
+.feature-desc {
+  font-size: 22rpx;
+  color: #999;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* 开发团队 */
+.team-section {
+  padding: 0 20rpx 40rpx;
+}
+
+.team-list {
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
+.team-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+
+.team-item:last-child {
+  border-bottom: none;
+}
+
+.team-role {
+  font-size: 28rpx;
+  color: #666;
+}
+
+.team-name {
+  font-size: 28rpx;
+  color: #333;
+  font-weight: 500;
+}
+
+/* 更新日志 */
+.changelog-section {
+  padding: 0 20rpx 40rpx;
+}
+
+.changelog-list {
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+  padding: 30rpx;
+}
+
+.changelog-item {
+  margin-bottom: 30rpx;
+}
+
+.changelog-item:last-child {
+  margin-bottom: 0;
+}
+
+.changelog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.changelog-version {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #07C160;
+}
+
+.changelog-date {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.changelog-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.changelog-content text {
+  font-size: 26rpx;
+  color: #666;
+  line-height: 1.8;
+}
+
+/* 底部操作 */
+.footer-section {
+  display: flex;
+  justify-content: center;
+  gap: 30rpx;
+  padding: 0 40rpx 40rpx;
+}
+
+.footer-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20rpx 30rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+  border: none;
+  line-height: normal;
+}
+
+.footer-btn::after {
+  border: none;
+}
+
+.footer-btn text {
+  font-size: 24rpx;
+  color: #666;
+  margin-top: 12rpx;
+}
+
+.footer-btn:active {
+  opacity: 0.8;
+}
+
+/* 版权信息 */
+.copyright-section {
+  text-align: center;
+  padding: 0 40rpx;
+}
+
+.copyright-text {
+  font-size: 24rpx;
+  color: #999;
+  display: block;
+  margin-bottom: 16rpx;
+}
+
+.copyright-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.copyright-links text {
+  font-size: 24rpx;
+  color: #1989fa;
+}
+
+.copyright-links .divider {
+  margin: 0 20rpx;
+  color: #ddd;
+}

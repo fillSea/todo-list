@@ -1,0 +1,78 @@
+@startuml E-R图(a)-核心实体关系
+' 图4.3(a) 核心实体关系E-R图
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+
+skinparam entity {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+}
+skinparam class {
+  BackgroundColor #FFF8E1
+  BorderColor #F57F17
+}
+
+hide methods
+
+entity "用户 (users)" as User {
+  * **_id** : String <<PK>>
+  --
+  * openid : String <<UK>>
+  nickname : String
+  avatarUrl : String
+  enableNotifications : Boolean
+  createdAt : Timestamp
+  updatedAt : Timestamp
+}
+
+entity "任务 (tasks)" as Task {
+  * **_id** : String <<PK>>
+  --
+  * title : String
+  description : String
+  * dueDate : Timestamp
+  priority : Number (1-4)
+  status : Number (0/1)
+  repeatType : Number (0-3)
+  repeatValue : String
+  parentTaskId : String <<FK>>
+  reminderAt : Timestamp
+  reminderSent : Boolean
+  attachments : Array
+  * creatorId : String <<FK>>
+  listId : String <<FK>>
+  categoryId : String <<FK>>
+  createdAt : Timestamp
+  updatedAt : Timestamp
+}
+
+entity "清单 (lists)" as List {
+  * **_id** : String <<PK>>
+  --
+  * name : String
+  description : String
+  isShared : Boolean
+  visibility : Number (1/2)
+  * creatorId : String <<FK>>
+  createdAt : Timestamp
+  updatedAt : Timestamp
+}
+
+entity "分类 (categories)" as Category {
+  * **_id** : String <<PK>>
+  --
+  * name : String
+  color : String
+  * userId : String <<FK>>
+  createdAt : Timestamp
+  updatedAt : Timestamp
+}
+
+' ===== 关系 =====
+User ||--o{ Task : "创建\n1:N"
+User ||--o{ List : "创建\n1:N"
+User ||--o{ Category : "拥有\n1:N"
+List ||--o{ Task : "包含\n1:N"
+Category |o--o{ Task : "归类\n0..1:N"
+Task |o--o{ Task : "周期父子\n1:N"
+
+@enduml

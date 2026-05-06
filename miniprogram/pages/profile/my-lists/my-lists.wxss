@@ -1,0 +1,230 @@
+.my-lists-container {
+  min-height: 100vh;
+  background: #F5F5F5;
+  padding-bottom: 120rpx;
+}
+
+/* 清单列表 */
+.lists-wrapper {
+  padding: 24rpx 32rpx;
+}
+
+/* 清单卡片 - 与清单页面一致 */
+.list-card {
+  display: flex;
+  background-color: #fff;
+  border-radius: 24rpx;
+  padding: 32rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.list-card:active {
+  transform: scale(0.98);
+  transition: transform 0.1s;
+}
+
+.list-icon {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.list-content {
+  flex: 1;
+  margin-left: 24rpx;
+  min-width: 0;
+}
+
+.list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.list-name {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #333;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-tag {
+  font-size: 22rpx;
+  padding: 4rpx 16rpx;
+  border-radius: 20rpx;
+  margin-left: 16rpx;
+  flex-shrink: 0;
+}
+
+.personal-tag {
+  background-color: #E3F2FD;
+  color: #1976D2;
+}
+
+.shared-tag {
+  background-color: #E8F5E9;
+  color: #2E7D32;
+}
+
+.list-stats {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 20rpx;
+}
+
+.stats-text {
+  font-size: 24rpx;
+  color: #666;
+}
+
+.stats-dot {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.stats-highlight {
+  font-size: 24rpx;
+  color: #FF9800;
+}
+
+/* 进度条 */
+.progress-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  margin-bottom: 20rpx;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 12rpx;
+  background-color: #E0E0E0;
+  border-radius: 6rpx;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 6rpx;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  font-size: 22rpx;
+  color: #999;
+  min-width: 64rpx;
+  text-align: right;
+}
+
+/* 清单底部信息 */
+.list-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.member-avatars {
+  display: flex;
+  align-items: center;
+}
+
+.member-avatar {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 50%;
+  border: 4rpx solid #fff;
+  margin-left: -16rpx;
+}
+
+.member-avatar:first-child {
+  margin-left: 0;
+}
+
+.member-more {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 50%;
+  background-color: #f0f0f0;
+  font-size: 20rpx;
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: -16rpx;
+  border: 4rpx solid #fff;
+}
+
+.update-time {
+  font-size: 22rpx;
+  color: #999;
+}
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 120rpx 40rpx;
+}
+
+.empty-text {
+  font-size: 32rpx;
+  color: #999;
+  margin-top: 30rpx;
+}
+
+.empty-subtext {
+  font-size: 26rpx;
+  color: #bbb;
+  margin-top: 16rpx;
+}
+
+/* 加载更多 */
+.loading-more {
+  text-align: center;
+  padding: 30rpx;
+  font-size: 26rpx;
+  color: #999;
+}
+
+.no-more {
+  text-align: center;
+  padding: 30rpx;
+  font-size: 26rpx;
+  color: #999;
+}
+
+/* 创建按钮 */
+.fab-btn {
+  position: fixed;
+  right: 40rpx;
+  bottom: 40rpx;
+  width: 100rpx;
+  height: 100rpx;
+  background: #07C160;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4rpx 16rpx rgba(7, 193, 96, 0.4);
+  z-index: 100;
+}
+
+.fab-icon {
+  font-size: 48rpx;
+  color: #fff;
+  font-weight: 300;
+}

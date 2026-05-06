@@ -1,0 +1,92 @@
+@startuml E-R图(b)-协作与通知实体关系
+' 图4.3(b) 协作与通知实体关系E-R图
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+
+skinparam entity {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+}
+
+hide methods
+
+entity "用户 (users)" as User {
+  * **_id** : String <<PK>>
+  --
+  * openid : String <<UK>>
+  nickname : String
+}
+
+entity "清单 (lists)" as List {
+  * **_id** : String <<PK>>
+  --
+  * name : String
+  isShared : Boolean
+}
+
+entity "清单成员 (list_members)" as Member {
+  * **_id** : String <<PK>>
+  --
+  * listId : String <<FK>>
+  * userId : String <<FK>>
+  * role : Number (1/2/3)
+  joinType : String
+  inviteId : String
+  joinedAt : Timestamp
+}
+
+entity "清单邀请 (list_invites)" as Invite {
+  * **_id** : String <<PK>>
+  --
+  * listId : String <<FK>>
+  * inviterId : String <<FK>>
+  inviteeId : String <<FK>>
+  inviteeInfo : Object
+  * role : Number (2/3)
+  * inviteType : String
+  inviteCode : String <<UK>>
+  needApproval : Boolean
+  status : Number (0-4)
+  expireAt : Timestamp
+  createdAt : Timestamp
+}
+
+entity "操作记录 (operations)" as Operation {
+  * **_id** : String <<PK>>
+  --
+  * type : String
+  * targetId : String
+  * userId : String <<FK>>
+  content : Object
+  listId : String <<FK>>
+  createdAt : Timestamp
+}
+
+entity "通知 (notifications)" as Notification {
+  * **_id** : String <<PK>>
+  --
+  * type : String
+  * userId : String <<FK>>
+  relatedId : String
+  * content : String
+  isRead : Boolean
+  createdAt : Timestamp
+}
+
+' ===== 关系 =====
+' 清单成员：用户与清单的多对多关系
+List ||--o{ Member : "拥有成员\n1:N"
+User ||--o{ Member : "加入清单\n1:N"
+
+' 清单邀请
+List ||--o{ Invite : "产生邀请\n1:N"
+User ||--o{ Invite : "发出邀请\n1:N (inviter)"
+User |o--o{ Invite : "收到邀请\n0..1:N (invitee)"
+
+' 操作记录
+List ||--o{ Operation : "记录操作\n1:N"
+User ||--o{ Operation : "执行操作\n1:N"
+
+' 通知
+User ||--o{ Notification : "接收通知\n1:N"
+
+@enduml

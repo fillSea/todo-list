@@ -1,0 +1,111 @@
+@startuml 通知消息加载流程图
+' 图5.15 通知消息加载流程图
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+
+skinparam activity {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  DiamondBackgroundColor #FFF8E1
+  DiamondBorderColor #F57F17
+}
+
+start
+
+:进入通知消息页面\n触发 onLoad;
+
+:设置初始参数\npage=1, pageSize=10\ncurrentType='all';
+
+:调用 loadNotifications();
+
+partition "loadNotifications()" {
+  :显示加载状态 loading=true;
+  
+  :调用云函数\nprofileFunctions.getNotifications\n传入 {type, page=1, pageSize};
+  
+  if (返回成功?) then (是)
+    :调用 enrichNotifications()\n为每条通知补充\niconName 和 typeText;
+    
+    note right
+      类型映射：
+      task_assigned → 任务分配
+      task_updated → 任务更新
+      list_shared  → 清单共享
+      deadline_reminder → 截止提醒
+      task_reminder → 任务提醒
+    end note
+    
+    :渲染通知列表;
+    :判断是否有更多数据\nhasMore = (返回数量 >= pageSize);
+  else (否)
+    :显示加载失败提示;
+  endif
+  
+  :隐藏加载状态 loading=false;
+}
+
+' ===== 用户交互循环 =====
+while (用户停留在页面?) is (是)
+
+  switch (用户操作?)
+  
+  case (下拉刷新)
+    :触发 onPullDownRefresh;
+    :重置 page=1, hasMore=true;
+    :调用 loadNotifications()\n重新加载第一页;
+    :停止下拉刷新动画;
+  
+  case (上拉加载更多)
+    if (hasMore 且 非加载中?) then (是)
+      :page = page + 1;
+      :调用云函数\n传入 {type, page, pageSize};
+      if (返回成功?) then (是)
+        :enrichNotifications() 处理新数据;
+        :追加到现有列表末尾;
+        :更新 hasMore;
+      else (否)
+      endif
+    else (否)
+      :显示"没有更多了";
+    endif
+  
+  case (切换通知类型)
+    :更新 currentType;
+    :重置 page=1, hasMore=true;
+    :调用 loadNotifications()\n按新类型加载;
+  
+  case (点击某条通知)
+    if (通知未读?) then (是)
+      :调用云函数\nmarkNotificationAsRead;
+      :更新本地 isRead=true;
+    else (否)
+    endif
+    
+    :根据通知类型跳转;
+    switch (type?)
+    case (task_assigned\ntask_updated\ntask_reminder)
+      :跳转到任务详情页;
+    case (list_shared)
+      :跳转到清单详情页;
+    case (deadline_reminder)
+      :跳转到任务首页;
+    endswitch
+  
+  case (点击"全部已读")
+    :调用云函数\nmarkAllNotificationsAsRead;
+    :本地所有通知 isRead=true;
+  
+  case (删除通知)
+    :弹出确认框;
+    if (用户确认?) then (是)
+      :调用云函数\ndeleteNotification;
+      :从本地列表移除;
+    else (否)
+    endif
+  
+  endswitch
+
+endwhile (离开页面)
+
+stop
+
+@enduml

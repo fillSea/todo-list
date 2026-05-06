@@ -1,5 +1,5 @@
 // 调试模式开关 - 设置为 true 使用伪造数据
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 
 // 伪造数据 - 用于调试
 const MOCK_DATA = {
@@ -177,6 +177,15 @@ Page({
         // 头部高度
         headerHeight: 56,
 
+        // 进度
+        completedCount: 0,
+        progressPercent: 0,
+        progressColor: '#4CAF50',
+
+        // 空状态
+        emptyTitle: '暂无任务',
+        emptyDesc: '点击右下角按钮添加第一个任务',
+
         // 用户信息
         userInfo: null
     },
@@ -233,20 +242,21 @@ Page({
 
                 // 处理任务数据
                 const taskList = MOCK_DATA.tasks.map(task => this.processTaskData(task));
+                const filteredByPeriodic = this.filterPeriodicTasks(taskList);
 
                 // 计算进度
-                const completedCount = taskList.filter(t => t.status === 1).length;
-                const progressPercent = taskList.length > 0 ? Math.round((completedCount / taskList.length) * 100) : 0;
+                const completedCount = filteredByPeriodic.filter(t => t.status === 1).length;
+                const progressPercent = filteredByPeriodic.length > 0 ? Math.round((completedCount / filteredByPeriodic.length) * 100) : 0;
 
                 this.setData({
                     listInfo,
                     members: MOCK_DATA.members,
-                    taskList,
+                    taskList: filteredByPeriodic,
                     myRole,
                     canEdit: myRole === 1 || myRole === 2,
                     canDelete: myRole === 1,
                     canManageMembers: myRole === 1,
-                    canAddTask: myRole !== null,
+                    canAddTask: myRole === 1 || myRole === 2,
                     completedCount,
                     progressPercent,
                     progressColor: this.getProgressColor(progressPercent),
@@ -259,12 +269,15 @@ Page({
             } else {
                 // 生产模式：调用云函数
                 const result = await wx.cloud.callFunction({
-                    name: 'getListDetail',
-                    data: { listId }
+                    name: 'listFunctions',
+                    data: {
+                        action: 'getListDetail',
+                        data: { listId }
+                    }
                 });
 
-                if (result.result && result.result.success) {
-                    const { listInfo, members, tasks, myRole } = result.result;
+                if (result.result && result.result.code === 0) {
+                    const { listInfo, members, tasks, myRole } = result.result.data;
 
                     // 处理数据
                     const processedListInfo = {
@@ -273,18 +286,19 @@ Page({
                     };
 
                     const taskList = tasks.map(task => this.processTaskData(task));
-                    const completedCount = taskList.filter(t => t.status === 1).length;
-                    const progressPercent = taskList.length > 0 ? Math.round((completedCount / taskList.length) * 100) : 0;
+                    const filteredByPeriodic = this.filterPeriodicTasks(taskList);
+                    const completedCount = filteredByPeriodic.filter(t => t.status === 1).length;
+                    const progressPercent = filteredByPeriodic.length > 0 ? Math.round((completedCount / filteredByPeriodic.length) * 100) : 0;
 
                     this.setData({
                         listInfo: processedListInfo,
                         members,
-                        taskList,
+                        taskList: filteredByPeriodic,
                         myRole,
                         canEdit: myRole === 1 || myRole === 2,
                         canDelete: myRole === 1,
                         canManageMembers: myRole === 1,
-                        canAddTask: myRole !== null,
+                        canAddTask: myRole === 1 || myRole === 2,
                         completedCount,
                         progressPercent,
                         progressColor: this.getProgressColor(progressPercent),
@@ -312,15 +326,60 @@ Page({
 
     // 处理任务数据
     processTaskData(task) {
-        const now = new Date();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
         const dueDate = task.dueDate ? new Date(task.dueDate) : null;
-        const isOverdue = dueDate && dueDate < now && task.status === 0;
+        const dueDateOnly = dueDate ? new Date(dueDate) : null;
+        if (dueDateOnly) dueDateOnly.setHours(0, 0, 0, 0);
+
+        const isOverdue = dueDateOnly && dueDateOnly < today && task.status === 0;
+
+        // 格式化截止时间：MM-DD HH:mm
+        let dueTimeText = '';
+        if (dueDate) {
+            const month = String(dueDate.getMonth() + 1).padStart(2, '0');
+            const day = String(dueDate.getDate()).padStart(2, '0');
+            const hours = String(dueDate.getHours()).padStart(2, '0');
+            const minutes = String(dueDate.getMinutes()).padStart(2, '0');
+            dueTimeText = `${month}-${day} ${hours}:${minutes}`;
+        }
 
         return {
             ...task,
             dueDateText: dueDate ? this.formatDate(dueDate) : '',
+            dueTimeText,
             isOverdue
         };
+    },
+
+    // 过滤周期任务：同任务界面逻辑
+    // 只显示今天及之前的周期任务；如果今天的已完成，则显示未来最近的一个
+    filterPeriodicTasks(taskList) {
+        // 按周期系列分组，找到每个系列最近的未完成且未过期实例
+        const nearestPeriodicByGroup = {};
+        taskList
+            .filter(task => task.repeatType > 0 && task.status === 0 && !task.isOverdue)
+            .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+            .forEach(task => {
+                const groupId = task.parentTaskId || task._id;
+                if (!nearestPeriodicByGroup[groupId]) {
+                    nearestPeriodicByGroup[groupId] = task._id;
+                }
+            });
+
+        return taskList.filter(task => {
+            // 已完成的任务都显示
+            if (task.status === 1) return true;
+
+            // 非周期任务都显示
+            if (!task.repeatType || task.repeatType === 0) return true;
+
+            // 周期任务：已过期的都显示，未过期的每个系列只显示最近的一个
+            if (task.isOverdue) return true;
+
+            const groupId = task.parentTaskId || task._id;
+            return task._id === nearestPeriodicByGroup[groupId];
+        });
     },
 
     // 获取进度条颜色
@@ -453,23 +512,27 @@ Page({
 
     // 选择操作菜单
     onActionSheetSelect(e) {
-        const { type } = e.detail;
+        const action = e.detail;
+        const type = action.type || action.name;
         const { listId } = this.data;
 
         this.setData({ showActionSheet: false });
 
         switch (type) {
             case 'operations':
+            case '查看操作记录':
                 wx.navigateTo({
                     url: `/pages/operations/operations?listId=${listId}`
                 });
                 break;
             case 'members':
+            case '管理成员':
                 wx.navigateTo({
                     url: `/pages/list-members/list-members?listId=${listId}`
                 });
                 break;
             case 'delete':
+            case '删除清单':
                 this.onDeleteList();
                 break;
         }
@@ -512,11 +575,14 @@ Page({
                 }, 1500);
             } else {
                 const result = await wx.cloud.callFunction({
-                    name: 'deleteList',
-                    data: { listId }
+                    name: 'listFunctions',
+                    data: {
+                        action: 'deleteList',
+                        data: { listId }
+                    }
                 });
 
-                if (result.result && result.result.success) {
+                if (result.result && result.result.code === 0) {
                     wx.showToast({
                         title: '删除成功',
                         icon: 'success'
@@ -574,11 +640,38 @@ Page({
         const { id, status } = e.currentTarget.dataset;
         const newStatus = status === 1 ? 0 : 1;
 
+        // 权限检查：查看者不能修改任务状态
+        if (!this.data.canEdit) {
+            wx.showToast({
+                title: '您没有编辑权限',
+                icon: 'none'
+            });
+            return;
+        }
+
+        // 如果是将已过期任务标记为完成，先弹出确认框
+        let confirmedOverdue = false;
+        if (newStatus === 1) {
+            const task = this.data.taskList.find(t => t._id === id);
+            if (task && task.isOverdue) {
+                const res = await new Promise(resolve => {
+                    wx.showModal({
+                        title: '提示',
+                        content: '该任务已过期，确认要标记为已完成吗？',
+                        confirmText: '确认完成',
+                        cancelText: '取消',
+                        success: resolve
+                    });
+                });
+                if (!res.confirm) return;
+                confirmedOverdue = true;
+            }
+        }
+
         try {
             if (DEBUG_MODE) {
                 await this.simulateDelay(300);
 
-                // 更新本地数据
                 const taskList = this.data.taskList.map(task => {
                     if (task._id === id) {
                         return { ...task, status: newStatus };
@@ -604,24 +697,81 @@ Page({
                 });
             } else {
                 const result = await wx.cloud.callFunction({
-                    name: 'updateTaskStatus',
+                    name: 'taskFunctions',
                     data: {
-                        taskId: id,
-                        status: newStatus
+                        action: 'toggleTaskStatus',
+                        data: {
+                            taskId: id,
+                            status: newStatus,
+                            confirmCompleteOverdue: confirmedOverdue || undefined
+                        }
                     }
                 });
 
-                if (result.result && result.result.success) {
-                    // 刷新任务列表
-                    this.loadListDetail(false);
-
+                // 云函数返回错误
+                if (result.result && result.result.code !== 0) {
                     wx.showToast({
-                        title: newStatus === 1 ? '任务已完成' : '任务已恢复',
+                        title: result.result.message || '操作失败',
                         icon: 'none'
                     });
-                } else {
-                    throw new Error(result.result?.message || '操作失败');
+                    return;
                 }
+
+                const resultData = result.result && result.result.data;
+
+                // 非当天的周期任务，提示用户
+                if (resultData && resultData.needConfirmCompleteNotToday) {
+                    wx.showModal({
+                        title: '提示',
+                        content: resultData.confirmMessage || '只能完成当天的周期任务',
+                        confirmText: '知道了',
+                        showCancel: false
+                    });
+                    return;
+                }
+
+                // 取消完成周期任务，需要确认
+                if (resultData && resultData.needConfirmUncheck) {
+                    const confirmMessage = resultData.confirmMessage || '取消完成此任务不会影响后续的周期任务，是否确认？';
+                    wx.showModal({
+                        title: '提示',
+                        content: confirmMessage,
+                        confirmText: '确认',
+                        cancelText: '取消',
+                        success: async (res) => {
+                            if (res.confirm) {
+                                try {
+                                    const confirmResult = await wx.cloud.callFunction({
+                                        name: 'taskFunctions',
+                                        data: {
+                                            action: 'toggleTaskStatus',
+                                            data: {
+                                                taskId: id,
+                                                status: newStatus,
+                                                confirmUncheck: true
+                                            }
+                                        }
+                                    });
+                                    if (confirmResult.result && confirmResult.result.code === 0) {
+                                        this.loadListDetail(false);
+                                        wx.showToast({ title: '已取消完成', icon: 'success' });
+                                    }
+                                } catch (error) {
+                                    console.error('操作失败:', error);
+                                }
+                            }
+                        }
+                    });
+                    return;
+                }
+
+                // 正常完成，刷新列表
+                this.loadListDetail(false);
+
+                wx.showToast({
+                    title: newStatus === 1 ? '任务已完成' : '任务已恢复',
+                    icon: 'none'
+                });
             }
         } catch (error) {
             console.error('更新任务状态失败:', error);
@@ -659,23 +809,27 @@ Page({
 
     // 选择任务操作
     onTaskActionSheetSelect(e) {
-        const { type } = e.detail;
+        const action = e.detail;
+        const type = action.type || action.name;
         const { selectedTaskId, listId } = this.data;
 
         this.setData({ showTaskActionSheet: false });
 
         switch (type) {
             case 'view':
+            case '查看详情':
                 wx.navigateTo({
                     url: `/pages/task-detail/task-detail?id=${selectedTaskId}`
                 });
                 break;
             case 'edit':
+            case '编辑任务':
                 wx.navigateTo({
                     url: `/pages/task-edit/task-edit?id=${selectedTaskId}&listId=${listId}`
                 });
                 break;
             case 'delete':
+            case '删除任务':
                 this.setData({
                     showDeleteDialog: true
                 });
@@ -725,11 +879,14 @@ Page({
                 });
             } else {
                 const result = await wx.cloud.callFunction({
-                    name: 'deleteTask',
-                    data: { taskId: selectedTaskId }
+                    name: 'taskFunctions',
+                    data: {
+                        action: 'deleteTask',
+                        data: { taskId: selectedTaskId }
+                    }
                 });
 
-                if (result.result && result.result.success) {
+                if (result.result && result.result.code === 0) {
                     this.loadListDetail(false);
                     wx.showToast({
                         title: '删除成功',

@@ -1,0 +1,106 @@
+@startuml 云函数调用流程图
+' 图5.20 云函数统一调用流程图
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+
+skinparam activity {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  DiamondBackgroundColor #FFF8E1
+  DiamondBorderColor #F57F17
+}
+
+|小程序前端|
+
+start
+
+:调用 wx.cloud.callFunction\n传入 {name, data: {action, data}};
+
+note right
+  name = 云函数模块名
+  · taskFunctions
+  · listFunctions
+  · profileFunctions
+  · categoryFunctions
+  action = 具体操作名
+  data = 业务参数
+end note
+
+|云函数|
+
+:exports.main(event, context)\n接收请求;
+
+if (context.trigger === 'timer' ?) then (是)
+  :定时触发器调用\n无需 OpenID;
+  switch (触发器名称?)
+  case (checkReminders)
+    :执行任务提醒检查;
+  case (cleanupExpiredPeriodicTasks)
+    :执行过期周期任务清理;
+  endswitch
+  :返回执行结果;
+  |小程序前端|
+  stop
+else (否)
+endif
+
+:调用 cloud.getWXContext()\n获取调用者 OpenID;
+
+if (OpenID 存在?) then (是)
+else (否)
+  :返回 {code:-1,\nmessage:"未获取到用户信息"};
+  |小程序前端|
+  stop
+endif
+
+:读取 event.action;
+
+:通过 switch(action)\n路由到对应处理函数;
+
+note right
+  示例路由表（taskFunctions）：
+  createTask → createTask()
+  updateTask → updateTask()
+  deleteTask → deleteTask()
+  getTaskList → getTaskList()
+  toggleTaskStatus → toggleTaskStatus()
+  searchTasks → searchTasks()
+  ...共13个接口
+end note
+
+partition "具体处理函数" {
+  :try {;
+  
+  :1. 参数验证\n   检查必填字段、数据类型;
+  
+  :2. 身份解析\n   OpenID → 查 users → userId;
+  
+  :3. 权限校验（如涉及清单）\n   调用 verifyListPermission();
+  
+  :4. 业务逻辑执行\n   数据库 CRUD 操作;
+  
+  :5. 附加操作\n   记录操作日志 / 发送通知;
+  
+  :6. 构造返回结果\n   {code:0, message, data};
+  
+  :} catch(error) {;
+  
+  :记录错误日志\nconsole.error();
+  
+  :返回错误结果\n{code:-1, message: error.message};
+  
+  :};
+}
+
+|小程序前端|
+
+:接收云函数返回结果;
+
+if (result.code === 0 ?) then (成功)
+  :处理返回数据\n更新页面状态\n更新本地缓存;
+else (失败)
+  :显示错误提示\nwx.showToast({icon:'none'});
+endif
+
+stop
+
+@enduml

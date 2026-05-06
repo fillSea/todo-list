@@ -7,7 +7,6 @@
     <text class="header-title">邀请成员</text>
     <view class="header-right"></view>
   </view>
-
   <!-- 清单信息 -->
   <view class="list-info">
     <view class="list-icon" style="background-color: {{listInfo.color ? listInfo.color + '20' : '#E3F2FD'}}; border-color: {{listInfo.color || '#1976D2'}}">
@@ -18,7 +17,6 @@
       <text class="list-desc">{{listInfo.memberCount || 0}}/{{maxMemberCount}} 成员</text>
     </view>
   </view>
-
   <!-- 邀请方式选择 -->
   <view class="invite-methods">
     <view class="section-title">选择邀请方式</view>
@@ -53,7 +51,6 @@
       </view>
     </view>
   </view>
-
   <!-- 待处理邀请 -->
   <view class="pending-section" wx:if="{{pendingInvites.length > 0}}">
     <view class="section-header">
@@ -73,7 +70,6 @@
       </view>
     </view>
   </view>
-
   <!-- 最近协作成员 -->
   <view class="recent-section" wx:if="{{recentMembers.length > 0}}">
     <view class="section-header">
@@ -89,7 +85,6 @@
       </view>
     </view>
   </view>
-
   <!-- 权限设置弹窗 -->
   <van-popup show="{{showRolePopup}}" position="bottom" bind:close="onRolePopupClose">
     <view class="popup-header">
@@ -122,7 +117,6 @@
       <view class="submit-btn" bindtap="onConfirmRole">确认邀请</view>
     </view>
   </van-popup>
-
   <!-- 搜索用户弹窗 -->
   <van-popup show="{{showSearchPopup}}" position="bottom" bind:close="onSearchPopupClose">
     <view class="popup-header">
@@ -153,7 +147,6 @@
       </view>
     </view>
   </van-popup>
-
   <!-- 成员上限提示 -->
   <van-dialog id="limit-dialog" show="{{showLimitDialog}}" title="成员数量已达上限" message="当前清单成员数量已达上限（{{maxMemberCount}}人），如需添加更多成员，请升级会员或移除现有成员。" show-cancel-button confirm-button-text="知道了" bind:close="onLimitDialogClose" />
 </view>

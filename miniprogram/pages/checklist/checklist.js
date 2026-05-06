@@ -1,7 +1,7 @@
 const app = getApp();
 
 // 调试模式开关 - 设置为 true 使用伪造数据
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 
 // 伪造数据 - 用于调试
 const MOCK_DATA = {
@@ -197,7 +197,11 @@ Page({
     // 滚动区域顶部间距（根据搜索框显示状态动态调整）
     scrollMarginTop: 104,
     // 滚动区域高度
-    scrollHeight: 0
+    scrollHeight: 0,
+
+    // 空状态文本
+    emptyTitle: '暂无清单',
+    emptyDesc: '点击右上角 + 创建清单'
   },
 
   onLoad: function (options) {
@@ -219,10 +223,8 @@ Page({
   },
 
   onShow: function () {
-    // 页面显示时刷新数据
-    if (this.data.lists.length > 0) {
-      this.loadLists(false);
-    }
+    // 页面显示时刷新数据（从其他页面返回时同步最新状态）
+    this.loadLists(false);
   },
 
   // ==================== 数据加载 ====================
@@ -254,18 +256,20 @@ Page({
       } else {
         // 生产模式：调用云函数
         const result = await wx.cloud.callFunction({
-          name: 'getLists',
+          name: 'listFunctions',
           data: {
-            filter: currentFilter,
-            page,
-            pageSize,
-            userId: this.data.userInfo?.openid
+            action: 'getMyLists',
+            data: {
+              filter: currentFilter,
+              page,
+              pageSize
+            }
           }
         });
 
-        if (result.result && result.result.success) {
-          lists = result.result.lists;
-          hasMore = result.result.hasMore;
+        if (result.result && result.result.code === 0) {
+          lists = result.result.data.list || [];
+          hasMore = result.result.data.hasMore || false;
         } else {
           throw new Error(result.result?.message || '加载失败');
         }
@@ -339,6 +343,11 @@ Page({
       const completedCount = taskCount - pendingCount;
       const progress = taskCount > 0 ? Math.round((completedCount / taskCount) * 100) : 0;
 
+      // 进度条颜色
+      let progressColor = '#4CAF50';
+      if (progress < 50) progressColor = '#F44336';
+      else if (progress < 80) progressColor = '#FF9800';
+
       // 格式化更新时间
       const updateTimeText = this.formatTime(list.updatedAt);
 
@@ -349,6 +358,7 @@ Page({
       return {
         ...list,
         progress,
+        progressColor,
         updateTimeText,
         members,
         memberCount,
@@ -409,18 +419,20 @@ Page({
   applyFilter() {
     const { lists, searchKeyword } = this.data;
 
-    if (!searchKeyword) {
-      this.setData({ filteredLists: lists });
-      return;
+    let filtered = lists;
+    if (searchKeyword) {
+      const keyword = searchKeyword.toLowerCase();
+      filtered = lists.filter(list => {
+        return (list.name && list.name.toLowerCase().includes(keyword)) ||
+          (list.description && list.description.toLowerCase().includes(keyword));
+      });
     }
 
-    const keyword = searchKeyword.toLowerCase();
-    const filtered = lists.filter(list => {
-      return (list.name && list.name.toLowerCase().includes(keyword)) ||
-        (list.description && list.description.toLowerCase().includes(keyword));
+    this.setData({
+      filteredLists: filtered,
+      emptyTitle: this._getEmptyTitle(),
+      emptyDesc: this._getEmptyDesc()
     });
-
-    this.setData({ filteredLists: filtered });
   },
 
   // ==================== 搜索功能 ====================
@@ -519,7 +531,9 @@ Page({
     if (!list) return;
 
     // 判断用户权限
-    const isCreator = list.creatorId === this.data.userInfo?.openid;
+    const userInfo = this.data.userInfo || {};
+    const currentUserId = userInfo._id || userInfo.openid;
+    const isCreator = list.creatorId === currentUserId;
     const myRole = list.myRole;
 
     // 构建操作菜单
@@ -551,26 +565,31 @@ Page({
 
   // 选择操作菜单
   onActionSheetSelect(e) {
-    const { type } = e.detail;
+    const action = e.detail;
+    const type = action.type || action.name;
     const { selectedListId } = this.data;
 
     this.setData({ showActionSheet: false });
 
     switch (type) {
       case 'view':
+      case '查看详情':
         wx.navigateTo({
           url: `/pages/list-detail/list-detail?id=${selectedListId}`
         });
         break;
       case 'edit':
+      case '编辑清单':
         this.openEditDialog(selectedListId);
         break;
       case 'members':
+      case '管理成员':
         wx.navigateTo({
           url: `/pages/list-members/list-members?listId=${selectedListId}`
         });
         break;
       case 'delete':
+      case '删除清单':
         this.setData({
           showDeleteDialog: true,
           deletingId: selectedListId
@@ -702,8 +721,7 @@ Page({
         // 生产模式：调用云函数
         const cloudFnName = isEditing ? 'updateList' : 'createList';
         const params = {
-          ...formData,
-          userId: this.data.userInfo?.openid
+          ...formData
         };
 
         if (isEditing) {
@@ -711,34 +729,35 @@ Page({
         }
 
         const result = await wx.cloud.callFunction({
-          name: cloudFnName,
-          data: params
+          name: 'listFunctions',
+          data: {
+            action: cloudFnName,
+            data: params
+          }
         });
 
-        if (result.result && result.result.success) {
+        if (result.result && result.result.code === 0) {
+          wx.hideLoading();
           wx.showToast({
             title: isEditing ? '保存成功' : '创建成功',
             icon: 'success'
           });
 
-          this.setData({ showDialog: false });
+          this.setData({ showDialog: false, page: 1 });
 
           // 刷新列表
-          this.setData({ page: 1 }, () => {
-            this.loadLists();
-          });
+          await this.loadLists();
         } else {
           throw new Error(result.result?.message || '操作失败');
         }
       }
     } catch (error) {
       console.error(isEditing ? '编辑清单失败:' : '创建清单失败:', error);
+      wx.hideLoading();
       wx.showToast({
         title: error.message || '操作失败，请重试',
         icon: 'none'
       });
-    } finally {
-      wx.hideLoading();
     }
   },
 
@@ -816,14 +835,15 @@ Page({
       } else {
         // 生产模式：调用云函数
         const result = await wx.cloud.callFunction({
-          name: 'deleteList',
+          name: 'listFunctions',
           data: {
-            listId: deletingId,
-            userId: this.data.userInfo?.openid
+            action: 'deleteList',
+            data: { listId: deletingId }
           }
         });
 
-        if (result.result && result.result.success) {
+        if (result.result && result.result.code === 0) {
+          wx.hideLoading();
           wx.showToast({
             title: '删除成功',
             icon: 'success'
@@ -831,30 +851,30 @@ Page({
 
           this.setData({
             showDeleteDialog: false,
-            deletingId: null
+            deletingId: null,
+            page: 1
           });
 
           // 刷新列表
-          this.loadLists();
+          await this.loadLists();
         } else {
           throw new Error(result.result?.message || '删除失败');
         }
       }
     } catch (error) {
       console.error('删除清单失败:', error);
+      wx.hideLoading();
       wx.showToast({
         title: error.message || '删除失败，请重试',
         icon: 'none'
       });
-    } finally {
-      wx.hideLoading();
     }
   },
 
   // ==================== 计算属性 ====================
 
   // 空状态标题
-  emptyTitle() {
+  _getEmptyTitle() {
     const { currentFilter, searchKeyword } = this.data;
 
     if (searchKeyword) {
@@ -874,7 +894,7 @@ Page({
   },
 
   // 空状态描述
-  emptyDesc() {
+  _getEmptyDesc() {
     const { currentFilter, searchKeyword } = this.data;
 
     if (searchKeyword) {

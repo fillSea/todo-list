@@ -1,5 +1,5 @@
 // 调试模式开关
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 
 Page({
   data: {
@@ -81,12 +81,15 @@ Page({
         const { listId, role, expireDays, needApproval } = this.data;
 
         const result = await wx.cloud.callFunction({
-          name: 'generateInviteLink',
+          name: 'listFunctions',
           data: {
-            listId,
-            role,
-            expireDays,
-            needApproval
+            action: 'generateInviteLink',
+            data: {
+              listId,
+              role,
+              expireDays,
+              needApproval
+            }
           }
         });
 
@@ -137,23 +140,35 @@ Page({
     try {
       // 调用云函数生成小程序码
       const result = await wx.cloud.callFunction({
-        name: 'generateMiniProgramCode',
+        name: 'listFunctions',
         data: {
-          scene: `invite=${inviteCode}`,
-          page: 'pages/list-invite-accept/list-invite-accept',
-          width: 280
+          action: 'generateMiniProgramCode',
+          data: {
+            scene: `invite=${inviteCode}`,
+            page: 'pages/list-invite-accept/list-invite-accept',
+            width: 280
+          }
         }
       });
 
       if (result.result && result.result.success) {
         // 返回云存储的文件ID或临时URL
         return result.result.fileID || result.result.qrcodeUrl;
+      } else if (result.result && result.result.code === -1) {
+        // 云函数返回错误，可能是权限问题
+        console.warn('生成小程序码失败:', result.result.message);
+        return '/images/qrcode-placeholder.png';
       } else {
         throw new Error(result.result?.message || '生成小程序码失败');
       }
     } catch (error) {
       console.error('生成小程序码失败:', error);
-      // 失败时返回占位图
+      // 失败时返回占位图，不阻塞主流程
+      wx.showToast({
+        title: '小程序码生成失败，使用占位图',
+        icon: 'none',
+        duration: 2000
+      });
       return '/images/qrcode-placeholder.png';
     }
   },

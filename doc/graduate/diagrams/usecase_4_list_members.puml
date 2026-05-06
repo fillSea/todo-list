@@ -1,0 +1,36 @@
+@startuml 用例图4-共享清单协作（编辑者与查看者）
+' 图3.1(d) 共享清单协作用例图——编辑者与查看者视角
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+
+left to right direction
+skinparam usecase {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+}
+
+actor "已注册用户" as User
+actor "清单编辑者" as Editor
+actor "清单查看者" as Viewer
+
+Editor --|> User
+Viewer --|> User
+
+rectangle "共享清单协作" {
+  usecase "接受/拒绝邀请" as UC_HandleInvite
+  usecase "在清单中创建任务" as UC_ListCreateTask
+  usecase "在清单中编辑任务" as UC_ListEditTask
+  usecase "查看清单任务" as UC_ViewListTask
+  usecase "查看操作记录" as UC_ViewOps
+}
+
+User --> UC_HandleInvite
+
+Editor --> UC_ListCreateTask
+Editor --> UC_ListEditTask
+Editor --> UC_ViewListTask
+Editor --> UC_ViewOps
+
+Viewer --> UC_ViewListTask
+Viewer --> UC_ViewOps
+
+@enduml

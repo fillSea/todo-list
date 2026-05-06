@@ -1,0 +1,44 @@
+@startuml 用例图2-视图展示与个人中心
+' 图3.1(b) 视图展示与个人中心用例图
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+
+left to right direction
+skinparam usecase {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+}
+
+actor "已注册用户" as User
+actor "定时触发器" as Timer
+
+rectangle "视图展示" {
+  usecase "查看任务列表视图" as UC_ListView
+  usecase "查看日历视图" as UC_CalendarView
+  usecase "查看周期任务统计" as UC_PeriodicStats
+}
+
+rectangle "个人中心" {
+  usecase "查看数据统计看板" as UC_Dashboard
+  usecase "查看通知消息" as UC_Notifications
+  usecase "管理分类标签" as UC_Categories
+  usecase "设置通知开关" as UC_NotifSettings
+}
+
+rectangle "系统定时任务" {
+  usecase "检查任务提醒" as UC_CheckReminder
+  usecase "清理过期周期任务" as UC_Cleanup
+}
+
+User --> UC_ListView
+User --> UC_CalendarView
+User --> UC_PeriodicStats
+
+User --> UC_Dashboard
+User --> UC_Notifications
+User --> UC_Categories
+User --> UC_NotifSettings
+
+Timer --> UC_CheckReminder
+Timer --> UC_Cleanup
+
+@enduml

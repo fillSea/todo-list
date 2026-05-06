@@ -110,9 +110,9 @@
               </view>
             </view>
             <view class="task-meta">
-              <text class="task-date {{item.isOverdue ? 'overdue' : ''}}" wx:if="{{item.dueDate}}">
+              <text class="task-date {{item.isOverdue ? 'overdue' : ''}}" wx:if="{{item.dueTimeText}}">
                 <van-icon name="clock-o" size="12px" color="{{item.isOverdue ? '#F44336' : '#999'}}" />
-                {{item.dueDateText}}
+                {{item.dueTimeText}}
               </text>
               <text class="task-category" wx:if="{{item.categoryName}}" style="background-color: {{item.categoryColor || '#E3F2FD'}}; color: {{item.categoryColor ? '#fff' : '#1976D2'}}">
                 {{item.categoryName}}

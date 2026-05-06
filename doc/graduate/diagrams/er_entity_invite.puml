@@ -1,0 +1,53 @@
+@startuml 清单邀请实体E-R图
+' ============================================
+' 图4.8 清单邀请实体属性图
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+' ============================================
+
+skinparam defaultFontSize 13
+skinparam defaultFontName Microsoft YaHei
+skinparam backgroundColor white
+skinparam shadowing false
+
+skinparam rectangle {
+  BorderColor #000000
+  BackgroundColor #FFFFFF
+  FontSize 14
+  FontStyle bold
+  BorderThickness 2
+}
+
+skinparam usecase {
+  BorderColor #000000
+  BackgroundColor #FFFFFF
+  FontSize 12
+  BorderThickness 1.5
+}
+
+rectangle "清单邀请表\nlist_invites" as E1
+
+usecase "邀请ID" as A1
+usecase "清单ID" as A2
+usecase "邀请人ID" as A3
+usecase "被邀请人ID" as A4
+usecase "邀请角色" as A5
+usecase "邀请类型" as A6
+usecase "邀请码" as A7
+usecase "是否需审批" as A8
+usecase "状态" as A9
+usecase "过期时间" as A10
+usecase "创建时间" as A11
+
+E1 -- A1
+E1 -- A2
+E1 -- A3
+E1 -- A4
+E1 -- A5
+E1 -- A6
+E1 -- A7
+E1 -- A8
+E1 -- A9
+E1 -- A10
+E1 -- A11
+
+@enduml

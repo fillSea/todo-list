@@ -22,6 +22,9 @@
     <view class="tab-item {{currentTab === 'accepted' ? 'active' : ''}}" data-tab="accepted" bindtap="onTabChange">
       <text>已接受</text>
     </view>
+    <view class="tab-item {{currentTab === 'rejected' ? 'active' : ''}}" data-tab="rejected" bindtap="onTabChange">
+      <text>已拒绝</text>
+    </view>
     <view class="tab-item {{currentTab === 'expired' ? 'active' : ''}}" data-tab="expired" bindtap="onTabChange">
       <text>已过期</text>
     </view>
@@ -93,6 +96,27 @@
         </view>
       </view>
     </view>
+    <!-- 已拒绝列表 -->
+    <view class="invite-list" wx:if="{{currentTab === 'rejected' && rejectedInvites.length > 0}}">
+      <view class="invite-item rejected" wx:for="{{rejectedInvites}}" wx:key="_id">
+        <image class="invite-avatar" src="{{item.inviteeInfo.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
+        <view class="invite-info">
+          <text class="invite-name">{{item.inviteeInfo.nickname || '未知用户'}}</text>
+          <view class="invite-meta">
+            <text class="invite-role {{item.role === 2 ? 'editor' : 'viewer'}}">
+              {{item.role === 2 ? '编辑者' : '查看者'}}
+            </text>
+            <text class="invite-status rejected">已拒绝</text>
+          </view>
+          <text class="invite-time">{{item.timeText}}拒绝</text>
+        </view>
+        <view class="invite-actions">
+          <view class="action-btn reinvite" bindtap="onReinvite" data-user="{{item.inviteeInfo}}">
+            重新邀请
+          </view>
+        </view>
+      </view>
+    </view>
     <!-- 已过期列表 -->
     <view class="invite-list" wx:if="{{currentTab === 'expired' && expiredInvites.length > 0}}">
       <view class="invite-item expired" wx:for="{{expiredInvites}}" wx:key="_id">
@@ -115,13 +139,13 @@
       </view>
     </view>
     <!-- 空状态 -->
-    <view class="empty-state" wx:if="{{(currentTab === 'pending' && pendingInvites.length === 0) || (currentTab === 'applications' && applications.length === 0) || (currentTab === 'accepted' && acceptedInvites.length === 0) || (currentTab === 'expired' && expiredInvites.length === 0)}}">
-      <van-icon name="{{currentTab === 'pending' ? 'clock-o' : (currentTab === 'applications' ? 'user-o' : (currentTab === 'accepted' ? 'success' : 'passed'))}}" size="60px" color="#ddd" />
+    <view class="empty-state" wx:if="{{(currentTab === 'pending' && pendingInvites.length === 0) || (currentTab === 'applications' && applications.length === 0) || (currentTab === 'accepted' && acceptedInvites.length === 0) || (currentTab === 'rejected' && rejectedInvites.length === 0) || (currentTab === 'expired' && expiredInvites.length === 0)}}">
+      <van-icon name="{{currentTab === 'pending' ? 'clock-o' : (currentTab === 'applications' ? 'user-o' : (currentTab === 'accepted' ? 'success' : (currentTab === 'rejected' ? 'close' : 'passed')))}}" size="60px" color="#ddd" />
       <text class="empty-title">
-        {{currentTab === 'pending' ? '暂无待处理邀请' : (currentTab === 'applications' ? '暂无待审核申请' : (currentTab === 'accepted' ? '暂无已接受邀请' : '暂无已过期邀请'))}}
+        {{currentTab === 'pending' ? '暂无待处理邀请' : (currentTab === 'applications' ? '暂无待审核申请' : (currentTab === 'accepted' ? '暂无已接受邀请' : (currentTab === 'rejected' ? '暂无已拒绝邀请' : '暂无已过期邀请')))}}
       </text>
       <text class="empty-desc">
-        {{currentTab === 'pending' ? '邀请的成员将显示在这里' : (currentTab === 'applications' ? '成员的加入申请将显示在这里' : (currentTab === 'accepted' ? '已接受的成员将显示在这里' : '过期的邀请将显示在这里'))}}
+        {{currentTab === 'pending' ? '邀请的成员将显示在这里' : (currentTab === 'applications' ? '成员的加入申请将显示在这里' : (currentTab === 'accepted' ? '已接受的成员将显示在这里' : (currentTab === 'rejected' ? '已拒绝的邀请将显示在这里' : '过期的邀请将显示在这里')))}}
       </text>
     </view>
     <!-- 加载更多 -->

@@ -1,0 +1,81 @@
+@startuml 任务列表加载流程图
+' 图5.3 任务列表加载流程图
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+
+skinparam activity {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  DiamondBackgroundColor #FFF8E1
+  DiamondBorderColor #F57F17
+}
+
+start
+
+:页面触发 onShow 生命周期;
+
+if (用户已登录?) then (是)
+  :同时加载分类数据和任务数据;
+else (否)
+  :显示未登录提示;
+  stop
+endif
+
+' ===== 分类数据加载 =====
+fork
+  :读取本地缓存 cachedCategories;
+  if (缓存存在?) then (是)
+    :立即渲染分类标签栏;
+  else (否)
+  endif
+  :调用云函数\ncategoryFunctions.getCategories;
+  if (返回成功?) then (是)
+    :更新分类标签栏\n更新本地缓存;
+  else (否)
+    :保持缓存数据;
+  endif
+
+' ===== 任务数据加载 =====
+fork again
+  :读取本地缓存 cachedTasks;
+  if (缓存存在?) then (是)
+    :立即渲染任务列表\n调用 processTasks();
+  else (否)
+  endif
+  :调用云函数\ntaskFunctions.getTaskList;
+  if (返回成功?) then (是)
+    :获取最新任务数组 tasks;
+    :调用 processTasks() 处理任务;
+    :更新本地缓存 cachedTasks;
+  else (否)
+    :保持缓存数据\n记录错误日志;
+  endif
+end fork
+
+' ===== processTasks 处理逻辑 =====
+partition "processTasks() 任务分组处理" {
+  :遍历任务数组;
+  :计算每个任务的状态\n（是否逾期、优先级颜色、格式化时间）;
+  
+  :周期任务过滤\n每个周期系列只保留\n最近一个未完成实例;
+  
+  :按状态分为三组;
+  
+  fork
+    :进行中任务\nstatus=0 且未逾期;
+  fork again
+    :已逾期任务\nstatus=0 且 dueDate<今天;
+  fork again
+    :已完成任务\nstatus=1;
+  end fork
+  
+  if (当前选中分类 ≠ 全部?) then (是)
+    :按 categoryId 筛选\n生成分类任务分组;
+  else (否)
+  endif
+  
+  :调用 setData() 更新页面渲染;
+}
+
+stop
+
+@enduml

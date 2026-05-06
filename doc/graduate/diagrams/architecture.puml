@@ -1,0 +1,59 @@
+@startuml 系统架构图
+' ============================================
+' 图4.1 系统整体架构图
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+' ============================================
+
+skinparam defaultFontName Microsoft YaHei
+skinparam defaultFontSize 12
+skinparam backgroundColor white
+skinparam shadowing false
+
+skinparam rectangle {
+  BorderColor #333333
+  FontSize 13
+  RoundCorner 8
+}
+
+skinparam component {
+  BorderColor #555555
+  BackgroundColor #FAFAFA
+  FontSize 11
+}
+
+' ========== 用户端 ==========
+rectangle "用户端（微信客户端）" as client #E3F2FD {
+  component "微信小程序" as mp
+}
+
+' ========== 表现层 ==========
+rectangle "表现层（小程序前端）" as view #E8F5E9 {
+  component "任务页面\n(index)" as p1
+  component "日历页面\n(calendar)" as p2
+  component "清单页面\n(checklist)" as p3
+  component "个人中心\n(profile)" as p4
+  component "Vant Weapp\n组件库" as vant
+  component "WXML / WXSS\n/ JavaScript" as tech
+}
+
+' ========== 业务逻辑层 ==========
+rectangle "业务逻辑层（云函数）" as logic #FFF3E0 {
+  component "taskFunctions\n任务管理" as cf1
+  component "listFunctions\n清单管理" as cf2
+  component "profileFunctions\n个人中心" as cf3
+  component "categoryFunctions\n分类管理" as cf4
+  component "定时触发器\n(提醒/清理)" as cf5
+}
+
+' ========== 数据存储层 ==========
+rectangle "数据存储层（云开发）" as data #FCE4EC {
+  component "云数据库\n(NoSQL)" as db
+  component "云存储\n(文件)" as storage
+}
+
+' ========== 连接关系 ==========
+client -down-> view : "页面渲染"
+view -down-> logic : "wx.cloud.callFunction"
+logic -down-> data : "数据读写"
+
+@enduml

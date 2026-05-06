@@ -1,0 +1,64 @@
+<view class="help-container">
+  <!-- 搜索栏 -->
+  <view class="search-bar">
+    <view class="search-input-wrapper">
+      <van-icon name="search" size="32rpx" color="#999" />
+      <input class="search-input" type="text" placeholder="搜索问题关键词" value="{{searchKeyword}}" bindinput="onSearchInput" />
+    </view>
+  </view>
+
+  <!-- 分类标签 -->
+  <view class="category-section">
+    <scroll-view scroll-x class="category-scroll">
+      <view class="category-item {{currentCategory === 'all' ? 'active' : ''}}" bindtap="onCategoryChange" data-id="all">
+        全部
+      </view>
+      <view class="category-item {{currentCategory === item.id ? 'active' : ''}}" wx:for="{{categories}}" wx:key="id" bindtap="onCategoryChange" data-id="{{item.id}}">
+        {{item.name}}
+      </view>
+    </scroll-view>
+  </view>
+
+  <!-- FAQ列表 -->
+  <view class="faq-section">
+    <view class="section-title">常见问题</view>
+    <view class="faq-list">
+      <view class="faq-item {{item.expanded ? 'expanded' : ''}}" wx:for="{{filteredFaqList}}" wx:key="id" bindtap="onToggleFaq" data-id="{{item.id}}">
+        <view class="faq-question">
+          <text class="q-mark">Q</text>
+          <text class="question-text">{{item.question}}</text>
+          <van-icon name="{{item.expanded ? 'arrow-up' : 'arrow-down'}}" size="28rpx" color="#999" />
+        </view>
+        <view class="faq-answer" wx:if="{{item.expanded}}">
+          <text class="a-mark">A</text>
+          <text class="answer-text">{{item.answer}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 空状态 -->
+    <view class="empty-state" wx:if="{{filteredFaqList.length === 0}}">
+      <van-icon name="search" size="120rpx" color="#ddd" />
+      <text class="empty-text">未找到相关问题</text>
+      <text class="empty-subtext">请尝试其他关键词</text>
+    </view>
+  </view>
+
+  <!-- 底部操作 -->
+  <view class="footer-section">
+    <view class="footer-item" bindtap="onContactSupport">
+      <van-icon name="service-o" size="40rpx" color="#1989fa" />
+      <text>联系客服</text>
+    </view>
+    <view class="footer-divider"></view>
+    <view class="footer-item" bindtap="onViewAgreement">
+      <van-icon name="description-o" size="40rpx" color="#07C160" />
+      <text>用户协议</text>
+    </view>
+    <view class="footer-divider"></view>
+    <view class="footer-item" bindtap="onViewPrivacy">
+      <van-icon name="shield-o" size="40rpx" color="#FAAD14" />
+      <text>隐私政策</text>
+    </view>
+  </view>
+</view>

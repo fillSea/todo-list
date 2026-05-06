@@ -1,0 +1,44 @@
+@startuml 用例图3-共享清单协作（创建者）
+' 图3.1(c) 共享清单协作用例图——创建者视角
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+
+left to right direction
+skinparam usecase {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+}
+
+actor "清单创建者" as Creator
+
+rectangle "共享清单协作" {
+  usecase "创建共享清单" as UC_CreateList
+  usecase "编辑清单信息" as UC_EditList
+  usecase "删除清单" as UC_DeleteList
+  usecase "邀请成员" as UC_Invite
+  usecase "微信好友邀请" as UC_WechatInvite
+  usecase "链接邀请" as UC_LinkInvite
+  usecase "搜索用户邀请" as UC_SearchInvite
+  usecase "修改成员角色" as UC_ChangeRole
+  usecase "移除成员" as UC_RemoveMember
+  usecase "查看操作记录" as UC_ViewOps
+  usecase "在清单中创建任务" as UC_ListCreateTask
+  usecase "在清单中编辑任务" as UC_ListEditTask
+  usecase "查看清单任务" as UC_ViewListTask
+}
+
+Creator --> UC_CreateList
+Creator --> UC_EditList
+Creator --> UC_DeleteList
+Creator --> UC_Invite
+Creator --> UC_ChangeRole
+Creator --> UC_RemoveMember
+Creator --> UC_ViewOps
+Creator --> UC_ListCreateTask
+Creator --> UC_ListEditTask
+Creator --> UC_ViewListTask
+
+UC_WechatInvite ..> UC_Invite : <<extend>>
+UC_LinkInvite ..> UC_Invite : <<extend>>
+UC_SearchInvite ..> UC_Invite : <<extend>>
+
+@enduml

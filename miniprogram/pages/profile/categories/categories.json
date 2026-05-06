@@ -1,0 +1,9 @@
+{
+  "navigationBarTitleText": "分类标签",
+  "enablePullDownRefresh": true,
+  "backgroundColor": "#F5F5F5",
+  "usingComponents": {
+    "van-icon": "@vant/weapp/icon/index",
+    "van-popup": "@vant/weapp/popup/index"
+  }
+}

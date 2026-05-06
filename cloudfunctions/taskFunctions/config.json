@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "openapi": [
+      "subscribeMessage.send"
+    ]
+  },
+  "triggers": [
+    {
+      "name": "checkReminders",
+      "type": "timer",
+      "config": "0 * * * * * *"
+    },
+    {
+      "name": "cleanupExpiredPeriodicTasks",
+      "type": "timer",
+      "config": "0 0 3 * * * *"
+    }
+  ]
+}

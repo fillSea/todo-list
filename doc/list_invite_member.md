@@ -42,7 +42,7 @@
 | role | Number | 邀请角色（2-编辑者，3-查看者） | 无 |
 | inviteType | String | 邀请类型（wechat/link/search） | 无 |
 | inviteCode | String | 邀请码（链接邀请时生成） | 唯一索引 |
-| status | Number | 邀请状态（0-待接受，1-已接受，2-已拒绝，3-已过期） | 普通索引 |
+| status | Number | 邀请状态（0-待接受，1-已接受，2-已拒绝，3-已过期，4-待审批） | 普通索引 |
 | expireAt | Timestamp | 过期时间 | 普通索引 |
 | createdAt | Timestamp | 创建时间 | 无 |
 | updatedAt | Timestamp | 更新时间 | 无 |

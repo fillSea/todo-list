@@ -1,5 +1,5 @@
 // 调试模式开关
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 
 Page({
   data: {
@@ -12,6 +12,7 @@ Page({
     // 邀请列表
     pendingInvites: [],
     acceptedInvites: [],
+    rejectedInvites: [],
     expiredInvites: [],
     applications: [],
     pendingCount: 0,
@@ -120,8 +121,8 @@ Page({
           }
         ];
 
-        // 伪造已过期邀请
-        const mockExpired = [
+        // 伪造已拒绝邀请
+        const mockRejected = [
           {
             _id: 'invite_005',
             inviteeInfo: {
@@ -129,18 +130,32 @@ Page({
               avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=10'
             },
             role: 2,
-            status: 3,
+            status: 2,
             timeText: '2天前'
           }
         ];
 
-        // 伪造申请列表
+        // 伪造已过期邀请
+        const mockExpired = [
+          {
+            _id: 'invite_006',
+            inviteeInfo: {
+              nickname: '郑十一',
+              avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=11'
+            },
+            role: 3,
+            status: 3,
+            timeText: '3天前'
+          }
+        ];
+
+        // 伪造申请列表 (status: 4 表示待审批)
         const mockApplications = [
           {
             _id: 'apply_001',
             applicantInfo: {
-              nickname: '郑十一',
-              avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=11'
+              nickname: '郑十二',
+              avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=12'
             },
             role: 2,
             status: 4,
@@ -150,8 +165,8 @@ Page({
           {
             _id: 'apply_002',
             applicantInfo: {
-              nickname: '王十二',
-              avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=12'
+              nickname: '王十三',
+              avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=13'
             },
             role: 3,
             status: 4,
@@ -163,6 +178,7 @@ Page({
         this.setData({
           pendingInvites: mockPending,
           acceptedInvites: mockAccepted,
+          rejectedInvites: mockRejected,
           expiredInvites: mockExpired,
           applications: mockApplications,
           pendingCount: mockPending.length,
@@ -173,36 +189,89 @@ Page({
       } else {
         const { listId, currentTab } = this.data;
 
-        const result = await wx.cloud.callFunction({
-          name: 'getInviteList',
-          data: {
-            listId,
-            status: currentTab === 'pending' ? 0 : (currentTab === 'accepted' ? 1 : 3)
+        // 根据当前标签确定要查询的状态
+        // status: 0-待接受, 1-已接受, 2-已拒绝, 3-已过期, 4-待审批
+        let status;
+        if (currentTab === 'pending') {
+          status = 0;
+        } else if (currentTab === 'accepted') {
+          status = 1;
+        } else if (currentTab === 'rejected') {
+          status = 2;
+        } else if (currentTab === 'expired') {
+          status = 3;
+        } else if (currentTab === 'applications') {
+          status = 4;
+        }
+
+        // 加载申请列表(待审批)或邀请列表
+        if (currentTab === 'applications') {
+          // 查询待审批的申请
+          const result = await wx.cloud.callFunction({
+            name: 'listFunctions',
+            data: {
+              action: 'getInviteList',
+              data: {
+                listId,
+                status: 4
+              }
+            }
+          });
+
+          if (result.result && result.result.success) {
+            const applications = result.result.invites.map(invite => ({
+              ...invite,
+              applicantInfo: invite.inviteeInfo,
+              timeText: this.formatTime(invite.createdAt)
+            }));
+
+            this.setData({
+              applications,
+              applicationCount: applications.length,
+              isRefreshing: false
+            });
           }
-        });
+        } else {
+          // 查询邀请列表
+          const result = await wx.cloud.callFunction({
+            name: 'listFunctions',
+            data: {
+              action: 'getInviteList',
+              data: {
+                listId,
+                status
+              }
+            }
+          });
 
-        if (result.result && result.result.success) {
-          const invites = result.result.invites.map(invite => ({
-            ...invite,
-            timeText: this.formatTime(invite.createdAt)
-          }));
+          if (result.result && result.result.success) {
+            const invites = result.result.invites.map(invite => ({
+              ...invite,
+              timeText: this.formatTime(invite.createdAt)
+            }));
 
-          if (currentTab === 'pending') {
-            this.setData({
-              pendingInvites: invites,
-              pendingCount: invites.length,
-              isRefreshing: false
-            });
-          } else if (currentTab === 'accepted') {
-            this.setData({
-              acceptedInvites: invites,
-              isRefreshing: false
-            });
-          } else {
-            this.setData({
-              expiredInvites: invites,
-              isRefreshing: false
-            });
+            if (currentTab === 'pending') {
+              this.setData({
+                pendingInvites: invites,
+                pendingCount: invites.length,
+                isRefreshing: false
+              });
+            } else if (currentTab === 'accepted') {
+              this.setData({
+                acceptedInvites: invites,
+                isRefreshing: false
+              });
+            } else if (currentTab === 'rejected') {
+              this.setData({
+                rejectedInvites: invites,
+                isRefreshing: false
+              });
+            } else if (currentTab === 'expired') {
+              this.setData({
+                expiredInvites: invites,
+                isRefreshing: false
+              });
+            }
           }
         }
       }
@@ -300,8 +369,11 @@ Page({
         });
       } else {
         const result = await wx.cloud.callFunction({
-          name: 'remindInvite',
-          data: { inviteId: id }
+          name: 'listFunctions',
+          data: {
+            action: 'remindInvite',
+            data: { inviteId: id }
+          }
         });
 
         if (result.result && result.result.success) {
@@ -364,8 +436,11 @@ Page({
         });
       } else {
         const result = await wx.cloud.callFunction({
-          name: 'cancelInvite',
-          data: { inviteId: cancelInviteId }
+          name: 'listFunctions',
+          data: {
+            action: 'cancelInvite',
+            data: { inviteId: cancelInviteId }
+          }
         });
 
         if (result.result && result.result.success) {
@@ -425,8 +500,11 @@ Page({
         });
       } else {
         const result = await wx.cloud.callFunction({
-          name: 'approveApplication',
-          data: { applicationId: id }
+          name: 'listFunctions',
+          data: {
+            action: 'approveApplication',
+            data: { applicationId: id }
+          }
         });
 
         if (result.result && result.result.success) {
@@ -473,8 +551,11 @@ Page({
         });
       } else {
         const result = await wx.cloud.callFunction({
-          name: 'rejectApplication',
-          data: { applicationId: id }
+          name: 'listFunctions',
+          data: {
+            action: 'rejectApplication',
+            data: { applicationId: id }
+          }
         });
 
         if (result.result && result.result.success) {
@@ -503,7 +584,8 @@ Page({
   onClearAll() {
     const { currentTab } = this.data;
 
-    if (currentTab === 'pending') return;
+    // 待处理和申请审核标签不允许清空
+    if (currentTab === 'pending' || currentTab === 'applications') return;
 
     this.setData({ showClearDialog: true });
   },
@@ -524,6 +606,8 @@ Page({
         // 清空当前标签的数据
         if (this.data.currentTab === 'accepted') {
           this.setData({ acceptedInvites: [] });
+        } else if (this.data.currentTab === 'rejected') {
+          this.setData({ rejectedInvites: [] });
         } else if (this.data.currentTab === 'expired') {
           this.setData({ expiredInvites: [] });
         }
@@ -535,11 +619,25 @@ Page({
       } else {
         const { listId, currentTab } = this.data;
 
+        // 根据当前标签确定要清空的状态
+        // status: 0-待接受, 1-已接受, 2-已拒绝, 3-已过期, 4-待审批
+        let status;
+        if (currentTab === 'accepted') {
+          status = 1;
+        } else if (currentTab === 'rejected') {
+          status = 2;
+        } else if (currentTab === 'expired') {
+          status = 3;
+        }
+
         const result = await wx.cloud.callFunction({
-          name: 'clearInvites',
+          name: 'listFunctions',
           data: {
-            listId,
-            status: currentTab === 'accepted' ? 1 : 3
+            action: 'clearInvites',
+            data: {
+              listId,
+              status
+            }
           }
         });
 
@@ -572,9 +670,12 @@ Page({
 
   // 计算属性：是否可以清空
   canClear() {
-    const { currentTab, acceptedInvites, expiredInvites } = this.data;
+    const { currentTab, acceptedInvites, rejectedInvites, expiredInvites } = this.data;
     if (currentTab === 'accepted') {
       return acceptedInvites.length > 0;
+    }
+    if (currentTab === 'rejected') {
+      return rejectedInvites.length > 0;
     }
     if (currentTab === 'expired') {
       return expiredInvites.length > 0;

@@ -1,0 +1,59 @@
+@startuml 任务实体E-R图
+' ============================================
+' 图4.4 任务实体属性图
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+' ============================================
+
+skinparam defaultFontSize 13
+skinparam defaultFontName Microsoft YaHei
+skinparam backgroundColor white
+skinparam shadowing false
+
+skinparam rectangle {
+  BorderColor #000000
+  BackgroundColor #FFFFFF
+  FontSize 14
+  FontStyle bold
+  BorderThickness 2
+}
+
+skinparam usecase {
+  BorderColor #000000
+  BackgroundColor #FFFFFF
+  FontSize 12
+  BorderThickness 1.5
+}
+
+rectangle "任务表\ntasks" as E1
+
+usecase "任务ID" as A1
+usecase "标题" as A2
+usecase "描述" as A3
+usecase "截止日期" as A4
+usecase "优先级" as A5
+usecase "状态" as A6
+usecase "重复类型" as A7
+usecase "重复值" as A8
+usecase "提醒时间" as A9
+usecase "附件列表" as A10
+usecase "创建者ID" as A11
+usecase "清单ID" as A12
+usecase "分类ID" as A13
+usecase "创建时间" as A14
+
+E1 -- A1
+E1 -- A2
+E1 -- A3
+E1 -- A4
+E1 -- A5
+E1 -- A6
+E1 -- A7
+E1 -- A8
+E1 -- A9
+E1 -- A10
+E1 -- A11
+E1 -- A12
+E1 -- A13
+E1 -- A14
+
+@enduml

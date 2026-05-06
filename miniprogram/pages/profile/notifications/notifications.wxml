@@ -1,0 +1,49 @@
+<view class="notifications-container">
+  <!-- 类型筛选 -->
+  <view class="type-filter">
+    <scroll-view scroll-x class="filter-scroll">
+      <view class="filter-item {{currentType === item.value ? 'active' : ''}}" wx:for="{{typeOptions}}" wx:key="value" bindtap="onTypeChange" data-type="{{item.value}}">
+        {{item.label}}
+      </view>
+    </scroll-view>
+    <view class="mark-all-btn" bindtap="onMarkAllRead">
+      <text>全部已读</text>
+    </view>
+  </view>
+
+  <!-- 通知列表 -->
+  <view class="notifications-wrapper">
+    <view class="notification-item {{item.isRead ? 'read' : 'unread'}}" wx:for="{{notifications}}" wx:key="_id" bindtap="onNotificationTap" data-item="{{item}}">
+      <view class="notification-icon">
+        <van-icon name="{{item.iconName}}" size="40rpx" color="{{item.isRead ? '#999' : '#1989fa'}}" />
+      </view>
+      <view class="notification-content">
+        <view class="notification-header">
+          <text class="notification-type">{{item.typeText}}</text>
+          <text class="notification-time">{{item.createdAt}}</text>
+        </view>
+        <text class="notification-text">{{item.content}}</text>
+      </view>
+      <view class="notification-status">
+        <view class="unread-dot" wx:if="{{!item.isRead}}"></view>
+        <view class="delete-btn" catchtap="onDeleteNotification" data-id="{{item._id}}">
+          <van-icon name="delete-o" size="32rpx" color="#999" />
+        </view>
+      </view>
+    </view>
+
+    <!-- 空状态 -->
+    <view class="empty-state" wx:if="{{!loading && notifications.length === 0}}">
+      <van-icon name="bell" size="120rpx" color="#ddd" />
+      <text class="empty-text">暂无通知</text>
+    </view>
+  </view>
+
+  <!-- 加载更多 -->
+  <view class="loading-more" wx:if="{{loading && notifications.length > 0}}">
+    <van-loading type="spinner" size="24rpx" /> 加载中...
+  </view>
+  <view class="no-more" wx:if="{{!hasMore && notifications.length > 0}}">
+    没有更多了
+  </view>
+</view>

@@ -1,0 +1,159 @@
+@startuml 系统用例图
+' ============================================
+' 基于微信小程序的简易协同待办清单系统 - 用例图
+' 使用方法：复制到 https://www.plantuml.com/plantuml/uml 渲染
+' ============================================
+
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam usecase {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+  ArrowColor #333333
+}
+skinparam actor {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+}
+
+' ==================== 参与者 ====================
+actor "未注册用户" as Guest
+actor "已注册用户" as User
+actor "清单创建者" as Creator
+actor "清单编辑者" as Editor
+actor "清单查看者" as Viewer
+actor "定时触发器" as Timer
+
+' 继承关系
+Creator --|> User
+Editor --|> User
+Viewer --|> User
+
+' ==================== 系统边界 ====================
+rectangle "基于微信小程序的简易协同待办清单系统" {
+
+  ' ---------- 用户管理 ----------
+  package "用户管理" {
+    usecase "微信授权登录" as UC_Login
+    usecase "用户注册" as UC_Register
+    usecase "修改个人信息" as UC_EditProfile
+  }
+
+  ' ---------- 个人任务管理 ----------
+  package "个人任务管理" {
+    usecase "创建任务" as UC_CreateTask
+    usecase "编辑任务" as UC_EditTask
+    usecase "删除任务" as UC_DeleteTask
+    usecase "完成/取消完成任务" as UC_ToggleTask
+    usecase "搜索任务" as UC_SearchTask
+    usecase "按分类筛选任务" as UC_FilterTask
+    usecase "设置任务优先级" as UC_Priority
+    usecase "设置周期性任务" as UC_Periodic
+    usecase "设置任务提醒" as UC_Reminder
+  }
+
+  ' ---------- 视图展示 ----------
+  package "视图展示" {
+    usecase "查看任务列表" as UC_ListView
+    usecase "查看日历视图" as UC_CalendarView
+    usecase "查看周期任务统计" as UC_PeriodicStats
+  }
+
+  ' ---------- 共享清单协作 ----------
+  package "共享清单协作" {
+    usecase "创建共享清单" as UC_CreateList
+    usecase "编辑清单信息" as UC_EditList
+    usecase "删除清单" as UC_DeleteList
+    usecase "邀请成员" as UC_Invite
+    usecase "微信好友邀请" as UC_WechatInvite
+    usecase "链接邀请" as UC_LinkInvite
+    usecase "搜索用户邀请" as UC_SearchInvite
+    usecase "接受/拒绝邀请" as UC_HandleInvite
+    usecase "修改成员角色" as UC_ChangeRole
+    usecase "移除成员" as UC_RemoveMember
+    usecase "查看操作记录" as UC_ViewOps
+    usecase "在清单中创建任务" as UC_ListCreateTask
+    usecase "在清单中编辑任务" as UC_ListEditTask
+    usecase "查看清单任务" as UC_ViewListTask
+  }
+
+  ' ---------- 个人中心 ----------
+  package "个人中心" {
+    usecase "查看数据统计看板" as UC_Dashboard
+    usecase "查看通知消息" as UC_Notifications
+    usecase "管理分类标签" as UC_Categories
+    usecase "设置通知开关" as UC_NotifSettings
+  }
+
+  ' ---------- 系统定时任务 ----------
+  package "系统定时任务" {
+    usecase "检查任务提醒" as UC_CheckReminder
+    usecase "清理过期周期任务" as UC_Cleanup
+  }
+}
+
+' ==================== 关联关系 ====================
+
+' 未注册用户
+Guest --> UC_Login
+Guest --> UC_Register
+
+' 已注册用户 - 任务管理
+User --> UC_CreateTask
+User --> UC_EditTask
+User --> UC_DeleteTask
+User --> UC_ToggleTask
+User --> UC_SearchTask
+User --> UC_FilterTask
+User --> UC_ListView
+User --> UC_CalendarView
+User --> UC_PeriodicStats
+User --> UC_EditProfile
+
+' 已注册用户 - 个人中心
+User --> UC_Dashboard
+User --> UC_Notifications
+User --> UC_Categories
+User --> UC_NotifSettings
+
+' 已注册用户 - 邀请处理
+User --> UC_HandleInvite
+
+' 创建任务的扩展（箭头从扩展用例指向基础用例）
+UC_Priority ..> UC_CreateTask : <<extend>>
+UC_Periodic ..> UC_CreateTask : <<extend>>
+UC_Reminder ..> UC_CreateTask : <<extend>>
+
+' 清单创建者
+Creator --> UC_CreateList
+Creator --> UC_EditList
+Creator --> UC_DeleteList
+Creator --> UC_Invite
+Creator --> UC_ChangeRole
+Creator --> UC_RemoveMember
+Creator --> UC_ViewOps
+Creator --> UC_ListCreateTask
+Creator --> UC_ListEditTask
+Creator --> UC_ViewListTask
+
+' 邀请方式的扩展（箭头从扩展用例指向基础用例）
+UC_WechatInvite ..> UC_Invite : <<extend>>
+UC_LinkInvite ..> UC_Invite : <<extend>>
+UC_SearchInvite ..> UC_Invite : <<extend>>
+
+' 清单编辑者
+Editor --> UC_ListCreateTask
+Editor --> UC_ListEditTask
+Editor --> UC_ViewListTask
+Editor --> UC_ViewOps
+
+' 清单查看者
+Viewer --> UC_ViewListTask
+Viewer --> UC_ViewOps
+
+' 定时触发器
+Timer --> UC_CheckReminder
+Timer --> UC_Cleanup
+
+@enduml

@@ -1,5 +1,5 @@
 // 调试模式开关
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 
 // 预设颜色选项
 const COLOR_OPTIONS = [
@@ -84,12 +84,15 @@ Page({
       } else {
         // 生产模式：调用云函数
         const result = await wx.cloud.callFunction({
-          name: 'getListDetail',
-          data: { listId }
+          name: 'listFunctions',
+          data: {
+            action: 'getListDetail',
+            data: { listId }
+          }
         });
 
-        if (result.result && result.result.success) {
-          const list = result.result.list;
+        if (result.result && result.result.code === 0) {
+          const list = result.result.data.listInfo;
           this.setData({
             formData: {
               name: list.name,
@@ -142,8 +145,8 @@ Page({
 
     this.setData({
       'formData.isShared': isShared,
-      // 切换到个人清单时，重置可见性为公开
-      'formData.visibility': isShared ? this.data.formData.visibility : 1
+      // 个人清单默认私密，共享清单保持当前可见性
+      'formData.visibility': isShared ? this.data.formData.visibility : 2
     });
   },
 
@@ -183,6 +186,30 @@ Page({
       return;
     }
 
+    if (formData.name.trim().length < 2) {
+      wx.showToast({
+        title: '清单名称至少2个字符',
+        icon: 'none'
+      });
+      return;
+    }
+
+    if (formData.name.trim().length > 50) {
+      wx.showToast({
+        title: '清单名称最多50个字符',
+        icon: 'none'
+      });
+      return;
+    }
+
+    if (formData.description && formData.description.trim().length > 200) {
+      wx.showToast({
+        title: '清单描述最多200个字符',
+        icon: 'none'
+      });
+      return;
+    }
+
     wx.showLoading({ title: isEditing ? '保存中...' : '创建中...' });
 
     try {
@@ -204,12 +231,12 @@ Page({
           wx.navigateBack();
         }, 1500);
       } else {
-        const cloudFnName = isEditing ? 'updateList' : 'createList';
+        const cloudAction = isEditing ? 'updateList' : 'createList';
         const params = {
           name: formData.name.trim(),
           description: formData.description.trim(),
           isShared: formData.isShared,
-          visibility: formData.isShared ? formData.visibility : 1,
+          visibility: formData.isShared ? formData.visibility : 2,
           color: formData.color
         };
 
@@ -218,11 +245,14 @@ Page({
         }
 
         const result = await wx.cloud.callFunction({
-          name: cloudFnName,
-          data: params
+          name: 'listFunctions',
+          data: {
+            action: cloudAction,
+            data: params
+          }
         });
 
-        if (result.result && result.result.success) {
+        if (result.result && result.result.code === 0) {
           wx.showToast({
             title: isEditing ? '保存成功' : '创建成功',
             icon: 'success'
@@ -288,11 +318,14 @@ Page({
         }, 1500);
       } else {
         const result = await wx.cloud.callFunction({
-          name: 'deleteList',
-          data: { listId }
+          name: 'listFunctions',
+          data: {
+            action: 'deleteList',
+            data: { listId }
+          }
         });
 
-        if (result.result && result.result.success) {
+        if (result.result && result.result.code === 0) {
           wx.showToast({
             title: '删除成功',
             icon: 'success'

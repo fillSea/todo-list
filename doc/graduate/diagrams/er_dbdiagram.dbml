@@ -1,0 +1,141 @@
+// ============================================
+// 系统E-R图 — dbdiagram.io DBML格式
+// 使用方法：复制全部内容粘贴到 https://dbdiagram.io/d
+// ============================================
+
+Table users {
+  _id String [pk, note: '用户唯一标识']
+  openid String [unique, not null, note: '微信OpenID']
+  nickname String [note: '用户昵称']
+  avatarUrl String [note: '用户头像URL']
+  enableNotifications Boolean [default: true, note: '是否接收通知']
+  createdAt Timestamp [note: '创建时间']
+  updatedAt Timestamp [note: '更新时间']
+}
+
+Table tasks {
+  _id String [pk, note: '任务唯一标识']
+  title String [not null, note: '任务标题']
+  description String [note: '任务描述']
+  dueDate Timestamp [not null, note: '截止日期']
+  priority Number [default: 1, note: '优先级 1不重要不紧急 2紧急不重要 3重要不紧急 4重要且紧急']
+  status Number [default: 0, note: '状态 0未完成 1已完成']
+  repeatType Number [default: 0, note: '重复类型 0不重复 1每天 2每周 3每月']
+  repeatValue String [note: '重复值 如1,3,5表示周一三五']
+  parentTaskId String [note: '父周期任务ID']
+  isPeriodicInstance Boolean [note: '是否为周期实例']
+  reminderAt Timestamp [note: '提醒时间']
+  reminderSent Boolean [default: false, note: '提醒是否已发送']
+  attachments JSON [note: '附件列表']
+  creatorId String [not null, note: '创建者ID']
+  listId String [note: '所属清单ID']
+  categoryId String [note: '分类ID']
+  createdAt Timestamp [note: '创建时间']
+  updatedAt Timestamp [note: '更新时间']
+}
+
+Table lists {
+  _id String [pk, note: '清单唯一标识']
+  name String [not null, note: '清单名称']
+  description String [note: '清单描述']
+  isShared Boolean [note: '是否为共享清单']
+  visibility Number [default: 2, note: '可见性 1公开 2私密']
+  creatorId String [not null, note: '创建者ID']
+  createdAt Timestamp [note: '创建时间']
+  updatedAt Timestamp [note: '更新时间']
+}
+
+Table categories {
+  _id String [pk, note: '分类唯一标识']
+  name String [not null, note: '分类名称']
+  color String [default: '#1989fa', note: '分类颜色']
+  userId String [not null, note: '所属用户ID']
+  createdAt Timestamp [note: '创建时间']
+  updatedAt Timestamp [note: '更新时间']
+}
+
+Table list_members {
+  _id String [pk, note: '记录唯一标识']
+  listId String [not null, note: '清单ID']
+  userId String [not null, note: '用户ID']
+  role Number [not null, note: '角色 1创建者 2编辑者 3查看者']
+  joinType String [note: '加入方式 invite/link/create']
+  inviteId String [note: '关联邀请记录ID']
+  joinedAt Timestamp [note: '加入时间']
+
+  indexes {
+    (listId, userId) [unique]
+  }
+}
+
+Table list_invites {
+  _id String [pk, note: '邀请记录唯一标识']
+  listId String [not null, note: '清单ID']
+  inviterId String [not null, note: '邀请人ID']
+  inviteeId String [note: '被邀请人ID']
+  inviteeInfo JSON [note: '被邀请人信息']
+  role Number [not null, note: '邀请角色 2编辑者 3查看者']
+  inviteType String [not null, note: '邀请类型 wechat/link/search']
+  inviteCode String [unique, note: '邀请码']
+  needApproval Boolean [default: false, note: '是否需要审批']
+  status Number [default: 0, note: '状态 0待接受 1已接受 2已拒绝 3已过期 4待审批']
+  expireAt Timestamp [note: '过期时间']
+  createdAt Timestamp [note: '创建时间']
+  updatedAt Timestamp [note: '更新时间']
+}
+
+Table operations {
+  _id String [pk, note: '操作记录唯一标识']
+  type String [not null, note: '操作类型']
+  targetId String [note: '操作目标ID']
+  userId String [not null, note: '操作用户ID']
+  content JSON [note: '操作内容详情']
+  listId String [note: '所属清单ID']
+  createdAt Timestamp [note: '操作时间']
+}
+
+Table notifications {
+  _id String [pk, note: '通知唯一标识']
+  type String [not null, note: '通知类型']
+  userId String [not null, note: '接收用户ID']
+  relatedId String [note: '关联对象ID']
+  content String [not null, note: '通知内容']
+  isRead Boolean [default: false, note: '是否已读']
+  createdAt Timestamp [note: '创建时间']
+}
+
+// ===== 关系定义 =====
+
+// 用户 → 任务（创建）
+Ref: tasks.creatorId > users._id
+
+// 用户 → 清单（创建）
+Ref: lists.creatorId > users._id
+
+// 用户 → 分类（拥有）
+Ref: categories.userId > users._id
+
+// 清单 → 任务（包含）
+Ref: tasks.listId > lists._id
+
+// 分类 → 任务（归类）
+Ref: tasks.categoryId > categories._id
+
+// 任务 → 任务（周期父子）
+Ref: tasks.parentTaskId > tasks._id
+
+// 清单成员：清单 ← list_members → 用户（多对多）
+Ref: list_members.listId > lists._id
+Ref: list_members.userId > users._id
+
+// 清单邀请
+Ref: list_invites.listId > lists._id
+Ref: list_invites.inviterId > users._id
+Ref: list_invites.inviteeId > users._id
+
+// 操作记录
+Ref: operations.userId > users._id
+Ref: operations.listId > lists._id
+
+// 通知
+Ref: notifications.userId > users._id

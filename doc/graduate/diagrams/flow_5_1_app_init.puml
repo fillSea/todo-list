@@ -1,0 +1,56 @@
+@startuml 应用初始化流程图
+' 图5.1 应用初始化流程图
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+
+skinparam activity {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  DiamondBackgroundColor #FFF8E1
+  DiamondBorderColor #F57F17
+}
+
+start
+
+:用户打开小程序;
+:触发 onLaunch 生命周期;
+
+if (基础库版本 >= 2.2.3 ?) then (是)
+  :调用 wx.cloud.init()\n初始化云开发环境;
+else (否)
+  :提示"请升级微信版本";
+  stop
+endif
+
+:读取本地存储\nuserInfo / isLoggedIn / loginTime;
+
+if (本地存在登录信息?) then (是)
+  :计算登录时长\nnow - loginTime;
+  
+  if (登录时长 > 30天?) then (是)
+    :清除本地登录状态\nclearLoginStatus();
+    :显示未登录状态\n等待用户手动登录;
+  else (否)
+    :恢复全局登录状态\nglobalData.userInfo = userInfo\nglobalData.isLoggedIn = true;
+    
+    fork
+      :前端立即展示\n缓存的用户数据;
+    fork again
+      :异步调用云函数\nprofileFunctions.getUserInfo\n同步最新用户信息;
+      
+      if (云函数返回成功?) then (是)
+        :更新 globalData\n更新本地缓存;
+      else (否)
+        :保持使用缓存数据\n记录错误日志;
+      endif
+    end fork
+    
+    :进入应用首页\n加载任务数据;
+  endif
+  
+else (否)
+  :显示未登录状态\n等待用户手动登录;
+endif
+
+stop
+
+@enduml

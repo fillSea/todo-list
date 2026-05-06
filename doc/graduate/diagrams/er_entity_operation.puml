@@ -1,0 +1,45 @@
+@startuml 操作记录实体E-R图
+' ============================================
+' 图4.9 操作记录实体属性图
+' 渲染：复制到 https://www.plantuml.com/plantuml/uml
+' ============================================
+
+skinparam defaultFontSize 13
+skinparam defaultFontName Microsoft YaHei
+skinparam backgroundColor white
+skinparam shadowing false
+
+skinparam rectangle {
+  BorderColor #000000
+  BackgroundColor #FFFFFF
+  FontSize 14
+  FontStyle bold
+  BorderThickness 2
+}
+
+skinparam usecase {
+  BorderColor #000000
+  BackgroundColor #FFFFFF
+  FontSize 12
+  BorderThickness 1.5
+}
+
+rectangle "操作记录表\noperations" as E1
+
+usecase "操作ID" as A1
+usecase "操作类型" as A2
+usecase "目标ID" as A3
+usecase "操作用户ID" as A4
+usecase "操作内容" as A5
+usecase "清单ID" as A6
+usecase "操作时间" as A7
+
+E1 -- A1
+E1 -- A2
+E1 -- A3
+E1 -- A4
+E1 -- A5
+E1 -- A6
+E1 -- A7
+
+@enduml

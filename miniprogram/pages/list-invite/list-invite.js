@@ -1,5 +1,5 @@
 // 调试模式开关
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 
 Page({
   data: {
@@ -56,6 +56,15 @@ Page({
       userInfo
     });
 
+    // 启用分享菜单
+    wx.showShareMenu({
+      withShareTicket: true,
+      menus: ['shareAppMessage']
+    });
+
+    // 预生成邀请码（用于微信分享）
+    this.preGenerateInviteCode();
+
     // 加载数据
     this.loadData();
   },
@@ -63,6 +72,44 @@ Page({
   onShow: function () {
     if (this.data.listId) {
       this.loadPendingInvites();
+    }
+  },
+
+  onShareAppMessage: function () {
+    const inviteCode = this._pendingInviteCode || '';
+    const listName = this.data.listInfo?.name || '共享清单';
+    const role = this._pendingRole || 3;
+
+    return {
+      title: `邀请你加入"${listName}"`,
+      path: `/pages/list-invite-accept/list-invite-accept?code=${inviteCode}&role=${role}`,
+      imageUrl: '/images/share-invite.png'
+    };
+  },
+
+  // 预生成邀请码（在页面加载时调用）
+  async preGenerateInviteCode() {
+    try {
+      const { listId } = this.data;
+      if (!listId || DEBUG_MODE) return;
+
+      const result = await wx.cloud.callFunction({
+        name: 'listFunctions',
+        data: {
+          action: 'createWechatInvite',
+          data: {
+            listId,
+            role: 3 // 默认角色
+          }
+        }
+      });
+
+      if (result.result && result.result.success) {
+        this._pendingInviteCode = result.result.inviteCode;
+        console.log('预生成邀请码成功:', this._pendingInviteCode);
+      }
+    } catch (error) {
+      console.error('预生成邀请码失败:', error);
     }
   },
 
@@ -91,18 +138,34 @@ Page({
         this.setData({ listInfo: mockListInfo });
       } else {
         const result = await wx.cloud.callFunction({
-          name: 'getListDetail',
-          data: { listId: this.data.listId }
+          name: 'listFunctions',
+          data: {
+            action: 'getListDetail',
+            data: { listId: this.data.listId }
+          }
         });
 
-        if (result.result && result.result.success) {
-          this.setData({
-            listInfo: result.result.list
+        if (result.result && result.result.code === 0) {
+          const detail = result.result.data;
+          const listInfo = {
+            ...detail.listInfo,
+            memberCount: (detail.members || []).length
+          };
+          this.setData({ listInfo });
+        } else {
+          console.error('获取清单信息失败:', result.result?.message);
+          wx.showToast({
+            title: '加载清单信息失败',
+            icon: 'none'
           });
         }
       }
     } catch (error) {
       console.error('加载清单信息失败:', error);
+      wx.showToast({
+        title: '加载清单信息失败',
+        icon: 'none'
+      });
     }
   },
 
@@ -131,7 +194,7 @@ Page({
               avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=7'
             },
             role: 3,
-            status: 3,
+            status: 0,
             timeText: '1天前'
           }
         ];
@@ -139,23 +202,30 @@ Page({
         this.setData({ pendingInvites: mockInvites });
       } else {
         const result = await wx.cloud.callFunction({
-          name: 'getInviteList',
+          name: 'listFunctions',
           data: {
-            listId: this.data.listId,
-            status: 0
+            action: 'getInviteList',
+            data: {
+              listId: this.data.listId,
+              status: 0
+            }
           }
         });
 
         if (result.result && result.result.success) {
-          const invites = result.result.invites.map(invite => ({
+          const invites = (result.result.invites || []).map(invite => ({
             ...invite,
             timeText: this.formatTime(invite.createdAt)
           }));
           this.setData({ pendingInvites: invites });
+        } else {
+          console.error('获取待处理邀请失败:', result.result?.message);
+          this.setData({ pendingInvites: [] });
         }
       }
     } catch (error) {
       console.error('加载待处理邀请失败:', error);
+      this.setData({ pendingInvites: [] });
     }
   },
 
@@ -187,16 +257,23 @@ Page({
         this.setData({ recentMembers: mockMembers });
       } else {
         const result = await wx.cloud.callFunction({
-          name: 'getRecentCollaborators',
-          data: {}
+          name: 'listFunctions',
+          data: {
+            action: 'getRecentCollaborators',
+            data: {}
+          }
         });
 
         if (result.result && result.result.success) {
-          this.setData({ recentMembers: result.result.members });
+          this.setData({ recentMembers: result.result.members || [] });
+        } else {
+          console.error('获取最近协作成员失败:', result.result?.message);
+          this.setData({ recentMembers: [] });
         }
       }
     } catch (error) {
       console.error('加载最近协作成员失败:', error);
+      this.setData({ recentMembers: [] });
     }
   },
 
@@ -211,6 +288,9 @@ Page({
     const now = new Date();
     const diff = now - date;
 
+    if (diff < 60000) {
+      return '刚刚';
+    }
     if (diff < 3600000) {
       return Math.floor(diff / 60000) + '分钟前';
     }
@@ -254,69 +334,56 @@ Page({
   onWechatInvite() {
     if (!this.checkMemberLimit()) return;
 
-    // 检查是否支持微信好友邀请
-    wx.showActionSheet({
-      itemList: ['发送给微信好友', '分享到微信群'],
-      success: (res) => {
-        if (res.tapIndex === 0) {
-          this.showRolePopup('wechat');
-        } else {
-          this.showRolePopup('wechat_group');
-        }
-      }
-    });
+    // 显示角色选择弹窗，微信邀请默认选择查看者(3)
+    this.showRolePopup('wechat');
   },
 
-  // 打开微信选择器邀请好友
-  async openWechatPicker(role) {
+  // 创建邀请并触发分享
+  async createInviteAndShare(role) {
     wx.showLoading({ title: '准备中...' });
 
     try {
       if (DEBUG_MODE) {
         await this.simulateDelay(500);
+
+        // 调试模式下模拟生成邀请码
+        this._pendingInviteCode = 'debug_invite_' + Date.now();
+        this._pendingRole = role;
+
         wx.hideLoading();
 
-        // 调试模式下提示用户
-        wx.showModal({
-          title: '调试模式',
-          content: '调试模式下无法调用真实微信选择器，请在真机测试',
-          showCancel: false
-        });
+        // 触发分享
+        this.triggerShare();
       } else {
         const { listId } = this.data;
 
         // 调用云函数生成邀请信息
         const result = await wx.cloud.callFunction({
-          name: 'createWechatInvite',
+          name: 'listFunctions',
           data: {
-            listId,
-            role
+            action: 'createWechatInvite',
+            data: {
+              listId,
+              role: role || 3
+            }
           }
         });
 
         if (result.result && result.result.success) {
-          const { inviteCode, scene } = result.result;
+          const { inviteCode } = result.result;
 
           wx.hideLoading();
 
-          // 打开微信好友选择器
-          wx.shareAppMessage({
-            title: `邀请你加入"${this.data.listInfo.name}"`,
-            path: `/pages/list-invite-accept/list-invite-accept?code=${inviteCode}`,
-            imageUrl: '/images/share-invite.png',
-            success: (res) => {
-              console.log('分享成功:', res);
-              wx.showToast({
-                title: '邀请已发送',
-                icon: 'success'
-              });
-            },
-            fail: (err) => {
-              console.error('分享失败:', err);
-            }
-          });
+          // 保存邀请信息，供 onShareAppMessage 使用
+          this._pendingInviteCode = inviteCode;
+          this._pendingRole = role;
+
+          // 触发分享
+          this.triggerShare();
+        } else if (result.result && result.result.code === -1) {
+          throw new Error(result.result.message || '生成邀请失败');
         } else {
-          throw new Error(result.result?.message || '生成邀请失败');
+          throw new Error('生成邀请失败');
         }
       }
     } catch (error) {
@@ -327,6 +394,18 @@ Page({
         icon: 'none'
       });
     }
+  },
+
+  // 触发分享
+  triggerShare() {
+    // 提示用户使用右上角菜单分享
+    // 注意：微信小程序无法通过代码自动触发分享，必须由用户点击右上角菜单
+    wx.showModal({
+      title: '邀请已生成',
+      content: '请点击右上角"..."按钮，选择"转发"来分享邀请给好友',
+      showCancel: false,
+      confirmText: '我知道了'
+    });
   },
 
   // ==================== 邀请链接 ====================
@@ -400,22 +479,31 @@ Page({
         });
       } else {
         const result = await wx.cloud.callFunction({
-          name: 'searchUser',
-          data: { keyword: searchKeyword.trim() }
+          name: 'listFunctions',
+          data: {
+            action: 'searchUser',
+            data: { keyword: searchKeyword.trim() }
+          }
         });
 
         if (result.result && result.result.success) {
           this.setData({
-            searchResults: result.result.users,
+            searchResults: result.result.users || [],
             hasSearched: true
           });
+        } else {
+          throw new Error(result.result?.message || '搜索失败');
         }
       }
     } catch (error) {
       console.error('搜索用户失败:', error);
       wx.showToast({
-        title: '搜索失败',
+        title: error.message || '搜索失败',
         icon: 'none'
+      });
+      this.setData({
+        searchResults: [],
+        hasSearched: true
       });
     } finally {
       wx.hideLoading();
@@ -446,10 +534,12 @@ Page({
   // ==================== 权限设置 ====================
 
   showRolePopup(inviteType) {
+    // 微信邀请默认选择查看者(3)，其他邀请默认选择编辑者(2)
+    const defaultRole = (inviteType === 'wechat') ? 3 : 2;
     this.setData({
       showRolePopup: true,
       inviteType,
-      selectedRole: 2
+      selectedRole: defaultRole
     });
   },
 
@@ -467,9 +557,18 @@ Page({
 
     this.setData({ showRolePopup: false });
 
-    // 微信邀请特殊处理 - 打开微信选择器
-    if (inviteType === 'wechat' || inviteType === 'wechat_group') {
-      this.openWechatPicker(selectedRole);
+    // 微信邀请特殊处理 - 创建邀请并显示分享菜单
+    if (inviteType === 'wechat') {
+      this.createInviteAndShare(selectedRole);
+      return;
+    }
+
+    // 检查是否有选中的用户
+    if (!selectedUser || !selectedUser.userId) {
+      wx.showToast({
+        title: '请选择要邀请的用户',
+        icon: 'none'
+      });
       return;
     }
 
@@ -487,35 +586,26 @@ Page({
         // 刷新待处理邀请列表
         this.loadPendingInvites();
       } else {
-        let result;
-
-        if (inviteType === 'search' && selectedUser) {
-          // 搜索用户邀请
-          result = await wx.cloud.callFunction({
-            name: 'inviteMemberBySearch',
+        // 调用云函数邀请成员
+        const result = await wx.cloud.callFunction({
+          name: 'listFunctions',
+          data: {
+            action: 'inviteMember',
             data: {
               listId,
               userId: selectedUser.userId,
               role: selectedRole
             }
-          });
-        } else if (inviteType === 'recent' && selectedUser) {
-          // 最近成员邀请
-          result = await wx.cloud.callFunction({
-            name: 'inviteMemberBySearch',
-            data: {
-              listId,
-              userId: selectedUser.userId,
-              role: selectedRole
-            }
-          });
-        }
+          }
+        });
 
-        if (result && result.result && result.result.success) {
+        if (result && result.result && result.result.code === 0) {
           wx.showToast({
-            title: '邀请已发送',
+            title: '已添加成员',
             icon: 'success'
           });
+          // 刷新清单信息和待处理邀请列表
+          this.loadListInfo();
           this.loadPendingInvites();
         } else {
           throw new Error(result.result?.message || '邀请失败');
