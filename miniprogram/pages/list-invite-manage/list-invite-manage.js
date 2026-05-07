@@ -17,6 +17,7 @@ Page({
     applications: [],
     pendingCount: 0,
     applicationCount: 0,
+    canClearCurrentTab: false,
 
     // 加载状态
     isRefreshing: false,
@@ -183,6 +184,7 @@ Page({
           applications: mockApplications,
           pendingCount: mockPending.length,
           applicationCount: mockApplications.length,
+          canClearCurrentTab: false,
           isRefreshing: false,
           isLoadingMore: false
         });
@@ -204,76 +206,43 @@ Page({
           status = 4;
         }
 
-        // 加载申请列表(待审批)或邀请列表
-        if (currentTab === 'applications') {
-          // 查询待审批的申请
-          const result = await wx.cloud.callFunction({
-            name: 'listFunctions',
-            data: {
-              action: 'getInviteList',
-              data: {
-                listId,
-                status: 4
-              }
-            }
-          });
+        const [pendingResult, applicationResult, currentTabResult] = await Promise.all([
+          this.fetchInviteList(listId, 0),
+          this.fetchInviteList(listId, 4),
+          this.fetchInviteList(listId, status)
+        ]);
 
-          if (result.result && result.result.success) {
-            const applications = result.result.invites.map(invite => ({
-              ...invite,
-              applicantInfo: invite.inviteeInfo,
-              timeText: this.formatTime(invite.createdAt)
-            }));
+        const pendingInvites = this.formatInviteList(pendingResult.invites || []);
+        const applications = this.formatApplications(applicationResult.invites || []);
 
-            this.setData({
-              applications,
-              applicationCount: applications.length,
-              isRefreshing: false
-            });
-          }
+        const nextData = {
+          pendingCount: pendingInvites.length,
+          applicationCount: applications.length,
+          isRefreshing: false,
+          isLoadingMore: false
+        };
+
+        if (currentTab === 'pending') {
+          nextData.pendingInvites = pendingInvites;
+        } else if (currentTab === 'applications') {
+          nextData.applications = applications;
         } else {
-          // 查询邀请列表
-          const result = await wx.cloud.callFunction({
-            name: 'listFunctions',
-            data: {
-              action: 'getInviteList',
-              data: {
-                listId,
-                status
-              }
-            }
-          });
-
-          if (result.result && result.result.success) {
-            const invites = result.result.invites.map(invite => ({
-              ...invite,
-              timeText: this.formatTime(invite.createdAt)
-            }));
-
-            if (currentTab === 'pending') {
-              this.setData({
-                pendingInvites: invites,
-                pendingCount: invites.length,
-                isRefreshing: false
-              });
-            } else if (currentTab === 'accepted') {
-              this.setData({
-                acceptedInvites: invites,
-                isRefreshing: false
-              });
-            } else if (currentTab === 'rejected') {
-              this.setData({
-                rejectedInvites: invites,
-                isRefreshing: false
-              });
-            } else if (currentTab === 'expired') {
-              this.setData({
-                expiredInvites: invites,
-                isRefreshing: false
-              });
-            }
+          const currentInvites = this.formatInviteList(currentTabResult.invites || []);
+          if (currentTab === 'accepted') {
+            nextData.acceptedInvites = currentInvites;
+          } else if (currentTab === 'rejected') {
+            nextData.rejectedInvites = currentInvites;
+          } else if (currentTab === 'expired') {
+            nextData.expiredInvites = currentInvites;
           }
         }
+
+        nextData.canClearCurrentTab = this.computeCanClear({
+          ...this.data,
+          ...nextData
+        });
+
+        this.setData(nextData);
       }
     } catch (error) {
       console.error('加载邀请列表失败:', error);
@@ -288,6 +257,60 @@ Page({
     }
   },
 
+  async fetchInviteList(listId, status) {
+    const result = await wx.cloud.callFunction({
+      name: 'listFunctions',
+      data: {
+        action: 'getInviteList',
+        data: {
+          listId,
+          status
+        }
+      }
+    });
+
+    if (!result.result || !result.result.success) {
+      throw new Error(result.result?.message || '加载邀请列表失败');
+    }
+
+    return result.result;
+  },
+
+  formatInviteList(invites) {
+    return invites.map(invite => ({
+      ...invite,
+      timeText: this.formatTime(invite.updatedAt || invite.createdAt)
+    }));
+  },
+
+  formatApplications(invites) {
+    return invites.map(invite => ({
+      ...invite,
+      applicantInfo: invite.inviteeInfo || {},
+      sourceLabel: invite.approvalSource === 'direct_invite' ? '受邀后待审核' : '主动申请加入',
+      timeSuffix: invite.approvalSource === 'direct_invite' ? '确认' : '申请',
+      timeText: this.formatTime(
+        invite.approvalSource === 'direct_invite'
+          ? (invite.updatedAt || invite.createdAt)
+          : (invite.createdAt || invite.updatedAt)
+      )
+    }));
+  },
+
+  computeCanClear(source = this.data) {
+    const { currentTab, acceptedInvites, rejectedInvites, expiredInvites } = source;
+    if (currentTab === 'accepted') {
+      return acceptedInvites.length > 0;
+    }
+    if (currentTab === 'rejected') {
+      return rejectedInvites.length > 0;
+    }
+    if (currentTab === 'expired') {
+      return expiredInvites.length > 0;
+    }
+    return false;
+  },
+
   // 模拟网络延迟
   simulateDelay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -295,7 +318,15 @@ Page({
 
   // 格式化时间
   formatTime(timestamp) {
+    if (!timestamp) {
+      return '未知时间';
+    }
+
     const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) {
+      return '未知时间';
+    }
+
     const now = new Date();
     const diff = now - date;
 
@@ -323,7 +354,7 @@ Page({
   // 切换标签
   onTabChange(e) {
     const tab = e.currentTarget.dataset.tab;
-    this.setData({ currentTab: tab }, () => {
+    this.setData({ currentTab: tab, canClearCurrentTab: this.computeCanClear({ ...this.data, currentTab: tab }) }, () => {
       this.loadInvites();
     });
   },
@@ -427,7 +458,12 @@ Page({
         const pendingInvites = this.data.pendingInvites.filter(item => item._id !== cancelInviteId);
         this.setData({
           pendingInvites,
-          pendingCount: pendingInvites.length
+          pendingCount: pendingInvites.length,
+          canClearCurrentTab: this.computeCanClear({
+            ...this.data,
+            pendingInvites,
+            pendingCount: pendingInvites.length
+          })
         });
 
         wx.showToast({
@@ -491,7 +527,12 @@ Page({
         const applications = this.data.applications.filter(item => item._id !== id);
         this.setData({
           applications,
-          applicationCount: applications.length
+          applicationCount: applications.length,
+          canClearCurrentTab: this.computeCanClear({
+            ...this.data,
+            applications,
+            applicationCount: applications.length
+          })
         });
 
         wx.showToast({
@@ -542,7 +583,12 @@ Page({
         const applications = this.data.applications.filter(item => item._id !== id);
         this.setData({
           applications,
-          applicationCount: applications.length
+          applicationCount: applications.length,
+          canClearCurrentTab: this.computeCanClear({
+            ...this.data,
+            applications,
+            applicationCount: applications.length
+          })
         });
 
         wx.showToast({
@@ -605,11 +651,11 @@ Page({
 
         // 清空当前标签的数据
         if (this.data.currentTab === 'accepted') {
-          this.setData({ acceptedInvites: [] });
+          this.setData({ acceptedInvites: [], canClearCurrentTab: false });
         } else if (this.data.currentTab === 'rejected') {
-          this.setData({ rejectedInvites: [] });
+          this.setData({ rejectedInvites: [], canClearCurrentTab: false });
         } else if (this.data.currentTab === 'expired') {
-          this.setData({ expiredInvites: [] });
+          this.setData({ expiredInvites: [], canClearCurrentTab: false });
         }
 
         wx.showToast({
@@ -668,18 +714,4 @@ Page({
     this.setData({ showTipDialog: false });
   },
 
-  // 计算属性：是否可以清空
-  canClear() {
-    const { currentTab, acceptedInvites, rejectedInvites, expiredInvites } = this.data;
-    if (currentTab === 'accepted') {
-      return acceptedInvites.length > 0;
-    }
-    if (currentTab === 'rejected') {
-      return rejectedInvites.length > 0;
-    }
-    if (currentTab === 'expired') {
-      return expiredInvites.length > 0;
-    }
-    return false;
-  }
 });

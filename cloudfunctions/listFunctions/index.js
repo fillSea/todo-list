@@ -104,11 +104,472 @@ async function getUserId(openid) {
   return users.length > 0 ? users[0]._id : null;
 }
 
+async function getUserBasicInfo(userId) {
+  if (!userId) {
+    return null;
+  }
+
+  const { data: users } = await db.collection('users')
+    .where({ _id: userId })
+    .field({ nickname: true, avatarUrl: true })
+    .get();
+
+  return users.length > 0 ? users[0] : null;
+}
+
+function generateInviteCode(length = 16) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let inviteCode = '';
+  for (let i = 0; i < length; i++) {
+    inviteCode += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return inviteCode;
+}
+
+async function generateUniqueInviteCode(length = 16, maxRetries = 10) {
+  for (let i = 0; i < maxRetries; i++) {
+    const inviteCode = generateInviteCode(length);
+    const { data: invites } = await db.collection('list_invites')
+      .where({ inviteCode })
+      .limit(1)
+      .get();
+
+    if (invites.length === 0) {
+      return inviteCode;
+    }
+  }
+
+  throw new Error('生成邀请码失败，请稍后重试');
+}
+
+function escapeRegExp(str = '') {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function fetchAllByWhere(collectionName, where, options = {}) {
+  const {
+    orderByField,
+    orderDirection = 'asc',
+    field,
+    batchSize = 100
+  } = options;
+
+  let allData = [];
+  let offset = 0;
+
+  while (true) {
+    let query = db.collection(collectionName).where(where);
+
+    if (field) {
+      query = query.field(field);
+    }
+
+    if (orderByField) {
+      query = query.orderBy(orderByField, orderDirection);
+    }
+
+    const { data } = await query
+      .skip(offset)
+      .limit(batchSize)
+      .get();
+
+    allData = allData.concat(data);
+
+    if (data.length < batchSize) {
+      break;
+    }
+
+    offset += data.length;
+  }
+
+  return allData;
+}
+
+async function removeDocsByIds(collectionName, ids, batchSize = 50) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return;
+  }
+
+  for (let i = 0; i < ids.length; i += batchSize) {
+    const batchIds = ids.slice(i, i + batchSize);
+    await Promise.all(
+      batchIds.map(id => db.collection(collectionName).doc(id).remove())
+    );
+  }
+}
+
+async function verifyListAccess(userId, listId) {
+  const { data: lists } = await db.collection('lists')
+    .where({ _id: listId })
+    .get();
+
+  if (lists.length === 0) {
+    return { allowed: false, message: '清单不存在' };
+  }
+
+  const list = lists[0];
+  if (list.creatorId === userId) {
+    return { allowed: true, role: 1, list };
+  }
+
+  const role = await getUserRole(listId, userId);
+  if (!role) {
+    return { allowed: false, message: '无权限访问该清单', list };
+  }
+
+  return { allowed: true, role, list };
+}
+
+async function verifyListPermission(userId, listId, allowedRoles = [1]) {
+  const access = await verifyListAccess(userId, listId);
+  if (!access.allowed) {
+    return access;
+  }
+
+  if (!allowedRoles.includes(access.role)) {
+    return { ...access, allowed: false, message: '无权限执行该操作' };
+  }
+
+  return access;
+}
+
+async function markInviteExpiredIfNeeded(invite) {
+  if (!invite || invite.status !== 0) {
+    return invite;
+  }
+
+  if (invite.expireAt && new Date(invite.expireAt) < new Date()) {
+    await db.collection('list_invites').doc(invite._id).update({
+      data: {
+        status: 3,
+        updatedAt: db.serverDate()
+      }
+    });
+
+    return {
+      ...invite,
+      status: 3
+    };
+  }
+
+  return invite;
+}
+
+async function getInviteByCode(inviteCode) {
+  const { data: invites } = await db.collection('list_invites')
+    .where({
+      inviteCode,
+      status: 0,
+      inviteeId: _.in(['', null])
+    })
+    .orderBy('createdAt', 'desc')
+    .limit(1)
+    .get();
+
+  if (invites.length === 0) {
+    return null;
+  }
+
+  return await markInviteExpiredIfNeeded(invites[0]);
+}
+
+async function getPendingInviteForUser(inviteCode, userId) {
+  if (!inviteCode || !userId) {
+    return null;
+  }
+
+  const { data: invites } = await db.collection('list_invites')
+    .where({
+      inviteCode,
+      inviteeId: userId,
+      status: 0
+    })
+    .orderBy('updatedAt', 'desc')
+    .limit(1)
+    .get();
+
+  if (invites.length === 0) {
+    return null;
+  }
+
+  return await markInviteExpiredIfNeeded(invites[0]);
+}
+
+async function getInviteRecordForUser(inviteCode, userId) {
+  if (!inviteCode || !userId) {
+    return null;
+  }
+
+  const { data: invites } = await db.collection('list_invites')
+    .where({
+      inviteCode,
+      inviteeId: userId,
+      status: _.in([1, 2, 4])
+    })
+    .orderBy('updatedAt', 'desc')
+    .limit(1)
+    .get();
+
+  return invites.length > 0 ? invites[0] : null;
+}
+
+function canHandleInvite(invite, userId) {
+  if (!invite) {
+    return { allowed: false, message: '邀请不存在' };
+  }
+
+  if (invite.status === 3) {
+    return { allowed: false, message: '邀请链接已过期' };
+  }
+
+  if (invite.status === 2) {
+    return { allowed: false, message: '邀请已被拒绝' };
+  }
+
+  if (invite.status === 1) {
+    return { allowed: false, message: '邀请已被接受' };
+  }
+
+  if (invite.status === 4) {
+    if (invite.inviteeId === userId) {
+      return { allowed: false, message: '您已申请过，请等待审批' };
+    }
+    return { allowed: false, message: '该邀请已进入审批流程' };
+  }
+
+  if (invite.status !== 0) {
+    return { allowed: false, message: '该邀请当前不可处理' };
+  }
+
+  if (invite.inviteeId && invite.inviteeId !== userId) {
+    return { allowed: false, message: '该邀请仅限指定用户处理' };
+  }
+
+  return { allowed: true };
+}
+
+function canHandleTemplateInvite(invite, userId) {
+  if (!invite) {
+    return { allowed: false, message: '邀请不存在' };
+  }
+
+  if (invite.status === 3) {
+    return { allowed: false, message: '邀请链接已过期' };
+  }
+
+  if (invite.status !== 0) {
+    return { allowed: false, message: '该邀请当前不可处理' };
+  }
+
+  if (invite.inviteeId && invite.inviteeId !== userId) {
+    return { allowed: false, message: '该邀请仅限指定用户处理' };
+  }
+
+  return { allowed: true };
+}
+
+function isPendingApplicationInvite(invite) {
+  return !!invite && invite.status === 4 && !!invite.inviteeId && !!invite.needApproval;
+}
+
+function isPublicTemplateInvite(invite) {
+  // inviteeId 为空表示公开模板邀请，不对应具体用户。
+  return !!invite && !invite.inviteeId;
+}
+
+function isUserInviteRecord(invite) {
+  // inviteeId 有值表示用户级邀请/处理记录。
+  return !!invite && !!invite.inviteeId;
+}
+
+function shouldIncludeInviteInList(invite, status) {
+  if (!isUserInviteRecord(invite)) {
+    return false;
+  }
+
+  if (status === undefined || status === null) {
+    return true;
+  }
+
+  if (status === 4) {
+    // status=4 仅对需审核的用户级记录有意义。
+    return isPendingApplicationInvite(invite);
+  }
+
+  return invite.status === status;
+}
+
+async function addMemberFromInvite(invite, userId, joinType) {
+  await db.collection('list_members').add({
+    data: {
+      listId: invite.listId,
+      userId,
+      role: invite.role || 3,
+      joinType,
+      inviteId: invite._id,
+      joinedAt: db.serverDate()
+    }
+  });
+}
+
+async function createInviteRecordFromTemplate(invite, userId, status, extraData = {}) {
+  const user = await getUserBasicInfo(userId);
+  const now = db.serverDate();
+  const result = await db.collection('list_invites').add({
+    data: {
+      // 公开模板邀请会在用户处理时复制为用户级记录，后续展示与流转都基于该记录。
+      listId: invite.listId,
+      inviterId: invite.inviterId,
+      inviteeId: userId,
+      inviteeInfo: {
+        nickname: user?.nickname || '',
+        avatarUrl: user?.avatarUrl || ''
+      },
+      role: invite.role || 3,
+      inviteType: invite.inviteType,
+      inviteCode: invite.inviteCode,
+      needApproval: !!invite.needApproval,
+      status,
+      expireAt: invite.expireAt || null,
+      ...extraData,
+      createdAt: now,
+      updatedAt: now
+    }
+  });
+
+  return {
+    ...invite,
+    _id: result._id,
+    inviteeId: userId,
+    inviteeInfo: {
+      nickname: user?.nickname || '',
+      avatarUrl: user?.avatarUrl || ''
+    },
+    status,
+    ...extraData
+  };
+}
+
+async function expireActiveLinkTemplates(listId) {
+  const activeLinkTemplates = await fetchAllByWhere('list_invites', {
+    listId,
+    inviteType: 'link',
+    status: 0,
+    inviteeId: _.in(['', null])
+  }, {
+    field: { _id: true }
+  });
+
+  await Promise.all(activeLinkTemplates.map(invite =>
+    db.collection('list_invites').doc(invite._id).update({
+      data: {
+        status: 3,
+        updatedAt: db.serverDate()
+      }
+    })
+  ));
+}
+
+function buildInviteStats(invites) {
+  const userInvites = invites.filter(isUserInviteRecord);
+  const templateInvites = invites.filter(isPublicTemplateInvite);
+
+  return {
+    joinedCount: userInvites.filter(invite => invite.status === 1).length,
+    appliedCount: userInvites.filter(isPendingApplicationInvite).length,
+    pendingUserInviteCount: userInvites.filter(invite => invite.status === 0).length,
+    activeTemplateCount: templateInvites.filter(invite => invite.status === 0).length
+  };
+}
+
+async function ensureMemberJoinedFromInvite(invite, userId, joinType) {
+  const completeInviteAsAccepted = async (collection, inviteId) => {
+    await collection('list_invites').doc(inviteId).update({
+      data: {
+        status: 1,
+        inviteeId: userId,
+        updatedAt: db.serverDate()
+      }
+    });
+  };
+
+  if (typeof db.runTransaction === 'function') {
+    return db.runTransaction(async transaction => {
+      const { data: existingMembers } = await transaction.collection('list_members')
+        .where({
+          listId: invite.listId,
+          userId
+        })
+        .get();
+
+      if (existingMembers.length > 0) {
+        await transaction.collection('list_invites').doc(invite._id).update({
+          data: {
+            status: 1,
+            inviteeId: userId,
+            updatedAt: db.serverDate()
+          }
+        });
+
+        return {
+          alreadyMember: true,
+          memberCreated: false
+        };
+      }
+
+      await transaction.collection('list_members').add({
+        data: {
+          listId: invite.listId,
+          userId,
+          role: invite.role || 3,
+          joinType,
+          inviteId: invite._id,
+          joinedAt: db.serverDate()
+        }
+      });
+
+      await transaction.collection('list_invites').doc(invite._id).update({
+        data: {
+          status: 1,
+          inviteeId: userId,
+          updatedAt: db.serverDate()
+        }
+      });
+
+      return {
+        alreadyMember: false,
+        memberCreated: true
+      };
+    });
+  }
+
+  const { data: existingMembers } = await db.collection('list_members')
+    .where({
+      listId: invite.listId,
+      userId
+    })
+    .get();
+
+  if (existingMembers.length > 0) {
+    await completeInviteAsAccepted(name => db.collection(name), invite._id);
+    return {
+      alreadyMember: true,
+      memberCreated: false
+    };
+  }
+
+  await addMemberFromInvite(invite, userId, joinType);
+  await completeInviteAsAccepted(name => db.collection(name), invite._id);
+
+  return {
+    alreadyMember: false,
+    memberCreated: true
+  };
+}
+
 // 获取清单的任务统计信息（考虑周期任务过滤逻辑）
 async function getListTaskStats(listId) {
-  const { data: tasks } = await db.collection('tasks')
-    .where({ listId })
-    .get();
+  const tasks = await fetchAllByWhere('tasks', { listId });
 
   // 应用周期任务过滤：同前端逻辑
   const today = new Date();
@@ -191,8 +652,30 @@ async function getUserRole(listId, userId) {
   return memberRecords.length > 0 ? memberRecords[0].role : null;
 }
 
+function getRoleName(role) {
+  const roleMap = {
+    1: '创建者',
+    2: '编辑者',
+    3: '查看者'
+  };
+  return roleMap[Number(role)] || '成员';
+}
+
+function getOperationTargetName(content = {}, usersMap = {}) {
+  if (content.targetUserName) {
+    return content.targetUserName;
+  }
+
+  const targetUserId = content.targetUserId || content.inviteeId || content.userId;
+  if (targetUserId && usersMap[targetUserId]?.nickname) {
+    return usersMap[targetUserId].nickname;
+  }
+
+  return '';
+}
+
 // 记录操作日志
-async function logOperation(type, targetId, userId, content) {
+async function logOperation(type, targetId, userId, content, listId) {
   try {
     await db.collection('operations').add({
       data: {
@@ -200,6 +683,7 @@ async function logOperation(type, targetId, userId, content) {
         targetId,
         userId,
         content,
+        listId,
         createdAt: db.serverDate()
       }
     });
@@ -224,9 +708,12 @@ async function getAvailableLists(openid, data) {
       .orderBy('createdAt', 'desc')
       .get();
 
-    // 获取用户作为成员的共享清单
+    // 获取用户作为成员且有建任务权限的共享清单（1-创建者，2-编辑者）
     const { data: memberships } = await db.collection('list_members')
-      .where({ userId })
+      .where({
+        userId,
+        role: _.in([1, 2])
+      })
       .get();
 
     const sharedListIds = memberships.map(m => m.listId);
@@ -274,15 +761,15 @@ async function getMyLists(openid, data) {
     }
 
     // 获取用户创建的清单ID列表
-    const { data: myLists } = await db.collection('lists')
-      .where({ creatorId: userId })
-      .get();
+    const myLists = await fetchAllByWhere('lists', { creatorId: userId }, {
+      field: { _id: true }
+    });
     const myListIds = myLists.map(l => l._id);
 
     // 获取用户作为成员的清单ID列表
-    const { data: memberships } = await db.collection('list_members')
-      .where({ userId })
-      .get();
+    const memberships = await fetchAllByWhere('list_members', { userId }, {
+      field: { listId: true }
+    });
     const memberListIds = memberships.map(m => m.listId);
 
     // 合并所有可访问的清单ID（去重）
@@ -360,17 +847,12 @@ async function getListDetail(openid, data) {
     }
 
     const userId = await getUserId(openid);
-
-    // 获取清单信息
-    const { data: lists } = await db.collection('lists')
-      .where({ _id: listId })
-      .get();
-
-    if (lists.length === 0) {
-      return { code: -1, message: '清单不存在' };
+    const access = await verifyListAccess(userId, listId);
+    if (!access.allowed) {
+      return { code: -1, message: access.message };
     }
 
-    const list = lists[0];
+    const list = access.list;
 
     // 获取任务列表
     const { data: tasks } = await db.collection('tasks')
@@ -422,7 +904,7 @@ async function getListDetail(openid, data) {
     }
 
     // 获取当前用户角色
-    const myRole = list.creatorId === userId ? 1 : await getUserRole(listId, userId);
+    const myRole = access.role;
 
     return {
       code: 0,
@@ -443,7 +925,7 @@ async function getListDetail(openid, data) {
 // 搜索清单
 async function searchLists(openid, data) {
   try {
-    const { keyword } = data || {};
+    const { keyword, filter = 'all' } = data || {};
     if (!keyword || !keyword.trim()) {
       return { code: -1, message: '搜索关键词不能为空' };
     }
@@ -454,14 +936,14 @@ async function searchLists(openid, data) {
     }
 
     // 获取用户可访问的所有清单ID
-    const { data: myLists } = await db.collection('lists')
-      .where({ creatorId: userId })
-      .get();
+    const myLists = await fetchAllByWhere('lists', { creatorId: userId }, {
+      field: { _id: true }
+    });
     const myListIds = myLists.map(l => l._id);
 
-    const { data: memberships } = await db.collection('list_members')
-      .where({ userId })
-      .get();
+    const memberships = await fetchAllByWhere('list_members', { userId }, {
+      field: { listId: true }
+    });
     const memberListIds = memberships.map(m => m.listId);
 
     const allAccessibleIds = [...new Set([...myListIds, ...memberListIds])];
@@ -470,20 +952,63 @@ async function searchLists(openid, data) {
       return { code: 0, message: 'success', data: [] };
     }
 
-    // 搜索清单名称
-    const { data: results } = await db.collection('lists')
-      .where({
-        _id: _.in(allAccessibleIds),
-        name: db.RegExp({
-          regexp: keyword.trim(),
-          options: 'i'
-        })
-      })
-      .orderBy('updatedAt', 'desc')
-      .limit(20)
-      .get();
+    let query = {
+      _id: _.in(allAccessibleIds)
+    };
 
-    return { code: 0, message: 'success', data: results };
+    switch (filter) {
+      case 'personal':
+        query.isShared = false;
+        break;
+      case 'shared':
+        query.isShared = true;
+        break;
+      case 'created':
+        query.creatorId = userId;
+        break;
+      default:
+        break;
+    }
+
+    const safeKeyword = escapeRegExp(keyword.trim());
+    const keywordRegExp = db.RegExp({
+      regexp: safeKeyword,
+      options: 'i'
+    });
+
+    const searchQuery = _.and([
+      query,
+      _.or([
+        { name: keywordRegExp },
+        { description: keywordRegExp }
+      ])
+    ]);
+
+    const results = await fetchAllByWhere('lists', searchQuery, {
+      orderByField: 'updatedAt',
+      orderDirection: 'desc'
+    });
+
+    const enrichedResults = await Promise.all(
+      results.map(async (list) => {
+        const [stats, memberSummary] = await Promise.all([
+          getListTaskStats(list._id),
+          list.isShared ? getListMemberSummary(list._id) : Promise.resolve({ members: [], memberCount: 0 })
+        ]);
+
+        const myRole = list.creatorId === userId ? 1 : await getUserRole(list._id, userId);
+
+        return {
+          ...list,
+          ...stats,
+          members: memberSummary.members,
+          memberCount: memberSummary.memberCount,
+          myRole
+        };
+      })
+    );
+
+    return { code: 0, message: 'success', data: enrichedResults };
   } catch (error) {
     console.error('搜索清单失败:', error);
     return { code: -1, message: '搜索清单失败' };
@@ -542,7 +1067,7 @@ async function createList(openid, data) {
     }
 
     // 记录操作日志
-    await logOperation('list_create', result._id, userId, { listData });
+    await logOperation('list_create', result._id, userId, { listData }, result._id);
 
     return {
       code: 0,
@@ -581,9 +1106,19 @@ async function updateList(openid, data) {
     const list = lists[0];
     const isCreator = list.creatorId === userId;
     const myRole = isCreator ? 1 : await getUserRole(listId, userId);
+    const canManageStructure = myRole === 1;
 
     if (myRole !== 1 && myRole !== 2) {
       return { code: -1, message: '无权限修改' };
+    }
+
+    const nextIsShared = isShared !== undefined ? isShared : list.isShared;
+    const nextVisibility = visibility !== undefined ? visibility : list.visibility;
+    const isChangingShared = isShared !== undefined && isShared !== list.isShared;
+    const isChangingVisibility = visibility !== undefined && visibility !== list.visibility;
+
+    if (!canManageStructure && (isChangingShared || isChangingVisibility)) {
+      return { code: -1, message: '仅创建者可修改清单类型或可见性' };
     }
 
     const updateData = { updatedAt: db.serverDate() };
@@ -595,14 +1130,20 @@ async function updateList(openid, data) {
       updateData.name = name.trim();
     }
     if (description !== undefined) updateData.description = description.trim();
-    if (isShared !== undefined) updateData.isShared = isShared;
-    if (visibility !== undefined) updateData.visibility = visibility;
     if (color !== undefined) updateData.color = color;
+
+    if (canManageStructure && isShared !== undefined) {
+      updateData.isShared = isShared;
+    }
+
+    if (canManageStructure && visibility !== undefined) {
+      updateData.visibility = visibility;
+    }
 
     await db.collection('lists').doc(listId).update({ data: updateData });
 
     // 如果从个人切换为共享，确保创建者在成员表中
-    if (isShared === true && !list.isShared) {
+    if (canManageStructure && nextIsShared === true && !list.isShared) {
       const existingMember = await db.collection('list_members')
         .where({ listId, userId: list.creatorId })
         .count();
@@ -619,11 +1160,34 @@ async function updateList(openid, data) {
       }
     }
 
+    // 如果从共享切换为个人，移除非创建者成员并清理待处理邀请
+    if (canManageStructure && nextIsShared === false && list.isShared) {
+      const members = await fetchAllByWhere('list_members', { listId }, {
+        field: { _id: true, userId: true }
+      });
+      const memberIdsToRemove = members
+        .filter(member => member.userId !== list.creatorId)
+        .map(member => member._id);
+
+      await removeDocsByIds('list_members', memberIdsToRemove);
+
+      const pendingInvites = await fetchAllByWhere('list_invites', {
+        listId,
+        status: _.in([0, 4])
+      }, {
+        field: { _id: true }
+      });
+      await removeDocsByIds('list_invites', pendingInvites.map(invite => invite._id));
+
+      updateData.removedMemberCount = memberIdsToRemove.length;
+      updateData.clearedInviteCount = pendingInvites.length;
+    }
+
     // 记录操作日志
     await logOperation('list_update', listId, userId, {
       before: list,
       after: updateData
-    });
+    }, listId);
 
     return { code: 0, message: '更新成功' };
   } catch (error) {
@@ -656,40 +1220,25 @@ async function deleteList(openid, data) {
     }
 
     // 删除清单下的所有任务
-    const { data: tasks } = await db.collection('tasks')
-      .where({ listId })
-      .get();
-
-    if (tasks.length > 0) {
-      await Promise.all(
-        tasks.map(task => db.collection('tasks').doc(task._id).remove())
-      );
-    }
+    const tasks = await fetchAllByWhere('tasks', { listId }, {
+      field: { _id: true }
+    });
+    await removeDocsByIds('tasks', tasks.map(task => task._id));
 
     // 删除清单成员关系
-    const { data: members } = await db.collection('list_members')
-      .where({ listId })
-      .get();
-
-    if (members.length > 0) {
-      await Promise.all(
-        members.map(member => db.collection('list_members').doc(member._id).remove())
-      );
-    }
+    const members = await fetchAllByWhere('list_members', { listId }, {
+      field: { _id: true }
+    });
+    await removeDocsByIds('list_members', members.map(member => member._id));
 
     // 删除相关邀请记录
-    const { data: invites } = await db.collection('list_invites')
-      .where({ listId })
-      .get();
-
-    if (invites.length > 0) {
-      await Promise.all(
-        invites.map(invite => db.collection('list_invites').doc(invite._id).remove())
-      );
-    }
+    const invites = await fetchAllByWhere('list_invites', { listId }, {
+      field: { _id: true }
+    });
+    await removeDocsByIds('list_invites', invites.map(invite => invite._id));
 
     // 记录操作日志（在删除清单之前）
-    await logOperation('list_delete', listId, userId, { deletedList: lists[0] });
+    await logOperation('list_delete', listId, userId, { deletedList: lists[0] }, listId);
 
     // 删除清单
     await db.collection('lists').doc(listId).remove();
@@ -713,14 +1262,9 @@ async function getListMembers(openid, data) {
     }
 
     const userId = await getUserId(openid);
-
-    // 获取清单信息
-    const { data: lists } = await db.collection('lists')
-      .where({ _id: listId })
-      .get();
-
-    if (lists.length === 0) {
-      return { code: -1, message: '清单不存在' };
+    const access = await verifyListAccess(userId, listId);
+    if (!access.allowed) {
+      return { code: -1, message: access.message };
     }
 
     // 获取成员列表
@@ -729,29 +1273,31 @@ async function getListMembers(openid, data) {
       .get();
 
     // 获取成员详细信息
-    const membersWithInfo = await Promise.all(
-      members.map(async (member) => {
-        const { data: users } = await db.collection('users')
-          .where({ _id: member.userId })
-          .get();
+    const memberUserIds = [...new Set(members.map(member => member.userId).filter(Boolean))];
+    const { data: users } = memberUserIds.length > 0
+      ? await db.collection('users').where({ _id: _.in(memberUserIds) }).get()
+      : { data: [] };
+    const userMap = {};
+    users.forEach(user => {
+      userMap[user._id] = user;
+    });
 
-        const user = users[0] || {};
-        return {
-          ...member,
-          nickname: user.nickname || '未知用户',
-          avatarUrl: user.avatarUrl || ''
-        };
-      })
-    );
+    const membersWithInfo = members.map((member) => {
+      const user = userMap[member.userId] || {};
+      return {
+        ...member,
+        nickname: user.nickname || '未知用户',
+        avatarUrl: user.avatarUrl || ''
+      };
+    });
 
-    // 获取当前用户角色
-    const myRole = lists[0].creatorId === userId ? 1 : await getUserRole(listId, userId);
+    const myRole = access.role;
 
     return {
       code: 0,
       message: 'success',
       data: {
-        listInfo: lists[0],
+        listInfo: access.list,
         members: membersWithInfo,
         myRole
       }
@@ -765,25 +1311,16 @@ async function getListMembers(openid, data) {
 // 邀请成员
 async function inviteMember(openid, data) {
   try {
-    const { listId, userId: targetUserId, role = 3 } = data || {};
+    const { listId, userId: targetUserId, role = 3, inviteType = 'search' } = data || {};
 
     if (!listId || !targetUserId) {
       return { code: -1, message: '清单ID和用户ID不能为空' };
     }
 
     const userId = await getUserId(openid);
-
-    // 检查权限（只有创建者可以邀请）
-    const { data: lists } = await db.collection('lists')
-      .where({ _id: listId })
-      .get();
-
-    if (lists.length === 0) {
-      return { code: -1, message: '清单不存在' };
-    }
-
-    if (lists[0].creatorId !== userId) {
-      return { code: -1, message: '无权限邀请成员' };
+    const permission = await verifyListPermission(userId, listId, [1]);
+    if (!permission.allowed) {
+      return { code: -1, message: permission.message || '无权限邀请成员' };
     }
 
     // 检查是否已是成员
@@ -795,34 +1332,73 @@ async function inviteMember(openid, data) {
       return { code: -1, message: '该用户已是清单成员' };
     }
 
-    // 添加成员
-    await db.collection('list_members').add({
+    const { data: pendingInvites } = await db.collection('list_invites')
+      .where({
+        listId,
+        inviteeId: targetUserId,
+        status: _.in([0, 4])
+      })
+      .get();
+
+    if (pendingInvites.length >= 3) {
+      return { code: -1, message: '该用户已有较多待处理邀请，请稍后再试' };
+    }
+
+    if (pendingInvites.some(invite => invite.status === 0)) {
+      return { code: -1, message: '已发送邀请，请勿重复发送' };
+    }
+
+    const { data: targetUsers } = await db.collection('users')
+      .where({ _id: targetUserId })
+      .field({ nickname: true, avatarUrl: true })
+      .get();
+
+    if (targetUsers.length === 0) {
+      return { code: -1, message: '目标用户不存在' };
+    }
+
+    const inviteCode = await generateUniqueInviteCode();
+
+    await db.collection('list_invites').add({
       data: {
         listId,
-        userId: targetUserId,
+        inviterId: userId,
+        inviteeId: targetUserId,
+        inviteeInfo: {
+          nickname: targetUsers[0].nickname || '',
+          avatarUrl: targetUsers[0].avatarUrl || ''
+        },
         role,
-        joinType: 'invite',
-        inviteId: '',
-        joinedAt: db.serverDate()
+        inviteType,
+        inviteCode,
+        status: 0,
+        expireAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        createdAt: db.serverDate(),
+        updatedAt: db.serverDate()
       }
     });
 
     // 创建通知
     await db.collection('notifications').add({
       data: {
-        type: 'list_shared',
+        type: 'list_invite',
         userId: targetUserId,
-        relatedId: listId,
-        content: `您已被邀请加入清单"${lists[0].name}"`,
+        relatedId: inviteCode,
+        content: `您收到了清单"${permission.list.name}"的协作邀请`,
         isRead: false,
         createdAt: db.serverDate()
       }
     });
 
     // 记录操作日志
-    await logOperation('member_add', listId, userId, { targetUserId, role });
+    await logOperation('invite_send', listId, userId, {
+      targetUserId,
+      targetUserName: targetUsers[0].nickname || '',
+      role,
+      inviteType
+    }, listId);
 
-    return { code: 0, message: '邀请成功' };
+    return { code: 0, success: true, message: '邀请已发送' };
   } catch (error) {
     console.error('邀请成员失败:', error);
     return { code: -1, message: '邀请成员失败' };
@@ -859,12 +1435,21 @@ async function removeMember(openid, data) {
       .where({ listId, userId: targetUserId })
       .get();
 
+    let targetUserInfo = await getUserBasicInfo(targetUserId);
+
     if (members.length > 0) {
       await db.collection('list_members').doc(members[0]._id).remove();
-    }
 
-    // 记录操作日志
-    await logOperation('member_remove', listId, userId, { targetUserId });
+      if (!targetUserInfo) {
+        targetUserInfo = { nickname: '' };
+      }
+
+      await logOperation('member_remove', listId, userId, {
+        targetUserId,
+        targetUserName: targetUserInfo.nickname || '',
+        oldRole: members[0].role
+      }, listId);
+    }
 
     return { code: 0, message: '移除成功' };
   } catch (error) {
@@ -878,68 +1463,11 @@ async function joinList(openid, data) {
   try {
     const { listId, inviteCode } = data || {};
 
-    if (!listId) {
-      return { code: -1, message: '清单ID不能为空' };
-    }
-
-    const userId = await getUserId(openid);
-    if (!userId) {
-      return { code: -1, message: '用户不存在' };
-    }
-
-    // 检查清单是否存在
-    const { data: lists } = await db.collection('lists')
-      .where({ _id: listId })
-      .get();
-
-    if (lists.length === 0) {
-      return { code: -1, message: '清单不存在' };
-    }
-
-    // 检查是否已是成员
-    const { data: existingMembers } = await db.collection('list_members')
-      .where({ listId, userId })
-      .get();
-
-    if (existingMembers.length > 0) {
-      return { code: -1, message: '您已是该清单成员' };
-    }
-
-    // 如果有邀请码，验证邀请
-    let inviteRole = 3;
     if (inviteCode) {
-      const { data: invites } = await db.collection('list_invites')
-        .where({ inviteCode, listId, status: 0 })
-        .get();
-
-      if (invites.length > 0) {
-        inviteRole = invites[0].role || 3;
-        // 更新邀请状态为已接受
-        await db.collection('list_invites').doc(invites[0]._id).update({
-          data: {
-            status: 1,
-            inviteeId: userId,
-            updatedAt: db.serverDate()
-          }
-        });
-      }
+      return await acceptInvite(openid, { inviteCode });
     }
 
-    // 添加成员
-    await db.collection('list_members').add({
-      data: {
-        listId,
-        userId,
-        role: inviteRole,
-        joinType: inviteCode ? 'link' : 'invite',
-        joinedAt: db.serverDate()
-      }
-    });
-
-    // 记录操作日志
-    await logOperation('member_add', listId, userId, { joinType: inviteCode ? 'link' : 'invite' });
-
-    return { code: 0, message: '加入成功' };
+    return { code: -1, message: '请使用有效邀请加入清单' };
   } catch (error) {
     console.error('加入清单失败:', error);
     return { code: -1, message: '加入清单失败' };
@@ -975,11 +1503,20 @@ async function getOperations(openid, data) {
       return { code: -1, message: '无权限查看操作记录' };
     }
 
-    // 查询操作记录（清单自身操作 + 清单内任务操作）
+    // 查询操作记录：
+    // 1. 新数据统一按 listId 归属
+    // 2. 历史清单日志仅在缺失 listId 时，才通过 targetId=listId 兜底
     const { data: operations } = await db.collection('operations')
       .where(_.or([
-        { targetId: listId },
-        { listId: listId }
+        { listId: listId },
+        _.and([
+          { targetId: listId },
+          _.or([
+            { listId: _.exists(false) },
+            { listId: '' },
+            { listId: null }
+          ])
+        ])
       ]))
       .orderBy('createdAt', 'desc')
       .skip((page - 1) * pageSize)
@@ -990,7 +1527,21 @@ async function getOperations(openid, data) {
     const pagedOps = operations.slice(0, pageSize);
 
     // 获取操作人信息
-    const userIds = [...new Set(pagedOps.map(op => op.userId))];
+    const relatedUserIds = new Set();
+    pagedOps.forEach(op => {
+      if (op.userId) {
+        relatedUserIds.add(op.userId);
+      }
+
+      const content = op.content || {};
+      [content.targetUserId, content.inviteeId, content.userId].forEach(id => {
+        if (id) {
+          relatedUserIds.add(id);
+        }
+      });
+    });
+
+    const userIds = [...relatedUserIds];
     let usersMap = {};
     if (userIds.length > 0) {
       const { data: users } = await db.collection('users')
@@ -1006,7 +1557,7 @@ async function getOperations(openid, data) {
         _id: op._id,
         type: op.type,
         icon: getOperationIcon(op.type),
-        text: getOperationText(op),
+        text: getOperationText(op, usersMap),
         userName: user ? user.nickname : '未知用户',
         createdAt: op.createdAt
       };
@@ -1029,33 +1580,81 @@ function getOperationIcon(type) {
     'list_create': 'plus',
     'list_update': 'edit',
     'list_delete': 'delete-o',
+    'invite_send': 'envelope-o',
+    'invite_reject': 'close',
+    'invite_remind': 'bell',
+    'invite_cancel': 'close',
+    'invite_clear': 'delete-o',
+    'join_apply': 'description',
+    'application_approve': 'passed',
+    'application_reject': 'warning-o',
     'task_create': 'plus',
     'task_create_repeat': 'replay',
     'task_update': 'edit',
     'task_delete': 'delete-o',
     'task_delete_repeat': 'delete-o',
     'member_add': 'friends-o',
+    'member_update': 'setting-o',
     'member_remove': 'cross'
   };
   return iconMap[type] || 'info-o';
 }
 
 // 获取操作描述文本
-function getOperationText(op) {
+function getOperationText(op, usersMap = {}) {
   const content = op.content || {};
   const taskTitle = content.taskTitle || content.task?.title || '';
+  const targetName = getOperationTargetName(content, usersMap);
   switch (op.type) {
     case 'list_create':
       return `创建了清单"${content.listData?.name || ''}"`;
     case 'list_update':
+      if (content.after?.isShared === false && content.before?.isShared) {
+        const removedMemberCount = content.after?.removedMemberCount || 0;
+        const clearedInviteCount = content.after?.clearedInviteCount || 0;
+        return `将共享清单改为个人清单，移除了${removedMemberCount}名成员并清理了${clearedInviteCount}条邀请`;
+      }
       return '修改了清单信息';
     case 'list_delete':
       return `删除了清单"${content.deletedList?.name || ''}"`;
+    case 'invite_send':
+      return targetName
+        ? `邀请了“${targetName}”加入清单（${getRoleName(content.role)}）`
+        : '发送了成员邀请';
+    case 'invite_reject':
+      return targetName
+        ? `“${targetName}”拒绝了邀请`
+        : '有成员拒绝了邀请';
+    case 'invite_remind':
+      return targetName
+        ? `提醒了“${targetName}”处理邀请`
+        : '发送了邀请提醒';
+    case 'invite_cancel':
+      return targetName
+        ? `取消了给“${targetName}”的邀请`
+        : '取消了成员邀请';
+    case 'invite_clear':
+      return `清空了${content.clearedCount || 0}条邀请记录`;
+    case 'join_apply':
+      return targetName
+        ? `“${targetName}”申请加入清单（${getRoleName(content.role)}）`
+        : '有用户申请加入清单';
+    case 'application_approve':
+      return targetName
+        ? `通过了“${targetName}”的加入申请`
+        : '通过了一条加入申请';
+    case 'application_reject':
+      return targetName
+        ? `拒绝了“${targetName}”的加入申请`
+        : '拒绝了一条加入申请';
     case 'task_create':
       return `创建了任务"${taskTitle}"`;
     case 'task_create_repeat':
       return `生成了周期任务"${taskTitle}"`;
     case 'task_update': {
+      if (content.oldListId && content.newListId && content.oldListId !== content.newListId) {
+        return `移动了任务"${taskTitle}"`;
+      }
       if (content.old?.status !== undefined && content.new?.status !== undefined) {
         return content.new.status === 1
           ? `完成了任务"${taskTitle}"`
@@ -1068,9 +1667,18 @@ function getOperationText(op) {
     case 'task_delete_repeat':
       return `删除了周期任务"${taskTitle}"`;
     case 'member_add':
-      return '添加了新成员';
+      return targetName
+        ? `添加“${targetName}”为成员（${getRoleName(content.role)}）`
+        : '添加了新成员';
+    case 'member_update':
+      if (targetName && content.oldRole !== undefined && content.newRole !== undefined) {
+        return `将“${targetName}”从${getRoleName(content.oldRole)}改为${getRoleName(content.newRole)}`;
+      }
+      return '修改了成员权限';
     case 'member_remove':
-      return '移除了成员';
+      return targetName
+        ? `移除了成员“${targetName}”`
+        : '移除了成员';
     default:
       return '执行了操作';
   }
@@ -1100,13 +1708,32 @@ async function updateMemberRole(openid, data) {
       return { code: -1, message: '无权限修改成员角色' };
     }
 
-    // 更新角色
+    const { data: members } = await db.collection('list_members')
+      .where({ _id: memberId, listId })
+      .get();
+
+    if (members.length === 0) {
+      return { code: -1, message: '成员不存在' };
+    }
+
+    if (members[0].role === 1) {
+      return { code: -1, message: '不能修改创建者角色' };
+    }
+
+    const targetUserInfo = await getUserBasicInfo(members[0].userId);
+
     await db.collection('list_members').doc(memberId).update({
       data: { role }
     });
 
     // 记录操作日志
-    await logOperation('member_update', listId, userId, { memberId, newRole: role });
+    await logOperation('member_update', listId, userId, {
+      memberId,
+      targetUserId: members[0].userId,
+      targetUserName: targetUserInfo?.nickname || '',
+      oldRole: members[0].role,
+      newRole: role
+    }, listId);
 
     return { code: 0, message: '修改成功' };
   } catch (error) {
@@ -1125,20 +1752,9 @@ async function getInviteList(openid, data) {
     }
 
     const userId = await getUserId(openid);
-
-    // 检查用户是否为清单创建者或成员
-    const { data: lists } = await db.collection('lists')
-      .where({ _id: listId })
-      .get();
-
-    if (lists.length === 0) {
-      return { code: -1, message: '清单不存在' };
-    }
-
-    const isCreator = lists[0].creatorId === userId;
-    const userRole = isCreator ? 1 : await getUserRole(listId, userId);
-    if (!userRole) {
-      return { code: -1, message: '无权限查看邀请列表' };
+    const permission = await verifyListPermission(userId, listId, [1]);
+    if (!permission.allowed) {
+      return { code: -1, message: permission.message || '无权限查看邀请列表' };
     }
 
     const query = { listId };
@@ -1152,25 +1768,33 @@ async function getInviteList(openid, data) {
       .limit(50)
       .get();
 
-    // 补充被邀请人信息
-    const enriched = [];
-    for (const invite of invites) {
-      let inviteeInfo = invite.inviteeInfo || {};
-      if (invite.inviteeId && !inviteeInfo.nickname) {
-        const { data: users } = await db.collection('users')
-          .where({ _id: invite.inviteeId })
-          .get();
-        if (users.length > 0) {
-          inviteeInfo = {
-            nickname: users[0].nickname,
-            avatarUrl: users[0].avatarUrl
-          };
-        }
-      }
-      enriched.push({ ...invite, inviteeInfo });
-    }
+    const normalizedInvites = await Promise.all(invites.map(invite => markInviteExpiredIfNeeded(invite)));
+    // 邀请管理页只展示用户级记录，公开模板邀请由链接页单独承载。
+    const filteredInvites = normalizedInvites.filter(invite => shouldIncludeInviteInList(invite, status));
 
-    return { success: true, invites: enriched };
+    const inviteeIds = [...new Set(filteredInvites.map(invite => invite.inviteeId).filter(Boolean))];
+    const { data: users } = inviteeIds.length > 0
+      ? await db.collection('users').where({ _id: _.in(inviteeIds) }).field({ nickname: true, avatarUrl: true }).get()
+      : { data: [] };
+
+    const userMap = {};
+    users.forEach(user => {
+      userMap[user._id] = user;
+    });
+
+    const enriched = filteredInvites.map(invite => {
+      const user = invite.inviteeId ? userMap[invite.inviteeId] : null;
+      return {
+        ...invite,
+        inviteeInfo: {
+          ...(invite.inviteeInfo || {}),
+          nickname: invite.inviteeInfo?.nickname || user?.nickname || '',
+          avatarUrl: invite.inviteeInfo?.avatarUrl || user?.avatarUrl || ''
+        }
+      };
+    });
+
+    return { code: 0, success: true, invites: enriched };
   } catch (error) {
     console.error('获取邀请列表失败:', error);
     return { code: -1, message: '获取邀请列表失败' };
@@ -1250,28 +1874,21 @@ async function generateInviteLink(openid, data) {
     }
 
     const userId = await getUserId(openid);
-
-    // 检查权限（只有创建者可以生成邀请链接）
-    const { data: lists } = await db.collection('lists')
-      .where({ _id: listId, creatorId: userId })
-      .get();
-
-    if (lists.length === 0) {
-      return { code: -1, message: '无权限生成邀请链接' };
+    const permission = await verifyListPermission(userId, listId, [1]);
+    if (!permission.allowed) {
+      return { code: -1, message: permission.message || '无权限生成邀请链接' };
     }
 
-    // 生成唯一邀请码
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let inviteCode = '';
-    for (let i = 0; i < 16; i++) {
-      inviteCode += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
+    const inviteCode = await generateUniqueInviteCode();
 
     // 计算过期时间
     let expireAt = null;
     if (expireDays > 0) {
       expireAt = new Date(Date.now() + expireDays * 24 * 60 * 60 * 1000);
     }
+
+    // 重新生成链接时，仅保留一个有效的公开 link 模板邀请。
+    await expireActiveLinkTemplates(listId);
 
     // 创建邀请记录
     await db.collection('list_invites').add({
@@ -1296,15 +1913,12 @@ async function generateInviteLink(openid, data) {
       .where({ listId, inviteType: 'link' })
       .get();
 
-    const stats = {
-      clickCount: 0,
-      joinCount: allInvites.filter(i => i.status === 1).length,
-      pendingCount: allInvites.filter(i => i.status === 0).length
-    };
+    const stats = buildInviteStats(allInvites);
 
     const inviteLink = `https://todo.app/invite/${inviteCode}`;
 
     return {
+      code: 0,
       success: true,
       inviteCode,
       inviteLink,
@@ -1365,22 +1979,12 @@ async function createWechatInvite(openid, data) {
     }
 
     const userId = await getUserId(openid);
-
-    // 检查权限
-    const { data: lists } = await db.collection('lists')
-      .where({ _id: listId, creatorId: userId })
-      .get();
-
-    if (lists.length === 0) {
-      return { code: -1, message: '无权限邀请成员' };
+    const permission = await verifyListPermission(userId, listId, [1]);
+    if (!permission.allowed) {
+      return { code: -1, message: permission.message || '无权限邀请成员' };
     }
 
-    // 生成邀请码
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let inviteCode = '';
-    for (let i = 0; i < 16; i++) {
-      inviteCode += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
+    const inviteCode = await generateUniqueInviteCode();
 
     // 创建邀请记录
     await db.collection('list_invites').add({
@@ -1400,6 +2004,7 @@ async function createWechatInvite(openid, data) {
     });
 
     return {
+      code: 0,
       success: true,
       inviteCode,
       scene: `invite=${inviteCode}`
@@ -1461,23 +2066,20 @@ async function getInviteInfo(openid, data) {
       return { code: -1, message: '用户不存在' };
     }
 
-    // 查询邀请记录
-    const { data: invites } = await db.collection('list_invites')
-      .where({
-        inviteCode,
-        status: 0
-      })
-      .get();
+    const processedInvite = await getInviteRecordForUser(inviteCode, userId);
+    const pendingInvite = await getPendingInviteForUser(inviteCode, userId);
+    const invite = processedInvite || pendingInvite || await getInviteByCode(inviteCode);
 
-    if (invites.length === 0) {
+    if (!invite) {
       return { code: -1, message: '邀请链接无效或已过期' };
     }
 
-    const invite = invites[0];
-
-    // 检查邀请是否过期
-    if (invite.expireAt && new Date(invite.expireAt) < new Date()) {
+    if (invite.status === 3) {
       return { code: -1, message: '邀请链接已过期' };
+    }
+
+    if (invite.inviteeId && invite.inviteeId !== userId) {
+      return { code: -1, message: '该邀请仅限指定用户查看' };
     }
 
     // 获取清单信息
@@ -1508,17 +2110,8 @@ async function getInviteInfo(openid, data) {
 
     const isMember = existingMembers.length > 0;
 
-    // 检查是否已处理过该邀请
-    const { data: processedInvites } = await db.collection('list_invites')
-      .where({
-        inviteCode,
-        inviteeId: userId,
-        status: _.in([1, 2])
-      })
-      .get();
-
-    const isProcessed = processedInvites.length > 0;
-    const processStatus = isProcessed ? processedInvites[0].status : 0;
+    const isProcessed = !!processedInvite;
+    const processStatus = processedInvite ? processedInvite.status : 0;
 
     // 获取成员列表（用于显示头像）
     const { data: members } = await db.collection('list_members')
@@ -1542,6 +2135,7 @@ async function getInviteInfo(openid, data) {
       inviterName: inviter ? inviter.nickname : '未知用户',
       inviterAvatar: inviter ? inviter.avatarUrl : '',
       role: invite.role || 3,
+      inviteType: invite.inviteType || 'link',
       needApproval: invite.needApproval || false,
       memberCount: members.length,
       members: memberUsers.map(u => ({ avatarUrl: u.avatarUrl })),
@@ -1550,6 +2144,7 @@ async function getInviteInfo(openid, data) {
     };
 
     return {
+      code: 0,
       success: true,
       inviteInfo,
       isMember,
@@ -1576,26 +2171,29 @@ async function acceptInvite(openid, data) {
       return { code: -1, message: '用户不存在' };
     }
 
-    // 查询邀请记录
-    const { data: invites } = await db.collection('list_invites')
-      .where({
-        inviteCode,
-        status: 0
-      })
-      .get();
+    const handledInvite = await getInviteRecordForUser(inviteCode, userId);
+    if (handledInvite) {
+      if (handledInvite.status === 2) {
+        return { code: -1, message: '您已拒绝此邀请' };
+      }
+      if (handledInvite.status === 4) {
+        return { code: -1, message: '您已申请过，请等待审批' };
+      }
+      return { code: -1, message: '您已处理过该邀请' };
+    }
 
-    if (invites.length === 0) {
+    const pendingInvite = await getPendingInviteForUser(inviteCode, userId);
+    const invite = pendingInvite || await getInviteByCode(inviteCode);
+    if (!invite) {
       return { code: -1, message: '邀请链接无效或已过期' };
     }
 
-    const invite = invites[0];
-
-    // 检查邀请是否过期
-    if (invite.expireAt && new Date(invite.expireAt) < new Date()) {
-      return { code: -1, message: '邀请链接已过期' };
+    const handleCheck = pendingInvite ? canHandleInvite(invite, userId) : canHandleTemplateInvite(invite, userId);
+    if (!handleCheck.allowed) {
+      return { code: -1, message: handleCheck.message };
     }
 
-    // 检查是否已是成员
+    // 若已是成员，后续仍需收敛邀请状态，避免残留待处理记录。
     const { data: existingMembers } = await db.collection('list_members')
       .where({
         listId: invite.listId,
@@ -1603,70 +2201,48 @@ async function acceptInvite(openid, data) {
       })
       .get();
 
-    if (existingMembers.length > 0) {
-      return { code: -1, message: '您已是该清单成员' };
-    }
-
-    // 检查是否需要审批
     if (invite.needApproval) {
-      // 更新邀请状态为待审批 (status: 4)
-      await db.collection('list_invites').doc(invite._id).update({
-        data: {
-          status: 4,
-          inviteeId: userId,
-          updatedAt: db.serverDate()
-        }
-      });
+      if (existingMembers.length > 0) {
+        return { code: 0, success: true, message: '您已是该清单成员', action: 'already_joined' };
+      }
 
-      // 创建通知给邀请人
-      const { data: lists } = await db.collection('lists')
-        .where({ _id: invite.listId })
-        .get();
-      const listName = lists.length > 0 ? lists[0].name : '未知清单';
-
-      const { data: users } = await db.collection('users')
-        .where({ _id: userId })
-        .get();
-      const userName = users.length > 0 ? users[0].nickname : '未知用户';
-
-      await db.collection('notifications').add({
-        data: {
-          type: 'join_request',
-          userId: invite.inviterId,
-          relatedId: invite.listId,
-          content: `${userName} 申请加入清单"${listName}"`,
-          isRead: false,
-          createdAt: db.serverDate()
-        }
-      });
-
-      return { success: true, message: '申请已提交，等待审批' };
+      const applyResult = await applyJoinList(openid, data);
+      if (applyResult && applyResult.code === 0 && applyResult.success) {
+        return {
+          ...applyResult,
+          action: 'applied'
+        };
+      }
+      return applyResult;
     }
 
-    // 直接加入清单
-    await db.collection('list_members').add({
-      data: {
-        listId: invite.listId,
-        userId: userId,
-        role: invite.role || 3,
-        joinType: 'invite',
-        joinedAt: db.serverDate()
-      }
-    });
+    const acceptedInvite = pendingInvite
+      ? { ...invite }
+      : await createInviteRecordFromTemplate(invite, userId, 0);
 
-    // 更新邀请状态
-    await db.collection('list_invites').doc(invite._id).update({
-      data: {
-        status: 1,
-        inviteeId: userId,
-        updatedAt: db.serverDate()
-      }
-    });
+    const joinResult = await ensureMemberJoinedFromInvite(
+      acceptedInvite,
+      userId,
+      acceptedInvite.inviteType === 'link' ? 'link' : 'invite'
+    );
 
     // 记录操作日志
-    await logOperation('member_add', invite.listId, userId, { joinType: 'invite_accept' });
+    if (joinResult.memberCreated) {
+      const targetUserInfo = await getUserBasicInfo(userId);
+      await logOperation('member_add', invite.listId, userId, {
+        joinType: 'invite_accept',
+        targetUserId: userId,
+        targetUserName: targetUserInfo?.nickname || invite.inviteeInfo?.nickname || '',
+        role: invite.role
+      }, invite.listId);
+    }
 
-    return { success: true, message: '加入成功' };
+    return {
+      code: 0,
+      success: true,
+      message: joinResult.alreadyMember ? '您已是该清单成员' : '加入成功',
+      action: joinResult.alreadyMember ? 'already_joined' : 'joined'
+    };
   } catch (error) {
     console.error('接受邀请失败:', error);
     return { code: -1, message: '接受邀请失败' };
@@ -1687,23 +2263,24 @@ async function applyJoinList(openid, data) {
       return { code: -1, message: '用户不存在' };
     }
 
-    // 查询邀请记录
-    const { data: invites } = await db.collection('list_invites')
-      .where({
-        inviteCode,
-        status: 0
-      })
-      .get();
+    const handledInvite = await getInviteRecordForUser(inviteCode, userId);
+    if (handledInvite) {
+      return { code: -1, message: handledInvite.status === 4 ? '您已申请过，请等待审批' : '您已处理过该邀请' };
+    }
 
-    if (invites.length === 0) {
+    const pendingInvite = await getPendingInviteForUser(inviteCode, userId);
+    const invite = pendingInvite || await getInviteByCode(inviteCode);
+    if (!invite) {
       return { code: -1, message: '邀请链接无效或已过期' };
     }
 
-    const invite = invites[0];
+    const handleCheck = pendingInvite ? canHandleInvite(invite, userId) : canHandleTemplateInvite(invite, userId);
+    if (!handleCheck.allowed) {
+      return { code: -1, message: handleCheck.message };
+    }
 
-    // 检查邀请是否过期
-    if (invite.expireAt && new Date(invite.expireAt) < new Date()) {
-      return { code: -1, message: '邀请链接已过期' };
+    if (!invite.needApproval) {
+      return { code: -1, message: '该邀请无需申请，可直接接受' };
     }
 
     // 检查是否已是成员
@@ -1718,27 +2295,19 @@ async function applyJoinList(openid, data) {
       return { code: -1, message: '您已是该清单成员' };
     }
 
-    // 检查是否已申请过
-    const { data: existingApplications } = await db.collection('list_invites')
-      .where({
-        inviteCode,
-        inviteeId: userId,
-        status: 4
-      })
-      .get();
+    const applicationInvite = pendingInvite
+      ? { ...invite, approvalSource: 'direct_invite' }
+      : await createInviteRecordFromTemplate(invite, userId, 4, { approvalSource: 'public_link' });
 
-    if (existingApplications.length > 0) {
-      return { code: -1, message: '您已申请过，请等待审批' };
+    if (pendingInvite) {
+      await db.collection('list_invites').doc(applicationInvite._id).update({
+        data: {
+          status: 4,
+          approvalSource: 'direct_invite',
+          updatedAt: db.serverDate()
+        }
+      });
     }
-
-    // 更新邀请状态为待审批 (status: 4)
-    await db.collection('list_invites').doc(invite._id).update({
-      data: {
-        status: 4,
-        inviteeId: userId,
-        updatedAt: db.serverDate()
-      }
-    });
 
     // 创建通知给邀请人
     const { data: lists } = await db.collection('lists')
@@ -1756,13 +2325,23 @@ async function applyJoinList(openid, data) {
         type: 'join_request',
         userId: invite.inviterId,
         relatedId: invite.listId,
-        content: `${userName} 申请加入清单"${listName}"`,
+        content: pendingInvite
+          ? `${userName} 确认加入清单"${listName}"，等待您审核`
+          : `${userName} 申请加入清单"${listName}"`,
         isRead: false,
         createdAt: db.serverDate()
       }
     });
 
-    return { success: true, message: '申请已提交，等待审批' };
+    await logOperation('join_apply', invite.listId, userId, {
+      targetUserId: userId,
+      targetUserName: userName,
+      role: invite.role,
+      inviteType: invite.inviteType,
+      approvalSource: applicationInvite.approvalSource || ''
+    }, invite.listId);
+
+    return { code: 0, success: true, message: '申请已提交，等待审批' };
   } catch (error) {
     console.error('申请加入失败:', error);
     return { code: -1, message: '申请加入失败' };
@@ -1783,22 +2362,30 @@ async function rejectInvite(openid, data) {
       return { code: -1, message: '用户不存在' };
     }
 
-    // 查询邀请记录
-    const { data: invites } = await db.collection('list_invites')
-      .where({
-        inviteCode,
-        status: 0
-      })
-      .get();
+    const handledInvite = await getInviteRecordForUser(inviteCode, userId);
+    if (handledInvite) {
+      if (handledInvite.status === 4) {
+        return { code: -1, message: '您已申请过，请等待审批' };
+      }
+      return { code: -1, message: '您已处理过该邀请' };
+    }
 
-    if (invites.length === 0) {
+    const pendingInvite = await getPendingInviteForUser(inviteCode, userId);
+    const invite = pendingInvite || await getInviteByCode(inviteCode);
+    if (!invite) {
       return { code: -1, message: '邀请链接无效或已过期' };
     }
 
-    const invite = invites[0];
+    const handleCheck = pendingInvite ? canHandleInvite(invite, userId) : canHandleTemplateInvite(invite, userId);
+    if (!handleCheck.allowed) {
+      return { code: -1, message: handleCheck.message };
+    }
 
-    // 更新邀请状态为已拒绝
-    await db.collection('list_invites').doc(invite._id).update({
+    const rejectedInvite = pendingInvite
+      ? { ...invite }
+      : await createInviteRecordFromTemplate(invite, userId, 2);
+
+    await db.collection('list_invites').doc(rejectedInvite._id).update({
       data: {
         status: 2,
         inviteeId: userId,
@@ -1806,7 +2393,15 @@ async function rejectInvite(openid, data) {
       }
     });
 
-    return { success: true, message: '已拒绝邀请' };
+    const targetUserInfo = await getUserBasicInfo(userId);
+    await logOperation('invite_reject', invite.listId, userId, {
+      targetUserId: userId,
+      targetUserName: targetUserInfo?.nickname || rejectedInvite.inviteeInfo?.nickname || '',
+      role: invite.role,
+      inviteType: invite.inviteType
+    }, invite.listId);
+
+    return { code: 0, success: true, message: '已拒绝邀请' };
   } catch (error) {
     console.error('拒绝邀请失败:', error);
     return { code: -1, message: '拒绝邀请失败' };
@@ -1865,7 +2460,7 @@ async function remindInvite(openid, data) {
         data: {
           type: 'invite_remind',
           userId: invite.inviteeId,
-          relatedId: invite.listId,
+          relatedId: invite.inviteCode,
           content: `${inviterName} 提醒您接受清单"${listName}"的邀请`,
           isRead: false,
           createdAt: db.serverDate()
@@ -1881,7 +2476,14 @@ async function remindInvite(openid, data) {
       }
     });
 
-    return { success: true, message: '提醒已发送' };
+    await logOperation('invite_remind', invite.listId, userId, {
+      inviteId,
+      targetUserId: invite.inviteeId,
+      targetUserName: invite.inviteeInfo?.nickname || '',
+      role: invite.role
+    }, invite.listId);
+
+    return { code: 0, success: true, message: '提醒已发送' };
   } catch (error) {
     console.error('发送提醒失败:', error);
     return { code: -1, message: '发送提醒失败' };
@@ -1910,6 +2512,11 @@ async function cancelInvite(openid, data) {
 
     const invite = invites[0];
 
+    const permission = await verifyListPermission(userId, invite.listId, [1]);
+    if (!permission.allowed) {
+      return { code: -1, message: permission.message || '无权限取消邀请' };
+    }
+
     // 检查权限（只有邀请人可以取消）
     if (invite.inviterId !== userId) {
       return { code: -1, message: '无权限取消邀请' };
@@ -1924,9 +2531,14 @@ async function cancelInvite(openid, data) {
     await db.collection('list_invites').doc(inviteId).remove();
 
     // 记录操作日志
-    await logOperation('invite_cancel', invite.listId, userId, { inviteId });
+    await logOperation('invite_cancel', invite.listId, userId, {
+      inviteId,
+      targetUserId: invite.inviteeId,
+      targetUserName: invite.inviteeInfo?.nickname || '',
+      role: invite.role
+    }, invite.listId);
 
-    return { success: true, message: '邀请已取消' };
+    return { code: 0, success: true, message: '邀请已取消' };
   } catch (error) {
     console.error('取消邀请失败:', error);
     return { code: -1, message: '取消邀请失败' };
@@ -1973,24 +2585,11 @@ async function approveApplication(openid, data) {
       return { code: -1, message: '该申请已处理' };
     }
 
-    // 添加成员到清单
-    await db.collection('list_members').add({
-      data: {
-        listId: invite.listId,
-        userId: invite.inviteeId,
-        role: invite.role || 3,
-        joinType: 'apply',
-        joinedAt: db.serverDate()
-      }
-    });
-
-    // 更新申请状态为已接受 (status: 1)
-    await db.collection('list_invites').doc(applicationId).update({
-      data: {
-        status: 1,
-        updatedAt: db.serverDate()
-      }
-    });
+    const joinResult = await ensureMemberJoinedFromInvite(
+      invite,
+      invite.inviteeId,
+      invite.inviteType === 'link' ? 'link' : 'invite'
+    );
 
     // 创建通知给申请人
     await db.collection('notifications').add({
@@ -2004,10 +2603,28 @@ async function approveApplication(openid, data) {
       }
     });
 
-    // 记录操作日志
-    await logOperation('member_add', invite.listId, userId, { targetUserId: invite.inviteeId, role: invite.role });
+    await logOperation('application_approve', invite.listId, userId, {
+      targetUserId: invite.inviteeId,
+      targetUserName: invite.inviteeInfo?.nickname || '',
+      role: invite.role,
+      inviteType: invite.inviteType
+    }, invite.listId);
 
-    return { success: true, message: '已同意加入申请' };
+    // 记录操作日志
+    if (joinResult.memberCreated) {
+      await logOperation('member_add', invite.listId, userId, {
+        targetUserId: invite.inviteeId,
+        targetUserName: invite.inviteeInfo?.nickname || '',
+        role: invite.role,
+        joinType: 'application_approve'
+      }, invite.listId);
+    }
+
+    return {
+      code: 0,
+      success: true,
+      message: joinResult.alreadyMember ? '该用户已是清单成员' : '已同意加入申请'
+    };
   } catch (error) {
     console.error('同意申请失败:', error);
     return { code: -1, message: '同意申请失败' };
@@ -2074,7 +2691,14 @@ async function rejectApplication(openid, data) {
       }
     });
 
-    return { success: true, message: '已拒绝加入申请' };
+    await logOperation('application_reject', invite.listId, userId, {
+      targetUserId: invite.inviteeId,
+      targetUserName: invite.inviteeInfo?.nickname || '',
+      role: invite.role,
+      inviteType: invite.inviteType
+    }, invite.listId);
+
+    return { code: 0, success: true, message: '已拒绝加入申请' };
   } catch (error) {
     console.error('拒绝申请失败:', error);
     return { code: -1, message: '拒绝申请失败' };
@@ -2111,14 +2735,21 @@ async function clearInvites(openid, data) {
       .where(query)
       .get();
 
+    const deletableInvites = invites.filter(invite => shouldIncludeInviteInList(invite, status));
+
     // 批量删除
-    const deletePromises = invites.map(invite =>
+    const deletePromises = deletableInvites.map(invite =>
       db.collection('list_invites').doc(invite._id).remove()
     );
 
     await Promise.all(deletePromises);
 
-    return { success: true, message: `已清空 ${invites.length} 条邀请记录` };
+    await logOperation('invite_clear', listId, userId, {
+      clearedCount: deletableInvites.length,
+      status: status === undefined ? null : status
+    }, listId);
+
+    return { code: 0, success: true, message: `已清空 ${deletableInvites.length} 条邀请记录` };
   } catch (error) {
     console.error('清空邀请失败:', error);
     return { code: -1, message: '清空邀请失败' };

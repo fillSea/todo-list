@@ -26,7 +26,7 @@
             </view>
         </view>
         <!-- 清单类型 -->
-        <view class="form-section">
+        <view class="form-section" wx:if="{{!isEditing || canEditStructure}}">
             <view class="form-item">
                 <text class="form-label required">清单类型</text>
                 <view class="type-options">
@@ -54,7 +54,7 @@
             </view>
         </view>
         <!-- 可见性设置（仅共享清单显示） -->
-        <view class="form-section" wx:if="{{formData.isShared}}">
+        <view class="form-section" wx:if="{{(!isEditing || canEditStructure) && formData.isShared}}">
             <view class="form-item">
                 <text class="form-label required">可见性</text>
                 <view class="visibility-options">

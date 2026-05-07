@@ -76,15 +76,15 @@
     <view class="section-title">使用统计</view>
     <view class="stats-grid">
       <view class="stat-item">
-        <text class="stat-value">{{inviteStats.clickCount || 0}}</text>
-        <text class="stat-label">点击次数</text>
+        <text class="stat-value">{{inviteStats.activeTemplateCount || 0}}</text>
+        <text class="stat-label">有效链接数</text>
       </view>
       <view class="stat-item">
-        <text class="stat-value">{{inviteStats.joinCount || 0}}</text>
+        <text class="stat-value">{{inviteStats.joinedCount || 0}}</text>
         <text class="stat-label">已加入</text>
       </view>
       <view class="stat-item">
-        <text class="stat-value">{{inviteStats.pendingCount || 0}}</text>
+        <text class="stat-value">{{inviteStats.appliedCount || 0}}</text>
         <text class="stat-label">待审核</text>
       </view>
     </view>

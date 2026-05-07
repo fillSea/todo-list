@@ -367,33 +367,6 @@
   color: #999;
 }
 
-/* 右滑操作按钮 */
-.swipe-actions {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  display: flex;
-}
-
-.action-edit,
-.action-delete {
-  width: 70px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 14px;
-}
-
-.action-edit {
-  background-color: #1976D2;
-}
-
-.action-delete {
-  background-color: #F44336;
-}
-
 /* 加载更多 */
 .load-more {
   display: flex;

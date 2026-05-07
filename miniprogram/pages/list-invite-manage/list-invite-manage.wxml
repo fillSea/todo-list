@@ -5,7 +5,7 @@
       <van-icon name="arrow-left" size="20px" color="#333" />
     </view>
     <text class="header-title">邀请管理</text>
-    <view class="header-right" bindtap="onClearAll" wx:if="{{canClear}}">
+    <view class="header-right" bindtap="onClearAll" wx:if="{{canClearCurrentTab}}">
       <text class="clear-text">清空</text>
     </view>
   </view>
@@ -65,9 +65,9 @@
             <text class="invite-role {{item.role === 2 ? 'editor' : 'viewer'}}">
               {{item.role === 2 ? '编辑者' : '查看者'}}
             </text>
-            <text class="invite-status pending">申请加入</text>
+            <text class="invite-status pending">{{item.sourceLabel}}</text>
           </view>
-          <text class="invite-time">{{item.timeText}}申请</text>
+          <text class="invite-time">{{item.timeText}}{{item.timeSuffix}}</text>
           <text class="apply-message" wx:if="{{item.message}}">"{{item.message}}"</text>
         </view>
         <view class="invite-actions application-actions">

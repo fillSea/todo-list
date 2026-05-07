@@ -62,9 +62,6 @@ Page({
       menus: ['shareAppMessage']
     });
 
-    // 预生成邀请码（用于微信分享）
-    this.preGenerateInviteCode();
-
     // 加载数据
     this.loadData();
   },
@@ -85,32 +82,6 @@ Page({
       path: `/pages/list-invite-accept/list-invite-accept?code=${inviteCode}&role=${role}`,
       imageUrl: '/images/share-invite.png'
     };
-  },
-
-  // 预生成邀请码（在页面加载时调用）
-  async preGenerateInviteCode() {
-    try {
-      const { listId } = this.data;
-      if (!listId || DEBUG_MODE) return;
-
-      const result = await wx.cloud.callFunction({
-        name: 'listFunctions',
-        data: {
-          action: 'createWechatInvite',
-          data: {
-            listId,
-            role: 3 // 默认角色
-          }
-        }
-      });
-
-      if (result.result && result.result.success) {
-        this._pendingInviteCode = result.result.inviteCode;
-        console.log('预生成邀请码成功:', this._pendingInviteCode);
-      }
-    } catch (error) {
-      console.error('预生成邀请码失败:', error);
-    }
   },
 
   // 加载数据
@@ -151,6 +122,16 @@ Page({
             ...detail.listInfo,
             memberCount: (detail.members || []).length
           };
+
+          if (detail.myRole !== 1) {
+            wx.showToast({
+              title: '仅创建者可管理邀请',
+              icon: 'none'
+            });
+            setTimeout(() => wx.navigateBack(), 1200);
+            return;
+          }
+
           this.setData({ listInfo });
         } else {
           console.error('获取清单信息失败:', result.result?.message);
@@ -594,14 +575,15 @@ Page({
             data: {
               listId,
               userId: selectedUser.userId,
-              role: selectedRole
+              role: selectedRole,
+              inviteType
             }
           }
         });
 
         if (result && result.result && result.result.code === 0) {
           wx.showToast({
-            title: '已添加成员',
+            title: '邀请已发送',
             icon: 'success'
           });
           // 刷新清单信息和待处理邀请列表

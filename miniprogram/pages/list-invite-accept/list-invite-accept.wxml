@@ -43,6 +43,13 @@
         </view>
       </view>
 
+      <view class="inviter-info">
+        <text class="info-label">邀请方式</text>
+        <view class="inviter-detail">
+          <text class="inviter-name">{{inviteInfo.inviteType === 'wechat' ? '微信邀请' : (inviteInfo.inviteType === 'search' ? '搜索邀请' : (inviteInfo.inviteType === 'recent' ? '最近协作邀请' : '邀请链接'))}}</text>
+        </view>
+      </view>
+
       <!-- 角色信息 -->
       <view class="role-info">
         <text class="info-label">你的角色</text>
@@ -68,7 +75,7 @@
     </view>
 
     <!-- 操作按钮 -->
-    <view class="action-section" wx:if="{{!isMember}}">
+    <view class="action-section" wx:if="{{!isMember && !isProcessed}}">
       <!-- 需要审核的情况 -->
       <block wx:if="{{inviteInfo.needApproval}}">
         <view class="approval-notice">
@@ -99,9 +106,10 @@
 
     <!-- 已处理提示 -->
     <view class="processed-notice" wx:if="{{isProcessed}}">
-      <van-icon name="{{processStatus === 1 ? 'success' : 'cross'}}" size="24px" color="{{processStatus === 1 ? '#4CAF50' : '#999'}}" />
-      <text>{{processStatus === 1 ? '你已接受此邀请' : '你已拒绝此邀请'}}</text>
-      <view class="btn primary" bindtap="onBack">返回首页</view>
+      <van-icon name="{{processStatus === 1 ? 'success' : (processStatus === 4 ? 'clock-o' : 'cross')}}" size="24px" color="{{processStatus === 1 ? '#4CAF50' : (processStatus === 4 ? '#FF9800' : '#999')}}" />
+      <text>{{processStatus === 1 ? '你已接受此邀请' : (processStatus === 4 ? '你的申请正在等待审批' : '你已拒绝此邀请')}}</text>
+      <view class="btn primary" bindtap="onViewList" wx:if="{{processStatus === 1}}">查看清单</view>
+      <view class="btn primary" bindtap="onBack" wx:else>返回首页</view>
     </view>
   </block>
 

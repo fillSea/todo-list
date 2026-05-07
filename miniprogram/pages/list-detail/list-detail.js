@@ -520,7 +520,15 @@ Page({
 
     // 编辑清单
     onEditList() {
-        const { listId, listInfo } = this.data;
+        const { listId, canEdit } = this.data;
+        if (!canEdit) {
+            wx.showToast({
+                title: '无权限编辑该清单',
+                icon: 'none'
+            });
+            return;
+        }
+
         wx.navigateTo({
             url: `/pages/list-edit/list-edit?id=${listId}`
         });
@@ -980,9 +988,15 @@ Page({
 
     // 添加任务
     onAddTask() {
-        const { listId } = this.data;
+        const { listId, listInfo } = this.data;
+        const query = [
+            `listId=${encodeURIComponent(listId)}`,
+            `listName=${encodeURIComponent(listInfo?.name || '')}`,
+            `listShared=${listInfo?.isShared ? '1' : '0'}`
+        ].join('&');
+
         wx.navigateTo({
-            url: `/pages/task-edit/task-edit?listId=${listId}`
+            url: `/pages/task-edit/task-edit?${query}`
         });
     },
 

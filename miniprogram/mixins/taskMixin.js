@@ -30,6 +30,8 @@ module.exports = {
 
     // 可选清单列表
     availableLists: [],
+    currentListContext: null,
+    lockListSelection: false,
 
     // 可选分类列表
     availableCategories: [],
@@ -59,7 +61,13 @@ module.exports = {
         data: { action: 'getAvailableLists' }
       });
       if (result.result && result.result.code === 0) {
-        this.setData({ availableLists: result.result.data || [] });
+        const currentListContext = this.data.currentListContext;
+        const availableLists = result.result.data || [];
+        const hasCurrentList = currentListContext && availableLists.some(item => item._id === currentListContext._id);
+
+        this.setData({
+          availableLists: hasCurrentList ? availableLists : (currentListContext ? [currentListContext, ...availableLists] : availableLists)
+        });
       }
     } catch (error) {
       console.error('加载清单列表失败:', error);
@@ -179,6 +187,10 @@ module.exports = {
 
   // 显示清单选择弹窗
   onSelectList() {
+    if (this.data.lockListSelection) {
+      return;
+    }
+
     this.setData({ showListPopup: true });
   },
 
@@ -660,6 +672,11 @@ module.exports = {
         type: a.type
       }))
     };
+
+    if (this.data.lockListSelection && this.data.currentListContext?._id) {
+      params.listId = this.data.currentListContext._id;
+      params.sourceListId = this.data.currentListContext._id;
+    }
 
     // 如果有状态字段，也传递
     if (task.status !== undefined) {

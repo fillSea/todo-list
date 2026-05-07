@@ -153,6 +153,7 @@ Page({
     // 列表数据
     lists: [],
     filteredLists: [],
+    skeletonList: [0, 1, 2],
 
     // 筛选状态
     currentFilter: 'all',
@@ -160,6 +161,8 @@ Page({
     // 搜索状态
     isSearching: false,
     searchKeyword: '',
+    searchMode: 'none',
+    remoteSearchResults: [],
 
     // 加载状态
     isLoading: false,
@@ -170,11 +173,16 @@ Page({
     // 分页参数
     page: 1,
     pageSize: 20,
+    normalPage: 1,
+    normalHasMore: true,
 
     // 弹窗状态
     showDialog: false,
     isEditing: false,
     editingId: null,
+    editingListRole: null,
+    editingListCreatorId: '',
+    canEditStructure: true,
     formData: {
       name: '',
       description: '',
@@ -194,28 +202,44 @@ Page({
     // 用户信息
     userInfo: null,
     isLoggedIn: false,
+    hasProfile: false,
 
-    // 滚动区域顶部间距（根据搜索框显示状态动态调整）
-    scrollMarginTop: 104,
+    // 滚动区域顶部间距（根据头部真实高度动态测量）
+    scrollMarginTop: 0,
     // 滚动区域高度
     scrollHeight: 0,
+    windowHeight: 0,
 
     // 空状态文本
     emptyTitle: '暂无清单',
     emptyDesc: '点击右上角 + 创建清单'
   },
 
+  hasCompleteProfile(userInfo) {
+    if (!userInfo || typeof userInfo !== 'object') {
+      return false;
+    }
+
+    const nickname = typeof userInfo.nickname === 'string' ? userInfo.nickname.trim() : '';
+    const avatarUrl = typeof userInfo.avatarUrl === 'string' ? userInfo.avatarUrl.trim() : '';
+
+    return Boolean(nickname && avatarUrl);
+  },
+
   onLoad: function (options) {
-    // 计算滚动区域高度
-    const scrollMarginTop = 104;
     const windowHeight = wx.getSystemInfoSync().windowHeight;
 
     this.setData({
-      scrollMarginTop,
-      scrollHeight: windowHeight - scrollMarginTop
+      windowHeight
+    }, () => {
+      this.updateScrollLayout();
     });
 
     this.syncLoginState();
+  },
+
+  onReady() {
+    this.updateScrollLayout();
   },
 
   onShow: function () {
@@ -226,32 +250,48 @@ Page({
     const { isLoggedIn, userInfo } = app.getLoginState();
 
     if (!isLoggedIn) {
-      this.resetGuestData();
+      this.resetProfilePendingData();
+      return;
+    }
+
+    const hasProfile = this.hasCompleteProfile(userInfo);
+
+    if (!hasProfile) {
+      this.resetProfilePendingData({
+        isLoggedIn: true,
+        userInfo
+      });
       return;
     }
 
     this.setData({
       isLoggedIn: true,
+      hasProfile,
       userInfo
     }, () => {
-      this.loadLists(showLoading);
+      this.refreshCurrentView(showLoading);
     });
   },
 
-  resetGuestData() {
+  resetProfilePendingData(extraState = {}) {
     this.setData({
       isLoggedIn: false,
+      hasProfile: false,
       userInfo: null,
       lists: [],
       filteredLists: [],
       currentFilter: 'all',
       isSearching: false,
       searchKeyword: '',
+      searchMode: 'none',
+      remoteSearchResults: [],
       isLoading: false,
       isRefreshing: false,
       isLoadingMore: false,
       hasMore: true,
       page: 1,
+      normalPage: 1,
+      normalHasMore: true,
       showDialog: false,
       isEditing: false,
       editingId: null,
@@ -261,7 +301,67 @@ Page({
       showDeleteDialog: false,
       deletingId: null,
       emptyTitle: '完善资料后查看你的清单',
-      emptyDesc: '完善个人资料后可创建个人清单和共享清单'
+      emptyDesc: '完善个人资料后可创建个人清单和共享清单',
+      ...extraState
+    });
+  },
+
+  updateScrollLayout() {
+    const windowHeight = this.data.windowHeight || wx.getSystemInfoSync().windowHeight;
+    wx.nextTick(() => {
+      const query = wx.createSelectorQuery();
+      query.select('#header-fixed').boundingClientRect();
+      query.exec((res) => {
+        const rect = res && res[0];
+        const scrollMarginTop = rect && rect.height ? Math.ceil(rect.height) : 0;
+        this.setData({
+          scrollMarginTop,
+          scrollHeight: Math.max(windowHeight - scrollMarginTop, 0),
+          windowHeight
+        });
+      });
+    });
+  },
+
+  refreshCurrentView(showLoading = true) {
+    const keyword = (this.data.searchKeyword || '').trim();
+    if (this.data.searchMode === 'remote' && keyword) {
+      this.performRemoteSearch(keyword, showLoading);
+      return;
+    }
+
+    this.loadLists(showLoading);
+  },
+
+  resetSearchState(options = {}) {
+    const {
+      keepSearchUI = false,
+      page = this.data.normalPage,
+      hasMore = this.data.normalHasMore,
+      clearResults = true
+    } = options;
+
+    const nextState = {
+      isSearching: keepSearchUI,
+      searchKeyword: '',
+      searchMode: 'none',
+      filteredLists: this.data.lists,
+      page,
+      hasMore,
+      remoteSearchResults: clearResults ? [] : this.data.remoteSearchResults
+    };
+
+    const previewState = {
+      ...this.data,
+      ...nextState
+    };
+
+    this.setData({
+      ...nextState,
+      emptyTitle: this._getEmptyTitle(previewState),
+      emptyDesc: this._getEmptyDesc(previewState)
+    }, () => {
+      this.updateScrollLayout();
     });
   },
 
@@ -269,8 +369,11 @@ Page({
 
   // 加载清单列表
   async loadLists(showLoading = true) {
-    if (!this.data.isLoggedIn) {
-      this.resetGuestData();
+    if (!this.data.hasProfile) {
+      this.resetProfilePendingData({
+        isLoggedIn: this.data.isLoggedIn,
+        userInfo: this.data.userInfo
+      });
       return;
     }
 
@@ -323,7 +426,10 @@ Page({
 
       this.setData({
         lists: page === 1 ? processedLists : [...this.data.lists, ...processedLists],
+        filteredLists: page === 1 ? processedLists : [...this.data.lists, ...processedLists],
         hasMore,
+        normalPage: page,
+        normalHasMore: hasMore,
         isLoading: false,
         isRefreshing: false,
         isLoadingMore: false
@@ -334,6 +440,89 @@ Page({
 
     } catch (error) {
       console.error('加载清单列表失败:', error);
+      wx.showToast({
+        title: '加载失败，请重试',
+        icon: 'none'
+      });
+      this.setData({
+        isLoading: false,
+        isRefreshing: false,
+        isLoadingMore: false
+      });
+    }
+  },
+
+  async loadNormalListForFilter(filter, options = {}) {
+    const { showLoading = false, preserveDisplayedResults = false } = options;
+
+    if (!this.data.hasProfile) {
+      this.resetProfilePendingData({
+        isLoggedIn: this.data.isLoggedIn,
+        userInfo: this.data.userInfo
+      });
+      return;
+    }
+
+    if (showLoading) {
+      this.setData({ isLoading: true });
+    }
+
+    try {
+      const page = 1;
+      const pageSize = this.data.pageSize;
+      let lists = [];
+      let hasMore = false;
+
+      if (DEBUG_MODE) {
+        await this.simulateDelay(500);
+        const filteredSourceLists = this.filterMockData(MOCK_DATA.lists, filter);
+        const end = page * pageSize;
+        lists = filteredSourceLists.slice(0, end);
+        hasMore = end < filteredSourceLists.length;
+      } else {
+        const result = await wx.cloud.callFunction({
+          name: 'listFunctions',
+          data: {
+            action: 'getMyLists',
+            data: {
+              filter,
+              page,
+              pageSize
+            }
+          }
+        });
+
+        if (result.result && result.result.code === 0) {
+          lists = result.result.data.list || [];
+          hasMore = result.result.data.hasMore || false;
+        } else {
+          throw new Error(result.result?.message || '加载失败');
+        }
+      }
+
+      const processedLists = this.processListData(lists);
+      const nextState = {
+        lists: processedLists,
+        normalPage: page,
+        normalHasMore: hasMore,
+        isLoading: false,
+        isRefreshing: false,
+        isLoadingMore: false
+      };
+
+      if (!preserveDisplayedResults || this.data.searchMode !== 'remote') {
+        nextState.filteredLists = processedLists;
+        nextState.page = page;
+        nextState.hasMore = hasMore;
+      }
+
+      this.setData(nextState, () => {
+        if (!preserveDisplayedResults || this.data.searchMode !== 'remote') {
+          this.applyFilter();
+        }
+      });
+    } catch (error) {
+      console.error('加载筛选清单列表失败:', error);
       wx.showToast({
         title: '加载失败，请重试',
         icon: 'none'
@@ -381,10 +570,15 @@ Page({
   processListData(lists) {
     return lists.map(list => {
       // 计算进度
-      const taskCount = list.taskCount || 0;
-      const pendingCount = list.pendingCount || 0;
-      const completedCount = taskCount - pendingCount;
-      const progress = taskCount > 0 ? Math.round((completedCount / taskCount) * 100) : 0;
+      const taskCount = Math.max(Number(list.taskCount) || 0, 0);
+      const pendingCount = Math.max(Number(list.pendingCount) || 0, 0);
+      if (pendingCount > taskCount) {
+        console.warn('清单待完成数量超过任务总数:', list._id, pendingCount, taskCount);
+      }
+      const completedCount = Math.min(Math.max(taskCount - pendingCount, 0), taskCount);
+      const progress = taskCount > 0
+        ? Math.min(Math.max(Math.round((completedCount / taskCount) * 100), 0), 100)
+        : 0;
 
       // 进度条颜色
       let progressColor = '#4CAF50';
@@ -400,12 +594,13 @@ Page({
 
       return {
         ...list,
+        taskCount,
+        pendingCount,
         progress,
         progressColor,
         updateTimeText,
         members,
-        memberCount,
-        showActions: false
+        memberCount
       };
     });
   },
@@ -415,8 +610,14 @@ Page({
     if (!timestamp) return '';
 
     const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return '';
+
     const now = new Date();
     const diff = now - date;
+
+    if (diff < 0) {
+      return '刚刚';
+    }
 
     // 小于1分钟
     if (diff < 60000) {
@@ -454,25 +655,24 @@ Page({
       page: 1,
       hasMore: true
     }, () => {
+      const keyword = (this.data.searchKeyword || '').trim();
+      if (this.data.searchMode === 'remote' && keyword) {
+        this.loadNormalListForFilter(filter, { preserveDisplayedResults: true });
+        this.performRemoteSearch(keyword);
+        return;
+      }
+
       this.loadLists();
     });
   },
 
   // 应用筛选（本地筛选，用于搜索）
   applyFilter() {
-    const { lists, searchKeyword } = this.data;
-
-    let filtered = lists;
-    if (searchKeyword) {
-      const keyword = searchKeyword.toLowerCase();
-      filtered = lists.filter(list => {
-        return (list.name && list.name.toLowerCase().includes(keyword)) ||
-          (list.description && list.description.toLowerCase().includes(keyword));
-      });
-    }
+    const { lists, remoteSearchResults, searchMode } = this.data;
+    const nextFilteredLists = searchMode === 'remote' ? remoteSearchResults : lists;
 
     this.setData({
-      filteredLists: filtered,
+      filteredLists: nextFilteredLists,
       emptyTitle: this._getEmptyTitle(),
       emptyDesc: this._getEmptyDesc()
     });
@@ -482,74 +682,149 @@ Page({
 
   // 显示搜索框
   onSearch() {
-    if (!this.data.isLoggedIn) {
+    if (!this.data.hasProfile) {
       return;
     }
 
-    const windowHeight = wx.getSystemInfoSync().windowHeight;
-    const scrollMarginTop = 156;
     this.setData({
-      isSearching: true,
-      scrollMarginTop: scrollMarginTop,
-      scrollHeight: windowHeight - scrollMarginTop
+      isSearching: true
+    }, () => {
+      this.updateScrollLayout();
     });
   },
 
   // 搜索输入
   onSearchInput(e) {
-    this.setData({ searchKeyword: e.detail.value }, () => {
-      this.applyFilter();
-    });
+    const value = e.detail.value || '';
+    if (!value.trim()) {
+      this.resetSearchState({ keepSearchUI: true });
+      return;
+    }
+
+    this.setData({ searchKeyword: value });
   },
 
   // 确认搜索
-  onSearchConfirm() {
-    this.applyFilter();
+  async onSearchConfirm() {
+    const keyword = (this.data.searchKeyword || '').trim();
+    if (!keyword) {
+      this.resetSearchState({ keepSearchUI: true });
+      return;
+    }
+
+    await this.performRemoteSearch(keyword);
+  },
+
+  async performRemoteSearch(keyword, showLoading = true) {
+    if (!this.data.hasProfile) {
+      this.resetProfilePendingData({
+        isLoggedIn: this.data.isLoggedIn,
+        userInfo: this.data.userInfo
+      });
+      return;
+    }
+
+    const trimmedKeyword = (keyword || '').trim();
+    if (!trimmedKeyword) {
+      this.resetSearchState({ keepSearchUI: true });
+      return;
+    }
+
+    if (showLoading) {
+      this.setData({ isLoading: true });
+    }
+
+    try {
+      let lists = [];
+
+      if (DEBUG_MODE) {
+        await this.simulateDelay(300);
+        const currentFilterLists = this.filterMockData(MOCK_DATA.lists, this.data.currentFilter);
+        const normalizedKeyword = trimmedKeyword.toLowerCase();
+        lists = currentFilterLists.filter((list) => {
+          return (list.name && list.name.toLowerCase().includes(normalizedKeyword)) ||
+            (list.description && list.description.toLowerCase().includes(normalizedKeyword));
+        });
+      } else {
+        const result = await wx.cloud.callFunction({
+          name: 'listFunctions',
+          data: {
+            action: 'searchLists',
+            data: {
+              keyword: trimmedKeyword,
+              filter: this.data.currentFilter
+            }
+          }
+        });
+
+        if (result.result && result.result.code === 0) {
+          lists = result.result.data || [];
+        } else {
+          throw new Error(result.result?.message || '搜索失败');
+        }
+      }
+
+      const processedLists = this.processListData(lists);
+
+      this.setData({
+        searchMode: 'remote',
+        remoteSearchResults: processedLists,
+        filteredLists: processedLists,
+        hasMore: false,
+        isLoading: false,
+        isRefreshing: false,
+        isLoadingMore: false
+      }, () => {
+        this.applyFilter();
+      });
+    } catch (error) {
+      console.error('搜索清单失败:', error);
+      wx.showToast({
+        title: error.message || '搜索失败，请重试',
+        icon: 'none'
+      });
+      this.setData({
+        isLoading: false,
+        isRefreshing: false,
+        isLoadingMore: false
+      });
+    }
   },
 
   // 清除搜索
   onClearSearch() {
-    this.setData({ searchKeyword: '' }, () => {
-      this.applyFilter();
-    });
+    this.resetSearchState({ keepSearchUI: true });
   },
 
   // 取消搜索
   onCancelSearch() {
-    const windowHeight = wx.getSystemInfoSync().windowHeight;
-    const scrollMarginTop = 104;
-    const that = this;
-    // 先隐藏搜索框并更新 margin-top 和高度
-    this.setData({
-      isSearching: false,
-      searchKeyword: '',
-      scrollMarginTop: scrollMarginTop,
-      scrollHeight: windowHeight - scrollMarginTop
-    }, () => {
-      that.applyFilter();
-    });
+    this.resetSearchState({ keepSearchUI: false });
   },
 
   // ==================== 下拉刷新 & 上拉加载 ====================
 
   // 下拉刷新
   onRefresh() {
-    if (!this.data.isLoggedIn) {
+    if (!this.data.hasProfile) {
       return;
     }
 
+    const keepSearchUI = this.data.isSearching;
+
     this.setData({
       isRefreshing: true,
+      isSearching: keepSearchUI,
       page: 1,
       hasMore: true
     }, () => {
-      this.loadLists(false);
+      this.refreshCurrentView(false);
     });
   },
 
   // 上拉加载更多
   onLoadMore() {
-    if (!this.data.isLoggedIn || this.data.isLoadingMore || !this.data.hasMore) return;
+    if (!this.data.hasProfile || this.data.isLoadingMore || !this.data.hasMore) return;
+    if (this.data.searchMode === 'remote' && (this.data.searchKeyword || '').trim()) return;
 
     this.setData({
       isLoadingMore: true,
@@ -563,12 +838,13 @@ Page({
 
   // 点击清单卡片
   onListClick(e) {
-    if (!this.data.isLoggedIn) {
+    if (!this.data.hasProfile) {
       return;
     }
 
     const listId = e.currentTarget.dataset.id;
-    const list = this.data.lists.find(item => item._id === listId);
+    const list = this.data.filteredLists.find(item => item._id === listId) ||
+      this.data.lists.find(item => item._id === listId);
 
     if (!list) return;
 
@@ -580,20 +856,22 @@ Page({
 
   // 长按清单卡片
   onListLongPress(e) {
-    if (!this.data.isLoggedIn) {
+    if (!this.data.hasProfile) {
       return;
     }
 
     const listId = e.currentTarget.dataset.id;
-    const list = this.data.lists.find(item => item._id === listId);
+    const list = this.data.filteredLists.find(item => item._id === listId) ||
+      this.data.lists.find(item => item._id === listId);
 
     if (!list) return;
 
-    // 判断用户权限
-    const userInfo = this.data.userInfo || {};
-    const currentUserId = userInfo._id || userInfo.openid;
-    const isCreator = list.creatorId === currentUserId;
-    const myRole = list.myRole;
+    // 判断用户权限，统一以后端返回的 myRole 为准
+    const role = Number(list.myRole);
+    const isCreator = role === 1;
+    const canEdit = role === 1 || role === 2;
+    const canManageMembers = role === 1 && !!list.isShared;
+    const canDelete = role === 1;
 
     // 构建操作菜单
     let actions = [
@@ -601,17 +879,17 @@ Page({
     ];
 
     // 创建者或编辑者可以编辑
-    if (isCreator || myRole === 2) {
+    if (canEdit) {
       actions.push({ name: '编辑清单', type: 'edit' });
     }
 
     // 创建者可以管理成员
-    if (isCreator && list.isShared) {
+    if (canManageMembers) {
       actions.push({ name: '管理成员', type: 'members' });
     }
 
     // 创建者可以删除
-    if (isCreator) {
+    if (canDelete) {
       actions.push({ name: '删除清单', type: 'delete', color: '#ee0a24' });
     }
 
@@ -666,10 +944,8 @@ Page({
 
   // 打开创建弹窗
   onCreateList() {
-    if (!this.data.isLoggedIn) {
-      wx.navigateTo({
-        url: '/pages/register/register'
-      });
+    if (!this.data.hasProfile) {
+      this.onCompleteProfile();
       return;
     }
 
@@ -677,6 +953,9 @@ Page({
       showDialog: true,
       isEditing: false,
       editingId: null,
+      editingListRole: 1,
+      editingListCreatorId: '',
+      canEditStructure: true,
       formData: {
         name: '',
         description: '',
@@ -686,15 +965,48 @@ Page({
     });
   },
 
+  // 已识别微信身份但未完成资料初始化时，进入资料完善页
+  onCompleteProfile() {
+    wx.navigateTo({
+      url: '/pages/register/register'
+    });
+  },
+
+  async exitSearchAndReloadFirstPage(extraState = {}) {
+    const nextFilter = extraState.currentFilter || this.data.currentFilter;
+    this.setData({
+      ...extraState,
+      currentFilter: nextFilter,
+      page: 1,
+      normalPage: 1,
+      hasMore: true,
+      normalHasMore: true
+    });
+
+    this.resetSearchState({
+      keepSearchUI: false,
+      page: 1,
+      hasMore: true
+    });
+
+    await this.loadNormalListForFilter(nextFilter, { showLoading: true });
+  },
+
   // 打开编辑弹窗
   openEditDialog(listId) {
-    const list = this.data.lists.find(item => item._id === listId);
+    const list = this.data.filteredLists.find(item => item._id === listId) ||
+      this.data.lists.find(item => item._id === listId);
     if (!list) return;
+
+    const canEditStructure = Number(list.myRole) === 1;
 
     this.setData({
       showDialog: true,
       isEditing: true,
       editingId: listId,
+      editingListRole: list.myRole || null,
+      editingListCreatorId: list.creatorId || '',
+      canEditStructure,
       formData: {
         name: list.name,
         description: list.description || '',
@@ -711,7 +1023,7 @@ Page({
 
   // 确认创建/编辑
   async onDialogConfirm() {
-    const { formData, isEditing, editingId } = this.data;
+    const { formData, isEditing, editingId, canEditStructure } = this.data;
 
     // 表单验证
     if (!formData.name || formData.name.trim().length < 2) {
@@ -741,13 +1053,20 @@ Page({
           // 编辑清单
           const index = MOCK_DATA.lists.findIndex(item => item._id === editingId);
           if (index !== -1) {
-            MOCK_DATA.lists[index] = {
+            const nextList = {
               ...MOCK_DATA.lists[index],
               name: formData.name,
               description: formData.description,
-              isShared: formData.isShared,
-              visibility: formData.visibility,
               updatedAt: new Date().toISOString()
+            };
+
+            if (canEditStructure) {
+              nextList.isShared = formData.isShared;
+              nextList.visibility = formData.visibility;
+            }
+
+            MOCK_DATA.lists[index] = {
+              ...nextList
             };
           }
         } else {
@@ -777,18 +1096,20 @@ Page({
           icon: 'success'
         });
 
-        this.setData({ showDialog: false });
-
-        // 刷新列表
-        this.setData({ page: 1 }, () => {
-          this.loadLists();
-        });
+        wx.hideLoading();
+        await this.exitSearchAndReloadFirstPage({ showDialog: false });
       } else {
         // 生产模式：调用云函数
         const cloudFnName = isEditing ? 'updateList' : 'createList';
         const params = {
-          ...formData
+          name: formData.name.trim(),
+          description: (formData.description || '').trim()
         };
+
+        if (!isEditing || canEditStructure) {
+          params.isShared = formData.isShared;
+          params.visibility = formData.isShared ? formData.visibility : 2;
+        }
 
         if (isEditing) {
           params.listId = editingId;
@@ -809,10 +1130,7 @@ Page({
             icon: 'success'
           });
 
-          this.setData({ showDialog: false, page: 1 });
-
-          // 刷新列表
-          await this.loadLists();
+          await this.exitSearchAndReloadFirstPage({ showDialog: false });
         } else {
           throw new Error(result.result?.message || '操作失败');
         }
@@ -891,13 +1209,16 @@ Page({
           icon: 'success'
         });
 
+        wx.hideLoading();
         this.setData({
           showDeleteDialog: false,
           deletingId: null
         });
 
-        // 刷新列表
-        this.loadLists();
+        await this.exitSearchAndReloadFirstPage({
+          showDeleteDialog: false,
+          deletingId: null
+        });
       } else {
         // 生产模式：调用云函数
         const result = await wx.cloud.callFunction({
@@ -917,12 +1238,13 @@ Page({
 
           this.setData({
             showDeleteDialog: false,
-            deletingId: null,
-            page: 1
+            deletingId: null
           });
 
-          // 刷新列表
-          await this.loadLists();
+          await this.exitSearchAndReloadFirstPage({
+            showDeleteDialog: false,
+            deletingId: null
+          });
         } else {
           throw new Error(result.result?.message || '删除失败');
         }
@@ -940,10 +1262,10 @@ Page({
   // ==================== 计算属性 ====================
 
   // 空状态标题
-  _getEmptyTitle() {
-    const { currentFilter, searchKeyword } = this.data;
+  _getEmptyTitle(state = this.data) {
+    const { currentFilter, searchKeyword, searchMode } = state;
 
-    if (searchKeyword) {
+    if (searchMode === 'remote' && searchKeyword) {
       return '未找到匹配的清单';
     }
 
@@ -960,10 +1282,10 @@ Page({
   },
 
   // 空状态描述
-  _getEmptyDesc() {
-    const { currentFilter, searchKeyword } = this.data;
+  _getEmptyDesc(state = this.data) {
+    const { currentFilter, searchKeyword, searchMode } = state;
 
-    if (searchKeyword) {
+    if (searchMode === 'remote' && searchKeyword) {
       return '请尝试其他关键词';
     }
 

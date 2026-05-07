@@ -1,6 +1,6 @@
 <view class="checklist-container">
   <!-- 顶部固定区域 -->
-  <view class="header-fixed">
+  <view class="header-fixed" id="header-fixed">
     <!-- 顶部标题栏 -->
     <view class="header">
       <text class="header-title">我的清单</text>
@@ -32,7 +32,7 @@
     <view class="search-box" wx:if="{{isSearching}}">
       <view class="search-input-wrapper">
         <van-icon name="search" size="16px" color="#999" />
-        <input class="search-input" placeholder="搜索清单名称" value="{{searchKeyword}}" bindinput="onSearchInput" confirm-type="search" bindconfirm="onSearchConfirm" />
+        <input class="search-input" placeholder="搜索清单名称或描述" value="{{searchKeyword}}" bindinput="onSearchInput" confirm-type="search" bindconfirm="onSearchConfirm" />
         <view class="search-clear" wx:if="{{searchKeyword}}" bindtap="onClearSearch">
           <van-icon name="clear" size="16px" color="#999" />
         </view>
@@ -44,7 +44,7 @@
   <scroll-view class="list-scroll" style="margin-top: {{scrollMarginTop}}px; height: {{scrollHeight}}px;" scroll-y refresher-enabled refresher-triggered="{{isRefreshing}}" bindrefresherrefresh="onRefresh" bindscrolltolower="onLoadMore" lower-threshold="50">
     <!-- 加载骨架屏 -->
     <view class="skeleton-wrapper" wx:if="{{isLoading && !lists.length}}">
-      <view class="skeleton-card" wx:for="{{3}}" wx:key="index">
+      <view class="skeleton-card" wx:for="{{skeletonList}}" wx:key="*this">
         <view class="skeleton-icon"></view>
         <view class="skeleton-content">
           <view class="skeleton-title"></view>
@@ -97,19 +97,14 @@
             <text class="update-time">{{item.updateTimeText}}</text>
           </view>
         </view>
-        <!-- 右滑操作按钮（通过手势触发） -->
-        <view class="swipe-actions" wx:if="{{item.showActions}}">
-          <view class="action-edit" data-id="{{item._id}}" catchtap="onEditList">编辑</view>
-          <view class="action-delete" data-id="{{item._id}}" catchtap="onDeleteList">删除</view>
-        </view>
       </view>
       <!-- 加载更多 -->
-      <view class="load-more" wx:if="{{isLoadingMore}}">
+      <view class="load-more" wx:if="{{isLoadingMore && searchMode !== 'remote'}}">
         <van-loading type="spinner" size="20px" />
         <text class="load-text">加载中...</text>
       </view>
       <!-- 没有更多 -->
-      <view class="no-more" wx:if="{{!hasMore && filteredLists.length > 0}}">
+      <view class="no-more" wx:if="{{!hasMore && filteredLists.length > 0 && searchMode !== 'remote'}}">
         <text>没有更多了</text>
       </view>
     </view>
@@ -118,8 +113,8 @@
       <van-icon name="records" size="80px" color="#ddd" />
       <text class="empty-title">{{emptyTitle}}</text>
       <text class="empty-desc">{{emptyDesc}}</text>
-      <view class="empty-action" wx:if="{{!isLoggedIn}}">
-        <van-button type="info" size="small" bind:click="onCreateList">去完善资料</van-button>
+      <view class="empty-action" wx:if="{{!hasProfile}}">
+        <van-button type="info" size="small" bind:click="onCompleteProfile">去完善资料</van-button>
       </view>
       <view class="empty-action" wx:elif="{{currentFilter === 'all' || currentFilter === 'created'}}">
         <van-button type="info" size="small" bind:click="onCreateList">创建清单</van-button>
@@ -131,14 +126,14 @@
     <view class="dialog-content">
       <input class="dialog-input" placeholder="请输入清单名称（2-50个字符）" value="{{formData.name}}" maxlength="50" bindinput="onNameInput" />
       <textarea class="dialog-textarea" placeholder="请输入清单描述（可选，最多200个字符）" value="{{formData.description}}" maxlength="200" bindinput="onDescInput" />
-      <view class="dialog-row">
+      <view class="dialog-row" wx:if="{{!isEditing || canEditStructure}}">
         <text class="dialog-label">清单类型</text>
         <van-radio-group value="{{formData.isShared ? 'shared' : 'personal'}}" bind:change="onTypeChange">
           <van-radio name="personal">个人</van-radio>
           <van-radio name="shared">共享</van-radio>
         </van-radio-group>
       </view>
-      <view class="dialog-row" wx:if="{{formData.isShared}}">
+      <view class="dialog-row" wx:if="{{(!isEditing || canEditStructure) && formData.isShared}}">
         <text class="dialog-label">可见性</text>
         <van-radio-group value="{{formData.visibility === 1 ? 'public' : 'private'}}" bind:change="onVisibilityChange">
           <van-radio name="public">公开</van-radio>

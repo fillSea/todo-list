@@ -249,10 +249,19 @@ async function createTask(openid, data) {
 
     const userId = await getUserId(openid);
     const now = db.serverDate();
+    const sourceListId = data.sourceListId || '';
+    const targetListId = data.listId || '';
+
+    if (sourceListId && sourceListId !== targetListId) {
+      return {
+        code: -1,
+        message: '清单内创建任务时不能修改所属清单'
+      };
+    }
 
     // 验证清单权限
-    if (data.listId) {
-      const { hasPermission } = await verifyListPermission(userId, data.listId, 2);
+    if (targetListId) {
+      const { hasPermission } = await verifyListPermission(userId, targetListId, 2);
       if (!hasPermission) {
         return {
           code: -1,
@@ -286,11 +295,11 @@ async function createTask(openid, data) {
     const taskData = {
       title: data.title.trim(),
       description: data.description ? data.description.trim() : '',
-      ownershipType: getOwnershipTypeByListId(data.listId),
+      ownershipType: getOwnershipTypeByListId(targetListId),
       dueDate: dueDate,
       priority: data.priority || 1,
       status: 0, // 0-未完成
-      listId: data.listId || '',
+      listId: targetListId,
       creatorId: userId,
       categoryId: data.categoryId || '',
       repeatType: data.repeatType || 0, // 0-不重复，1-每天，2-每周，3-每月
@@ -570,17 +579,21 @@ async function updateTask(openid, data) {
       }
     }
 
+    const nextListId = updateData.listId !== undefined ? updateData.listId : oldTask.listId;
+
     // 记录操作日志
     await recordOperation('task_update', taskId, userId, {
       taskTitle: oldTask.title,
       old: oldTask,
       new: updateData,
+      oldListId: oldTask.listId || '',
+      newListId: nextListId || '',
       removedAttachmentFileIds,
       newAttachmentCount: normalizedAttachments.length,
       oldAttachmentCount: Array.isArray(oldTask.attachments) ? oldTask.attachments.length : 0,
       pendingDeleteAttachmentFileIds,
       attachmentCleanupFailed
-    }, oldTask.listId);
+    }, nextListId);
 
     return {
       code: 0,

@@ -168,6 +168,12 @@ Page({
             isLoading: false,
             isRefreshing: false
           });
+
+          if (myRole === 1) {
+            this.loadPendingInviteCount();
+          } else {
+            this.setData({ pendingInviteCount: 0 });
+          }
         } else {
           throw new Error(result.result?.message || '加载失败');
         }
@@ -188,6 +194,33 @@ Page({
   // 模拟网络延迟
   simulateDelay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  },
+
+  async loadPendingInviteCount() {
+    if (DEBUG_MODE || !this.data.listId) {
+      return;
+    }
+
+    try {
+      const result = await wx.cloud.callFunction({
+        name: 'listFunctions',
+        data: {
+          action: 'getInviteList',
+          data: {
+            listId: this.data.listId,
+            status: 0
+          }
+        }
+      });
+
+      if (result.result && result.result.success) {
+        this.setData({
+          pendingInviteCount: (result.result.invites || []).length
+        });
+      }
+    } catch (error) {
+      console.error('加载待处理邀请数量失败:', error);
+    }
   },
 
   // ==================== 导航操作 ====================
@@ -274,29 +307,13 @@ Page({
       if (DEBUG_MODE) {
         await this.simulateDelay(800);
 
-        // 创建新成员
-        const newMember = {
-          _id: 'member_' + Date.now(),
-          userId: newMemberId.trim(),
-          role: newMemberRole,
-          nickname: '用户' + newMemberId.slice(-4),
-          avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + newMemberId
-        };
-
-        const members = [...this.data.members, newMember];
-        const editors = members.filter(m => m.role === 2);
-        const viewers = members.filter(m => m.role === 3);
-
         this.setData({
-          members,
-          editors,
-          viewers,
           showAddPopup: false,
           newMemberId: ''
         });
 
         wx.showToast({
-          title: '添加成功',
+          title: '邀请已发送',
           icon: 'success'
         });
       } else {
@@ -307,7 +324,8 @@ Page({
             data: {
               listId,
               userId: newMemberId.trim(),
-              role: newMemberRole
+              role: newMemberRole,
+              inviteType: 'search'
             }
           }
         });
@@ -319,7 +337,7 @@ Page({
           });
           this.loadMembers();
           wx.showToast({
-            title: '添加成功',
+            title: '邀请已发送',
             icon: 'success'
           });
         } else {

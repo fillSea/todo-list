@@ -21,6 +21,7 @@ Page({
       { value: 'task_assigned', label: '任务分配' },
       { value: 'task_updated', label: '任务更新' },
       { value: 'list_shared', label: '清单共享' },
+      { value: 'list_invite', label: '清单邀请' },
       { value: 'deadline_reminder', label: '截止提醒' },
       { value: 'task_reminder', label: '任务提醒' }
     ]
@@ -189,6 +190,34 @@ Page({
           });
         }
         break;
+      case 'list_invite':
+      case 'invite_remind':
+        if (notification.relatedId) {
+          wx.navigateTo({
+            url: `/pages/list-invite-accept/list-invite-accept?code=${notification.relatedId}`
+          });
+        }
+        break;
+      case 'join_request':
+        if (notification.relatedId) {
+          wx.navigateTo({
+            url: `/pages/list-invite-manage/list-invite-manage?listId=${notification.relatedId}`
+          });
+        }
+        break;
+      case 'application_approved':
+        if (notification.relatedId) {
+          wx.navigateTo({
+            url: `/pages/list-detail/list-detail?id=${notification.relatedId}`
+          });
+        }
+        break;
+      case 'application_rejected':
+        wx.showToast({
+          title: '你的加入申请未通过',
+          icon: 'none'
+        });
+        break;
       case 'deadline_reminder':
         wx.switchTab({
           url: '/pages/index/index'
@@ -333,6 +362,11 @@ Page({
       'task_assigned': '任务分配',
       'task_updated': '任务更新',
       'list_shared': '清单共享',
+      'list_invite': '清单邀请',
+      'invite_remind': '邀请提醒',
+      'join_request': '加入申请',
+      'application_approved': '申请通过',
+      'application_rejected': '申请被拒',
       'deadline_reminder': '截止提醒',
       'task_reminder': '任务提醒'
     };
@@ -345,6 +379,11 @@ Page({
       'task_assigned': 'todo-list-o',
       'task_updated': 'edit',
       'list_shared': 'share-o',
+      'list_invite': 'friends-o',
+      'invite_remind': 'bell',
+      'join_request': 'user-o',
+      'application_approved': 'success',
+      'application_rejected': 'close',
       'deadline_reminder': 'clock-o',
       'task_reminder': 'bell'
     };

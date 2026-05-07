@@ -50,9 +50,15 @@ Page({
   },
 
   onLoad: function (options) {
-    const { id, listId } = options;
+    const { id, listId, listName = '', listShared = '', dueDate = '' } = options;
     const userInfo = wx.getStorageSync('userInfo');
     const { statusBarHeight, navBarHeight, headerSideWidth } = this.getCustomNavMetrics();
+    const currentListContext = listId ? {
+      _id: listId,
+      name: decodeURIComponent(listName || ''),
+      isShared: listShared === '1'
+    } : null;
+    const lockListSelection = !!listId && !id;
 
     this.setData({
       statusBarHeight,
@@ -61,7 +67,12 @@ Page({
       userInfo,
       isEditing: !!id,
       taskId: id || null,
-      listId: listId || null
+      listId: listId || null,
+      currentListContext,
+      lockListSelection,
+      'task.listId': listId || '',
+      'task.listName': currentListContext ? currentListContext.name : '',
+      'task.dueDate': dueDate || ''
     });
 
     this.resetAttachmentSessionState([]);
@@ -70,7 +81,7 @@ Page({
     this.loadAvailableLists().then(() => {
       // 清单列表加载完成后，设置默认清单
       if (!id && listId) {
-        this.setDefaultList(listId);
+        this.setDefaultList(listId, currentListContext);
       }
     });
     this.loadAvailableCategories();
@@ -103,8 +114,8 @@ Page({
   },
 
   // 设置默认清单
-  setDefaultList(listId) {
-    const list = this.data.availableLists.find(item => item._id === listId);
+  setDefaultList(listId, fallbackList = null) {
+    const list = this.data.availableLists.find(item => item._id === listId) || fallbackList;
     if (list) {
       this.setData({
         'task.listId': list._id,

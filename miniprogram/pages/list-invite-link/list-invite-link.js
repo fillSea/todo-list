@@ -6,6 +6,9 @@ Page({
     // 清单ID
     listId: '',
 
+    // 清单信息
+    listInfo: {},
+
     // 邀请链接
     inviteLink: '',
     inviteCode: '',
@@ -48,8 +51,53 @@ Page({
       userInfo
     });
 
+    wx.showShareMenu({
+      withShareTicket: true,
+      menus: ['shareAppMessage', 'shareTimeline']
+    });
+
     // 生成邀请链接
     this.generateInviteLink();
+    this.loadListInfo();
+  },
+
+  onShareAppMessage() {
+    return {
+      title: `邀请你加入"${this.data.listInfo?.name || '共享清单'}"`,
+      path: `/pages/list-invite-accept/list-invite-accept?code=${this.data.inviteCode}`,
+      imageUrl: '/images/share-invite.png'
+    };
+  },
+
+  async loadListInfo() {
+    if (DEBUG_MODE || !this.data.listId) {
+      if (DEBUG_MODE) {
+        this.setData({
+          listInfo: {
+            name: '工作任务'
+          }
+        });
+      }
+      return;
+    }
+
+    try {
+      const result = await wx.cloud.callFunction({
+        name: 'listFunctions',
+        data: {
+          action: 'getListDetail',
+          data: { listId: this.data.listId }
+        }
+      });
+
+      if (result.result && result.result.code === 0) {
+        this.setData({
+          listInfo: result.result.data.listInfo || {}
+        });
+      }
+    } catch (error) {
+      console.error('加载清单信息失败:', error);
+    }
   },
 
   // 生成邀请链接
@@ -72,9 +120,9 @@ Page({
           inviteLink,
           qrcodeUrl,
           inviteStats: {
-            clickCount: 12,
-            joinCount: 3,
-            pendingCount: 1
+            joinedCount: 3,
+            appliedCount: 1,
+            activeTemplateCount: 1
           }
         });
       } else {
@@ -203,22 +251,6 @@ Page({
 
   // 分享链接
   onShareLink() {
-    const { inviteLink, role } = this.data;
-
-    wx.showShareMenu({
-      withShareTicket: true,
-      menus: ['shareAppMessage', 'shareTimeline']
-    });
-
-    // 设置分享内容
-    this.onShareAppMessage = () => {
-      return {
-        title: `邀请你加入"${this.data.listInfo?.name || '共享清单'}"`,
-        path: `/pages/list-invite-accept/accept?code=${this.data.inviteCode}`,
-        imageUrl: '/images/share-invite.png'
-      };
-    };
-
     wx.showToast({
       title: '请点击右上角分享',
       icon: 'none'

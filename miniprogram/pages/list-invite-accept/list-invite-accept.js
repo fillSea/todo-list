@@ -35,8 +35,7 @@ Page({
   onLoad: function (options) {
     const { code, scene, role } = options;
 
-    // 支持两种方式传入邀请码
-    const inviteCode = code || scene;
+    const inviteCode = code || this.parseScene(scene);
 
     if (!inviteCode) {
       this.setData({
@@ -57,6 +56,14 @@ Page({
 
     // 加载邀请信息
     this.loadInviteInfo();
+  },
+
+  parseScene(scene) {
+    if (!scene) return '';
+    if (scene.startsWith('invite=')) {
+      return decodeURIComponent(scene.slice(7));
+    }
+    return decodeURIComponent(scene);
   },
 
   // 加载邀请信息
@@ -265,12 +272,17 @@ Page({
         }
 
         if (result && result.result && result.result.success) {
+          const resultAction = result.result.action || pendingAction;
+          const isApplied = resultAction === 'applied' || pendingAction === 'apply';
+
           wx.showToast({
-            title: pendingAction === 'reject' ? '已拒绝邀请' : '操作成功',
+            title: pendingAction === 'reject'
+              ? '已拒绝邀请'
+              : (isApplied ? '申请已提交' : '已接受邀请'),
             icon: 'success'
           });
 
-          if (pendingAction === 'accept') {
+          if (pendingAction === 'accept' && !isApplied) {
             setTimeout(() => {
               wx.redirectTo({
                 url: `/pages/list-detail/list-detail?id=${this.data.inviteInfo.listId}`

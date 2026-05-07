@@ -37,7 +37,7 @@
           <text class="picker-value">
             {{task.listName || '个人任务'}}
           </text>
-          <van-icon name="arrow" size="16px" color="#999" />
+          <van-icon wx:if="{{!lockListSelection}}" name="arrow" size="16px" color="#999" />
         </view>
       </view>
     </view>
@@ -197,7 +197,7 @@
   <!-- 删除确认弹窗 -->
   <van-dialog id="delete-dialog" show="{{showDeleteDialog}}" title="{{deleteDialogTitle}}" message="{{deleteDialogMessage}}" show-cancel-button confirm-button-text="删除" confirm-button-color="#ee0a24" bind:close="onDeleteDialogClose" bind:confirm="onDeleteConfirm" />
   <!-- 清单选择弹窗 -->
-  <van-popup show="{{showListPopup}}" position="bottom" bind:close="onListPopupClose">
+  <van-popup wx:if="{{!lockListSelection}}" show="{{showListPopup}}" position="bottom" bind:close="onListPopupClose">
     <view class="popup-header">
       <text class="popup-title">选择清单</text>
       <van-icon name="cross" size="20px" color="#999" bindtap="onListPopupClose" />

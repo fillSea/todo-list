@@ -31,6 +31,11 @@ Page({
     // 颜色选项
     colorOptions: COLOR_OPTIONS,
 
+    // 权限状态
+    myRole: 1,
+    isCreator: true,
+    canEditStructure: true,
+
     // 删除确认弹窗
     showDeleteDialog: false,
 
@@ -73,6 +78,9 @@ Page({
         };
 
         this.setData({
+          myRole: 1,
+          isCreator: true,
+          canEditStructure: true,
           formData: {
             name: mockList.name,
             description: mockList.description,
@@ -93,7 +101,12 @@ Page({
 
         if (result.result && result.result.code === 0) {
           const list = result.result.data.listInfo;
+          const myRole = result.result.data.myRole || (list.creatorId === this.data.userInfo?._id ? 1 : null);
+          const isCreator = myRole === 1;
           this.setData({
+            myRole,
+            isCreator,
+            canEditStructure: !this.data.isEditing || isCreator,
             formData: {
               name: list.name,
               description: list.description || '',
@@ -120,6 +133,27 @@ Page({
   // 模拟网络延迟
   simulateDelay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  },
+
+  refreshPreviousPage() {
+    const pages = getCurrentPages();
+    const prevPage = pages[pages.length - 2];
+    if (!prevPage) return;
+
+    if (typeof prevPage.loadListDetail === 'function') {
+      prevPage.loadListDetail(false);
+      return;
+    }
+
+    if (typeof prevPage.loadLists === 'function') {
+      prevPage.setData && prevPage.setData({ page: 1, hasMore: true });
+      prevPage.loadLists(false);
+      return;
+    }
+
+    if (typeof prevPage.loadData === 'function') {
+      prevPage.loadData();
+    }
   },
 
   // ==================== 表单操作 ====================
@@ -175,7 +209,7 @@ Page({
 
   // 保存
   async onSave() {
-    const { formData, isEditing, listId } = this.data;
+    const { formData, isEditing, listId, canEditStructure } = this.data;
 
     // 表单验证
     if (!formData.name || formData.name.trim().length === 0) {
@@ -222,12 +256,7 @@ Page({
         });
 
         setTimeout(() => {
-          // 返回并刷新上一页
-          const pages = getCurrentPages();
-          const prevPage = pages[pages.length - 2];
-          if (prevPage && prevPage.loadData) {
-            prevPage.loadData();
-          }
+          this.refreshPreviousPage();
           wx.navigateBack();
         }, 1500);
       } else {
@@ -235,10 +264,13 @@ Page({
         const params = {
           name: formData.name.trim(),
           description: formData.description.trim(),
-          isShared: formData.isShared,
-          visibility: formData.isShared ? formData.visibility : 2,
           color: formData.color
         };
+
+        if (!isEditing || canEditStructure) {
+          params.isShared = formData.isShared;
+          params.visibility = formData.isShared ? formData.visibility : 2;
+        }
 
         if (isEditing) {
           params.listId = listId;
@@ -259,11 +291,7 @@ Page({
           });
 
           setTimeout(() => {
-            const pages = getCurrentPages();
-            const prevPage = pages[pages.length - 2];
-            if (prevPage && prevPage.loadData) {
-              prevPage.loadData();
-            }
+            this.refreshPreviousPage();
             wx.navigateBack();
           }, 1500);
         } else {
