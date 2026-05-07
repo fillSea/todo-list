@@ -22,8 +22,8 @@
       <view class="form-item" bindtap="onSelectList">
         <text class="form-label">所属清单</text>
         <view class="form-picker">
-          <text class="picker-value {{task.listId ? '' : 'placeholder'}}">
-            {{task.listName || '请选择清单（可选）'}}
+          <text class="picker-value">
+            {{task.listName || '个人任务'}}
           </text>
           <van-icon name="arrow" size="16px" color="#999" />
         </view>
@@ -186,7 +186,7 @@
     </view>
   </view>
   <!-- 删除确认弹窗 -->
-  <van-dialog id="van-dialog" show="{{showDeleteDialog}}" title="确认删除" message="删除后无法恢复，确定要删除此任务吗？" show-cancel-button confirm-button-text="删除" confirm-button-color="#ee0a24" bind:close="onDeleteDialogClose" bind:confirm="onDeleteConfirm" />
+  <van-dialog id="van-dialog" show="{{showDeleteDialog}}" title="{{deleteDialogTitle}}" message="{{deleteDialogMessage}}" show-cancel-button confirm-button-text="删除" confirm-button-color="#ee0a24" bind:close="onDeleteDialogClose" bind:confirm="onDeleteConfirm" />
   <!-- 清单选择弹窗 -->
   <van-popup show="{{showListPopup}}" position="bottom" bind:close="onListPopupClose">
     <view class="popup-header">
@@ -194,6 +194,13 @@
       <van-icon name="cross" size="20px" color="#999" bindtap="onListPopupClose" />
     </view>
     <scroll-view class="popup-scroll" scroll-y>
+      <view class="list-option {{!task.listId ? 'active' : ''}}" data-id="" bindtap="onListSelect">
+        <view class="list-icon-small" style="background-color: #E3F2FD">
+          <van-icon name="label-o" size="16px" color="#1976D2" />
+        </view>
+        <text class="list-name">个人任务</text>
+        <van-icon name="success" size="18px" color="#1976D2" wx:if="{{!task.listId}}" />
+      </view>
       <view class="list-option {{task.listId === item._id ? 'active' : ''}}" wx:for="{{availableLists}}" wx:key="_id" data-id="{{item._id}}" bindtap="onListSelect">
         <view class="list-icon-small" style="background-color: {{item.isShared ? '#E8F5E9' : '#E3F2FD'}}">
           <van-icon name="{{item.isShared ? 'friends-o' : 'label-o'}}" size="16px" color="{{item.isShared ? '#2E7D32' : '#1976D2'}}" />

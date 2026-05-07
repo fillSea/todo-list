@@ -41,7 +41,12 @@ module.exports = {
 
     // 附件相关
     attachments: [],       // 当前附件列表 [{fileId, name, size, type, url}]
-    uploadingCount: 0      // 正在上传的数量
+    uploadingCount: 0,     // 正在上传的数量
+    initialAttachmentFileIds: [],
+    pendingDeleteAttachmentFileIds: [],
+    sessionUploadedAttachmentFileIds: [],
+    attachmentDirty: false,
+    hasSavedSuccessfully: false
   },
 
   // ==================== 数据加载 ====================
@@ -185,6 +190,16 @@ module.exports = {
   // 选择清单
   onListSelect(e) {
     const listId = e.currentTarget.dataset.id;
+
+    if (!listId) {
+      this.setData({
+        'task.listId': '',
+        'task.listName': '',
+        showListPopup: false
+      });
+      return;
+    }
+
     const list = this.data.availableLists.find(item => item._id === listId);
 
     if (list) {
@@ -331,7 +346,15 @@ module.exports = {
         };
 
         const attachments = [...this.data.attachments, attachment];
-        this.setData({ attachments });
+        const sessionUploadedAttachmentFileIds = [
+          ...(this.data.sessionUploadedAttachmentFileIds || []),
+          uploadRes.fileID
+        ];
+        this.setData({
+          attachments,
+          sessionUploadedAttachmentFileIds,
+          attachmentDirty: true
+        });
       } catch (err) {
         console.error('上传附件失败:', err);
         wx.showToast({ title: '上传失败', icon: 'none' });
@@ -388,18 +411,96 @@ module.exports = {
       content: `确定删除 ${attachment.name} 吗？`,
       success: (res) => {
         if (res.confirm) {
-          // 从云存储删除
-          wx.cloud.deleteFile({
-            fileList: [attachment.fileId]
-          }).catch(err => {
-            console.error('删除云存储文件失败:', err);
-          });
-
           const attachments = this.data.attachments.filter((_, i) => i !== index);
-          this.setData({ attachments });
+          const initialAttachmentFileIds = this.data.initialAttachmentFileIds || [];
+          const pendingDeleteAttachmentFileIds = this.data.pendingDeleteAttachmentFileIds || [];
+          const shouldTrackPendingDelete = attachment.fileId && initialAttachmentFileIds.includes(attachment.fileId);
+
+          this.setData({
+            attachments,
+            pendingDeleteAttachmentFileIds: shouldTrackPendingDelete
+              ? [...new Set([...pendingDeleteAttachmentFileIds, attachment.fileId])]
+              : pendingDeleteAttachmentFileIds,
+            attachmentDirty: true
+          });
         }
       }
     });
+  },
+
+  async loadAttachments(rawAttachments) {
+    if (!rawAttachments || rawAttachments.length === 0) {
+      this.resetAttachmentSessionState([]);
+      return;
+    }
+
+    const fileIds = rawAttachments.map(a => a.fileId).filter(Boolean);
+    let urlMap = {};
+    if (fileIds.length > 0) {
+      try {
+        const res = await wx.cloud.getTempFileURL({ fileList: fileIds });
+        res.fileList.forEach(f => {
+          urlMap[f.fileID] = f.tempFileURL;
+        });
+      } catch (e) {
+        console.error('获取附件URL失败:', e);
+      }
+    }
+
+    const attachments = rawAttachments.map(a => ({
+      ...a,
+      url: urlMap[a.fileId] || '',
+      sizeText: this.formatFileSize(a.size)
+    }));
+    this.resetAttachmentSessionState(attachments);
+  },
+
+  resetAttachmentSessionState(rawAttachments) {
+    const attachments = Array.isArray(rawAttachments) ? rawAttachments : [];
+    this.setData({
+      attachments,
+      initialAttachmentFileIds: attachments.map(item => item.fileId).filter(Boolean),
+      pendingDeleteAttachmentFileIds: [],
+      sessionUploadedAttachmentFileIds: [],
+      attachmentDirty: false,
+      hasSavedSuccessfully: false
+    });
+  },
+
+  async cleanupUncommittedAttachments() {
+    if (this.data.hasSavedSuccessfully) {
+      return;
+    }
+
+    const fileList = [...new Set((this.data.sessionUploadedAttachmentFileIds || []).filter(Boolean))];
+    if (fileList.length === 0) {
+      return;
+    }
+
+    try {
+      await wx.cloud.deleteFile({ fileList });
+    } catch (error) {
+      console.error('清理未保存附件失败:', error);
+    }
+  },
+
+  async cleanupRemovedSessionAttachmentsAfterSave() {
+    const currentAttachmentFileIds = new Set(
+      (this.data.attachments || []).map(item => item.fileId).filter(Boolean)
+    );
+    const fileList = [...new Set(
+      (this.data.sessionUploadedAttachmentFileIds || []).filter(fileId => fileId && !currentAttachmentFileIds.has(fileId))
+    )];
+
+    if (fileList.length === 0) {
+      return;
+    }
+
+    try {
+      await wx.cloud.deleteFile({ fileList });
+    } catch (error) {
+      console.error('清理未保留附件失败:', error);
+    }
   },
 
   // 根据文件名判断类型
@@ -482,9 +583,9 @@ module.exports = {
     if (task.repeatType === 2 && task.repeatValue) {
       // 每周重复
       const days = task.repeatValue.split(',').map(v => parseInt(v));
-      newWeekdays = newWeekdays.map((d, idx) => ({
+      newWeekdays = newWeekdays.map((d) => ({
         ...d,
-        selected: days.includes(idx)
+        selected: days.includes(d.value) || (d.value === 0 && days.includes(7))
       }));
     } else if (task.repeatType === 3 && task.repeatValue) {
       // 每月重复
@@ -551,6 +652,7 @@ module.exports = {
       dueDate: task.dueDate || null,
       dueTime: task.dueTime || null,
       reminderValue: task.reminderValue || 0,
+      pendingDeleteAttachmentFileIds: this.data.pendingDeleteAttachmentFileIds || [],
       attachments: (this.data.attachments || []).map(a => ({
         fileId: a.fileId,
         name: a.name,

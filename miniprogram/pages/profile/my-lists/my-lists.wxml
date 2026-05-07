@@ -47,8 +47,8 @@
     <!-- 空状态 -->
     <view class="empty-state" wx:if="{{!loading && lists.length === 0}}">
       <van-icon name="orders-o" size="120rpx" color="#ddd" />
-      <text class="empty-text">{{type === 'shared' ? '暂无共享清单' : '暂无清单'}}</text>
-      <text class="empty-subtext">点击右下角按钮创建新清单</text>
+      <text class="empty-text">{{isLoggedIn ? (type === 'shared' ? '暂无共享清单' : '暂无清单') : '完善资料后查看你的清单'}}</text>
+      <text class="empty-subtext">{{isLoggedIn ? '点击右下角按钮创建新清单' : '完善个人资料后可查看和创建清单'}}</text>
     </view>
   </view>
   <!-- 加载更多 -->

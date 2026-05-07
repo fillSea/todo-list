@@ -1,7 +1,6 @@
-import Dialog from '@vant/weapp/dialog/dialog';
-
 // 引入公共 mixin
 const taskMixin = require('../../mixins/taskMixin');
+const app = getApp();
 
 Page({
   data: {
@@ -31,7 +30,10 @@ Page({
       status: 0
     },
 
-    reminderIndex: [0, 0]
+    reminderIndex: [0, 0],
+    deleteScope: 'single',
+    deleteDialogTitle: '确认删除',
+    deleteDialogMessage: '删除后无法恢复，确定要删除此任务吗？'
   },
 
   onLoad: function (options) {
@@ -41,6 +43,8 @@ Page({
       isNewTask: !id,
       taskId: id || null
     });
+
+    this.resetAttachmentSessionState([]);
 
     // 加载可选清单和分类
     this.loadAvailableLists();
@@ -126,34 +130,6 @@ Page({
     this.loadAttachments(task.attachments || []);
   },
 
-  // 加载已有附件并获取临时URL
-  async loadAttachments(rawAttachments) {
-    if (!rawAttachments || rawAttachments.length === 0) {
-      this.setData({ attachments: [] });
-      return;
-    }
-
-    const fileIds = rawAttachments.map(a => a.fileId).filter(Boolean);
-    let urlMap = {};
-    if (fileIds.length > 0) {
-      try {
-        const res = await wx.cloud.getTempFileURL({ fileList: fileIds });
-        res.fileList.forEach(f => {
-          urlMap[f.fileID] = f.tempFileURL;
-        });
-      } catch (e) {
-        console.error('获取附件URL失败:', e);
-      }
-    }
-
-    const attachments = rawAttachments.map(a => ({
-      ...a,
-      url: urlMap[a.fileId] || '',
-      sizeText: this.formatFileSize(a.size)
-    }));
-    this.setData({ attachments });
-  },
-
   // ==================== 从 mixin 引入的方法 ====================
 
   // 数据加载
@@ -188,6 +164,10 @@ Page({
   parseRepeat: taskMixin.parseRepeat,
   validateForm: taskMixin.validateForm,
   buildSaveParams: taskMixin.buildSaveParams,
+  loadAttachments: taskMixin.loadAttachments,
+  resetAttachmentSessionState: taskMixin.resetAttachmentSessionState,
+  cleanupUncommittedAttachments: taskMixin.cleanupUncommittedAttachments,
+  cleanupRemovedSessionAttachmentsAfterSave: taskMixin.cleanupRemovedSessionAttachmentsAfterSave,
 
   // 附件方法
   onAddAttachment: taskMixin.onAddAttachment,
@@ -245,69 +225,22 @@ Page({
         data: { action, data: params }
       });
 
-      if (result.result && result.result.code === 0) {
-        // 检查是否需要确认完成过期任务
-        if (result.result.data && result.result.data.needConfirmComplete) {
-          wx.hideLoading();
-          wx.showModal({
-            title: '提示',
-            content: '任务已过期，是否确认完成？',
-            confirmText: '确定',
-            cancelText: '取消',
-            success: async (res) => {
-              if (res.confirm) {
-                wx.showLoading({ title: '保存中...' });
-                try {
-                  const confirmResult = await wx.cloud.callFunction({
-                    name: 'taskFunctions',
-                    data: {
-                      action,
-                      data: { ...params, confirmCompleteOverdue: true }
-                    }
-                  });
-                  if (confirmResult.result && confirmResult.result.code === 0) {
-                    wx.showToast({
-                      title: isNewTask ? '创建成功' : '保存成功',
-                      icon: 'success'
-                    });
-                    setTimeout(() => {
-                      wx.navigateBack();
-                    }, 1500);
-                  } else {
-                    throw new Error(confirmResult.result?.message || '操作失败');
-                  }
-                } catch (error) {
-                  wx.showToast({
-                    title: error.message || '操作失败',
-                    icon: 'none'
-                  });
-                } finally {
-                  wx.hideLoading();
-                }
-              } else {
-                // 用户取消，保持原状态
-                this.setData({ 'task.status': task.status });
-              }
-            }
-          });
-        } else {
-          wx.showToast({
-            title: isNewTask ? '创建成功' : '保存成功',
-            icon: 'success'
-          });
-          setTimeout(() => {
-            wx.navigateBack();
-          }, 1500);
-        }
-      } else {
-        throw new Error(result.result?.message || '操作失败');
+      const resultData = await this.handleSaveResponse(result.result, action, params, isNewTask ? '创建成功' : '保存成功');
+      if (resultData && resultData.code === -2) {
+        return;
+      }
+
+      if (resultData && resultData.code !== 0) {
+        throw new Error(resultData.message || '操作失败');
       }
     } catch (error) {
       console.error(isNewTask ? '创建任务失败:' : '保存任务失败:', error);
-      wx.showToast({
-        title: error.message || '操作失败',
-        icon: 'none'
-      });
+      if (error.message !== '已取消') {
+        wx.showToast({
+          title: error.message || '操作失败',
+          icon: 'none'
+        });
+      }
     } finally {
       wx.hideLoading();
     }
@@ -315,14 +248,41 @@ Page({
 
   // 删除任务
   onDelete() {
-    Dialog.confirm({
-      title: '确认删除',
-      message: '确定要删除这个任务吗？删除后无法恢复。'
-    }).then(() => {
-      this.deleteTask();
-    }).catch(() => {
-      // 取消删除
+    if (this.data.task.repeatType > 0) {
+      wx.showActionSheet({
+        itemList: ['删除本次', '删除整个周期'],
+        success: (res) => {
+          const deleteScope = res.tapIndex === 0 ? 'single' : 'series';
+          this.openDeleteDialog(deleteScope);
+        }
+      });
+      return;
+    }
+
+    this.openDeleteDialog('single');
+  },
+
+  openDeleteDialog(deleteScope) {
+    const isSeries = deleteScope === 'series';
+    this.setData({
+      deleteScope,
+      showDeleteDialog: true,
+      deleteDialogTitle: isSeries ? '确认删除整个周期' : '确认删除',
+      deleteDialogMessage: isSeries
+        ? '确定删除整个周期任务吗？该周期下所有任务实例将一并删除。'
+        : (this.data.task.repeatType > 0
+          ? '确定删除本次任务吗？后续周期任务将保留。'
+          : '删除后无法恢复，确定要删除此任务吗？')
     });
+  },
+
+  onDeleteDialogClose() {
+    this.setData({ showDeleteDialog: false });
+  },
+
+  async onDeleteConfirm() {
+    this.setData({ showDeleteDialog: false });
+    return this.deleteTask();
   },
 
   // 执行删除
@@ -334,11 +294,15 @@ Page({
         name: 'taskFunctions',
         data: {
           action: 'deleteTask',
-          data: { taskId: this.data.taskId }
+          data: {
+            taskId: this.data.taskId,
+            deleteScope: this.data.deleteScope
+          }
         }
       });
 
       if (result.result && result.result.code === 0) {
+        app.clearTaskCaches();
         wx.showToast({
           title: '删除成功',
           icon: 'success'
@@ -358,5 +322,79 @@ Page({
     } finally {
       wx.hideLoading();
     }
+  },
+
+  async handleSaveResponse(resultData, action, params, successTitle) {
+    if (!resultData || resultData.code !== 0) {
+      return resultData;
+    }
+
+    const payload = resultData.data || {};
+    if (payload.needConfirmComplete) {
+      wx.hideLoading();
+      const confirmed = await this.showConfirmModal('提示', '任务已过期，是否确认完成？', '确定');
+      if (!confirmed) {
+        return { code: -2, message: '已取消' };
+      }
+      wx.showLoading({ title: this.data.isNewTask ? '创建中...' : '保存中...' });
+      const confirmResult = await wx.cloud.callFunction({
+        name: 'taskFunctions',
+        data: { action, data: { ...params, confirmCompleteOverdue: true } }
+      });
+      return this.handleSaveResponse(confirmResult.result, action, { ...params, confirmCompleteOverdue: true }, successTitle);
+    }
+
+    if (payload.needConfirmCompleteNotToday) {
+      wx.hideLoading();
+      const confirmed = await this.showConfirmModal('提示', payload.confirmMessage || '只能完成当天的周期任务', '去查看');
+      if (confirmed && payload.dueDate) {
+        wx.setStorageSync('jumpToDate', payload.dueDate);
+        wx.switchTab({ url: '/pages/calendar/calendar' });
+      }
+      return { code: -2, message: '已取消' };
+    }
+
+    if (payload.needConfirmUncheck) {
+      wx.hideLoading();
+      const confirmed = await this.showConfirmModal('提示', payload.confirmMessage || '确定要取消完成此任务吗？', '确认');
+      if (!confirmed) {
+        return { code: -2, message: '已取消' };
+      }
+      wx.showLoading({ title: this.data.isNewTask ? '创建中...' : '保存中...' });
+      const confirmResult = await wx.cloud.callFunction({
+        name: 'taskFunctions',
+        data: { action, data: { ...params, confirmUncheck: true } }
+      });
+      return this.handleSaveResponse(confirmResult.result, action, { ...params, confirmUncheck: true }, successTitle);
+    }
+
+    await this.cleanupRemovedSessionAttachmentsAfterSave();
+    this.setData({ hasSavedSuccessfully: true });
+    app.clearTaskCaches();
+    wx.showToast({
+      title: successTitle,
+      icon: 'success'
+    });
+    setTimeout(() => {
+      wx.navigateBack();
+    }, 1500);
+    return resultData;
+  },
+
+  showConfirmModal(title, content, confirmText) {
+    return new Promise((resolve) => {
+      wx.showModal({
+        title,
+        content,
+        confirmText,
+        cancelText: '取消',
+        success: (res) => resolve(!!res.confirm),
+        fail: () => resolve(false)
+      });
+    });
+  },
+
+  onUnload() {
+    this.cleanupUncommittedAttachments();
   }
 });

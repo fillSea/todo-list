@@ -366,6 +366,26 @@
   margin-right: 20rpx;
 }
 
+.logout-section {
+  margin: 20rpx;
+}
+
+.logout-button {
+  width: 100%;
+  border: none;
+  border-radius: 16rpx;
+  background: #fff;
+  color: #ee0a24;
+  font-size: 30rpx;
+  font-weight: 500;
+  line-height: 96rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+
+.logout-button::after {
+  border: none;
+}
+
 .badge-text {
   font-size: 22rpx;
   color: #fff;

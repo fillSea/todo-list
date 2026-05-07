@@ -43,6 +43,12 @@
   </view>
   <!-- 任务列表 -->
   <view class="task-sections">
+    <view wx:if="{{!isRegistered}}" class="guest-state">
+      <text class="guest-title">完善资料后查看你的日历任务</text>
+      <text class="guest-desc">完善个人资料后可按日期浏览任务和周期实例</text>
+      <button class="guest-button" bindtap="onCreateTask">去完善资料</button>
+    </view>
+    <block wx:else>
     <!-- 进行中 -->
     <view class="task-section" wx:if="{{inProgressTasks.length > 0}}">
       <view class="section-header in-progress">
@@ -122,6 +128,7 @@
     <view class="empty-state" wx:if="{{selectedDateTasks.length === 0}}">
       <text class="empty-text">该日期暂无任务</text>
     </view>
+    </block>
   </view>
 </view>
 <view class="fab-button" bindtap="onCreateTask">

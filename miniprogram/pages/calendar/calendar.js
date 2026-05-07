@@ -1,3 +1,13 @@
+const app = getApp();
+const {
+  getTodayInUTC8,
+  toUTC8DateOnly
+} = require('../../utils/taskDisplay');
+
+function isPersonalStandaloneTask(task) {
+  return Number(task.ownershipType) === 1 || (!task.listId && task.creatorId);
+}
+
 Page({
   data: {
     isRegistered: false,
@@ -21,8 +31,7 @@ Page({
   },
 
   onLoad: function (options) {
-    const isLoggedIn = wx.getStorageSync('isLoggedIn') || false;
-    const userInfo = wx.getStorageSync('userInfo') || null;
+    const { isLoggedIn, userInfo } = app.getLoginState();
     const userId = userInfo ? userInfo._id : null;
 
     // 检查是否有跳转日期（从首页跳转过来）
@@ -53,8 +62,7 @@ Page({
   },
 
   onShow: function () {
-    const isLoggedIn = wx.getStorageSync('isLoggedIn') || false;
-    const userInfo = wx.getStorageSync('userInfo') || null;
+    const { isLoggedIn, userInfo } = app.getLoginState();
     const userId = userInfo ? userInfo._id : null;
     this.setData({ isRegistered: isLoggedIn, userId });
 
@@ -71,8 +79,31 @@ Page({
     }
 
     // 重新加载数据
+    if (!isLoggedIn) {
+      this.resetGuestData();
+      return;
+    }
+
     this.loadCategories();
     this.loadTasks();
+  },
+
+  resetGuestData: function () {
+    this.setData({
+      isRegistered: false,
+      userId: null,
+      categories: [
+        { _id: 'all', name: '全部', color: '#999' }
+      ],
+      currentCategory: 'all',
+      tasks: [],
+      selectedDateTasks: [],
+      inProgressTasks: [],
+      overdueTasks: [],
+      completedTasks: []
+    });
+
+    this.generateCalendar();
   },
 
   // 从数据库加载分类数据
@@ -416,14 +447,12 @@ Page({
 
     // 处理任务数据
     const now = new Date();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayInUTC8();
 
     // 判断选中日期是否是今天
     // 将 YYYY-MM-DD 格式转换为本地日期，避免时区问题
     const [selectedYear, selectedMonth, selectedDay] = selectedDate.split('-').map(Number);
-    const selectedDateObj = new Date(selectedYear, selectedMonth - 1, selectedDay);
-    selectedDateObj.setHours(0, 0, 0, 0);
+    const selectedDateObj = toUTC8DateOnly(new Date(`${selectedDate}T00:00:00+08:00`));
     const isToday = selectedDateObj.getTime() === today.getTime();
 
     const processedTasks = selectedDateTasks.map(task => {
@@ -460,6 +489,7 @@ Page({
       const category = this.getCategoryById(task.categoryId);
       return {
         ...task,
+        isPersonalTask: isPersonalStandaloneTask(task),
         status: taskStatus,
         isOverdue,
         priorityColor,
@@ -469,7 +499,7 @@ Page({
       };
     });
 
-    // 分类任务：status 0-未完成, 1-已完成, 2-逾期
+    // status 只持久化 0=未完成、1=已完成，逾期由 isOverdue 派生
     // 过期判断以系统时间为基准
     const inProgressTasks = processedTasks.filter(task => task.status === 0 && !task.isOverdue);
     const overdueTasks = processedTasks.filter(task => task.status === 0 && task.isOverdue);
@@ -518,8 +548,8 @@ Page({
     this.loadTasksForSelectedDate();
   },
 
-  // 任务完成状态切换 - 根据 data_design.md 的 status 字段设计
-  // status: 0-未完成, 1-已完成, 2-逾期
+  // 任务完成状态切换
+  // status 只持久化 0=未完成、1=已完成，逾期由 isOverdue 派生
   onTaskComplete: async function (e) {
     const taskId = e.currentTarget.dataset.id;
     const completed = e.detail;
@@ -697,10 +727,10 @@ Page({
       }
 
       // 如果生成了重复任务，需要重新加载所有任务
-      if (resultData && resultData.repeatTask) {
-        await this.loadTasks();
-        return;
-      }
+        if (resultData && (resultData.newPeriodicTasks || resultData.isRepeatTask)) {
+          await this.loadTasks();
+          return;
+        }
 
       // 更新本地状态（云函数调用成功后且不需要确认）
       const tasks = this.data.tasks.map(task => {
@@ -730,6 +760,10 @@ Page({
 
   // 点击任务项跳转到任务详情
   onTaskTap: function (e) {
+    if (!this.data.isRegistered) {
+      return;
+    }
+
     const taskId = e.currentTarget.dataset.id;
     wx.navigateTo({
       url: `/pages/task-detail/task-detail?id=${taskId}`
@@ -738,6 +772,10 @@ Page({
 
   // 查看周期任务统计
   onViewStats: function (e) {
+    if (!this.data.isRegistered) {
+      return;
+    }
+
     const taskId = e.currentTarget.dataset.id;
     const title = e.currentTarget.dataset.title;
     wx.navigateTo({
@@ -758,9 +796,9 @@ Page({
   onCreateTask: function () {
     if (!this.data.isRegistered) {
       wx.showModal({
-        title: '提示',
-        content: '您需要先登录才能创建任务',
-        confirmText: '去登录',
+        title: '请先完善资料',
+        content: '完善头像和昵称后即可创建任务。',
+        confirmText: '去完善',
         success: (res) => {
           if (res.confirm) {
             wx.navigateTo({

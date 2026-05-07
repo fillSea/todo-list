@@ -1,3 +1,9 @@
+const app = getApp();
+const {
+    isTaskOverdueByDate,
+    getTaskSeriesGroupId
+} = require('../../utils/taskDisplay');
+
 // 调试模式开关 - 设置为 true 使用伪造数据
 const DEBUG_MODE = false;
 
@@ -170,12 +176,23 @@ Page({
         showTaskActionSheet: false,
         taskActionSheetActions: [],
         selectedTaskId: null,
+        selectedTask: null,
 
         // 删除确认
         showDeleteDialog: false,
+        deleteScope: 'single',
+        deleteDialogTitle: '确认删除',
+        deleteDialogMessage: '删除后无法恢复，确定要删除此任务吗？',
+
+        // 状态栏高度
+        statusBarHeight: 0,
+
+        // 自定义导航高度
+        navBarHeight: 44,
+        headerSideWidth: 88,
 
         // 头部高度
-        headerHeight: 56,
+        headerHeight: 44,
 
         // 进度
         completedCount: 0,
@@ -191,6 +208,7 @@ Page({
     },
 
     onLoad: function (options) {
+        const { statusBarHeight, navBarHeight, headerSideWidth } = this.getCustomNavMetrics();
         const { id } = options;
         if (!id) {
             wx.showToast({
@@ -202,12 +220,37 @@ Page({
         }
 
         this.setData({
+            statusBarHeight,
+            navBarHeight,
+            headerSideWidth,
+            headerHeight: statusBarHeight + navBarHeight,
             listId: id,
             userInfo: wx.getStorageSync('userInfo')
         });
 
         // 加载清单详情
         this.loadListDetail();
+    },
+
+    getCustomNavMetrics() {
+        const systemInfo = wx.getSystemInfoSync();
+        const statusBarHeight = systemInfo.statusBarHeight || 0;
+        const menuButton = typeof wx.getMenuButtonBoundingClientRect === 'function'
+            ? wx.getMenuButtonBoundingClientRect()
+            : null;
+        const navBarHeight = menuButton && menuButton.height
+            ? menuButton.height + Math.max((menuButton.top - statusBarHeight) * 2, 0)
+            : 44;
+        const capsuleWidth = menuButton && systemInfo.windowWidth
+            ? Math.max(systemInfo.windowWidth - menuButton.left, 0)
+            : 0;
+        const actionAreaWidth = 88;
+
+        return {
+            statusBarHeight,
+            navBarHeight,
+            headerSideWidth: Math.max(80, actionAreaWidth, capsuleWidth + 8)
+        };
     },
 
     onShow: function () {
@@ -326,13 +369,8 @@ Page({
 
     // 处理任务数据
     processTaskData(task) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
         const dueDate = task.dueDate ? new Date(task.dueDate) : null;
-        const dueDateOnly = dueDate ? new Date(dueDate) : null;
-        if (dueDateOnly) dueDateOnly.setHours(0, 0, 0, 0);
-
-        const isOverdue = dueDateOnly && dueDateOnly < today && task.status === 0;
+        const isOverdue = isTaskOverdueByDate(task);
 
         // 格式化截止时间：MM-DD HH:mm
         let dueTimeText = '';
@@ -361,7 +399,7 @@ Page({
             .filter(task => task.repeatType > 0 && task.status === 0 && !task.isOverdue)
             .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
             .forEach(task => {
-                const groupId = task.parentTaskId || task._id;
+                const groupId = getTaskSeriesGroupId(task);
                 if (!nearestPeriodicByGroup[groupId]) {
                     nearestPeriodicByGroup[groupId] = task._id;
                 }
@@ -377,7 +415,7 @@ Page({
             // 周期任务：已过期的都显示，未过期的每个系列只显示最近的一个
             if (task.isOverdue) return true;
 
-            const groupId = task.parentTaskId || task._id;
+            const groupId = getTaskSeriesGroupId(task);
             return task._id === nearestPeriodicByGroup[groupId];
         });
     },
@@ -753,6 +791,7 @@ Page({
                                         }
                                     });
                                     if (confirmResult.result && confirmResult.result.code === 0) {
+                                        app.clearTaskCaches();
                                         this.loadListDetail(false);
                                         wx.showToast({ title: '已取消完成', icon: 'success' });
                                     }
@@ -766,6 +805,7 @@ Page({
                 }
 
                 // 正常完成，刷新列表
+                app.clearTaskCaches();
                 this.loadListDetail(false);
 
                 wx.showToast({
@@ -803,7 +843,8 @@ Page({
         this.setData({
             showTaskActionSheet: true,
             taskActionSheetActions: actions,
-            selectedTaskId: taskId
+            selectedTaskId: taskId,
+            selectedTask: this.data.taskList.find(task => task._id === taskId) || null
         });
     },
 
@@ -830,11 +871,40 @@ Page({
                 break;
             case 'delete':
             case '删除任务':
-                this.setData({
-                    showDeleteDialog: true
-                });
+                this.openDeleteDialog();
                 break;
         }
+    },
+
+    openDeleteDialog() {
+        const { selectedTask } = this.data;
+        if (selectedTask && selectedTask.repeatType > 0) {
+            wx.showActionSheet({
+                itemList: ['删除本次', '删除整个周期'],
+                success: (res) => {
+                    const deleteScope = res.tapIndex === 0 ? 'single' : 'series';
+                    this.showDeleteConfirm(deleteScope);
+                }
+            });
+            return;
+        }
+
+        this.showDeleteConfirm('single');
+    },
+
+    showDeleteConfirm(deleteScope) {
+        const { selectedTask } = this.data;
+        const isSeries = deleteScope === 'series';
+        this.setData({
+            deleteScope,
+            showDeleteDialog: true,
+            deleteDialogTitle: isSeries ? '确认删除整个周期' : '确认删除',
+            deleteDialogMessage: isSeries
+                ? '确定删除整个周期任务吗？该周期下所有任务实例将一并删除。'
+                : (selectedTask && selectedTask.repeatType > 0
+                    ? '确定删除本次任务吗？后续周期任务将保留。'
+                    : '删除后无法恢复，确定要删除此任务吗？')
+        });
     },
 
     // 关闭任务操作菜单
@@ -849,7 +919,7 @@ Page({
 
     // 确认删除任务
     async onDeleteConfirm() {
-        const { selectedTaskId } = this.data;
+        const { selectedTaskId, deleteScope } = this.data;
 
         this.setData({ showDeleteDialog: false });
 
@@ -882,11 +952,12 @@ Page({
                     name: 'taskFunctions',
                     data: {
                         action: 'deleteTask',
-                        data: { taskId: selectedTaskId }
+                        data: { taskId: selectedTaskId, deleteScope }
                     }
                 });
 
                 if (result.result && result.result.code === 0) {
+                    app.clearTaskCaches();
                     this.loadListDetail(false);
                     wx.showToast({
                         title: '删除成功',

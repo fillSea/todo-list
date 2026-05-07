@@ -4,6 +4,11 @@
   padding-bottom: 40rpx;
 }
 
+.page-nav {
+  background: #fff;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+}
+
 .loading-container,
 .error-container {
   display: flex;
@@ -44,6 +49,12 @@
   align-items: center;
 }
 
+.task-subtitle {
+  margin-top: 16rpx;
+  font-size: 24rpx;
+  color: #888;
+}
+
 /* 统计概览 */
 .stats-overview-card {
   background: white;
@@ -81,6 +92,13 @@
 
 .progress-section {
   margin-top: 20rpx;
+}
+
+.stats-hint {
+  margin-top: 16rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #666;
 }
 
 /* 连续完成 */
@@ -135,6 +153,95 @@
   background: rgba(255, 255, 255, 0.3);
 }
 
+.detail-card,
+.trend-card {
+  background: white;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20rpx;
+}
+
+.detail-item {
+  background: #f7f8fa;
+  border-radius: 12rpx;
+  padding: 20rpx;
+}
+
+.detail-label {
+  font-size: 24rpx;
+  color: #888;
+}
+
+.detail-value {
+  margin-top: 10rpx;
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #333;
+}
+
+.detail-value.green {
+  color: #07c160;
+}
+
+.detail-value.red {
+  color: #ee0a24;
+}
+
+.date-meta {
+  margin-top: 16rpx;
+  font-size: 24rpx;
+  color: #666;
+}
+
+.trend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.trend-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10rpx;
+}
+
+.trend-month,
+.trend-rate {
+  font-size: 26rpx;
+  color: #333;
+}
+
+.trend-rate {
+  font-weight: 600;
+}
+
+.trend-bar-track {
+  height: 14rpx;
+  border-radius: 999rpx;
+  background: #edf0f5;
+  overflow: hidden;
+}
+
+.trend-bar-fill {
+  height: 100%;
+  border-radius: 999rpx;
+  background: linear-gradient(90deg, #36cfc9 0%, #1989fa 100%);
+}
+
+.trend-meta {
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: #888;
+}
+
 /* 日历 */
 .calendar-card {
   background: white;
@@ -187,11 +294,15 @@
 
 .completed-dot { background: #07c160; }
 .incomplete-dot { background: #ee0a24; }
-.future-dot { background: #ccc; }
 
 .calendar-day.completed { background: #f0faf0; border-radius: 8rpx; }
 .calendar-day.incomplete { background: #fff5f5; border-radius: 8rpx; }
-.calendar-day.future { background: #f8f8f8; border-radius: 8rpx; }
+
+.load-more-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 8rpx 0 24rpx;
+}
 
 /* 图例 */
 .legend {
@@ -217,7 +328,6 @@
 
 .legend-dot.completed-bg { background: #07c160; }
 .legend-dot.incomplete-bg { background: #ee0a24; }
-.legend-dot.future-bg { background: #ccc; }
 
 /* 历史记录 */
 .history-card {
@@ -235,7 +345,9 @@
 .history-item {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12rpx;
   padding: 20rpx 0;
   border-bottom: 1rpx solid #f0f0f0;
 }
@@ -245,6 +357,13 @@
 .history-date {
   font-size: 28rpx;
   color: #333;
+}
+
+.history-desc {
+  width: 100%;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #666;
 }
 
 .history-status {

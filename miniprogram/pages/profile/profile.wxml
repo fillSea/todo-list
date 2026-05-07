@@ -4,8 +4,8 @@
     <view class="user-info">
       <image class="user-avatar" src="{{userInfo.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
       <view class="user-detail">
-        <text class="user-name">{{userInfo.nickname || '未设置昵称'}}</text>
-        <text class="user-signature">{{userInfo.signature || '点击编辑个人资料'}}</text>
+        <text class="user-name">{{isLogin ? (userInfo.nickname || '未设置昵称') : '立即完善资料'}}</text>
+        <text class="user-signature">{{isLogin ? (userInfo.signature || '点击编辑个人资料') : '完善资料后可同步任务、清单和通知设置'}}</text>
       </view>
       <van-icon name="arrow" color="rgba(255,255,255,0.8)" />
     </view>
@@ -99,6 +99,9 @@
       </view>
       <van-icon name="arrow" color="#ccc" />
     </view>
+  </view>
+  <view class="logout-section" wx:if="{{isLogin}}">
+    <button class="logout-button" bindtap="onLogoutTap">退出当前资料状态</button>
   </view>
   <!-- 版本信息 -->
   <view class="version-info">

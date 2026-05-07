@@ -1,4 +1,12 @@
 const app = getApp();
+const {
+  isTaskOverdueByDate,
+  getTaskSeriesGroupId
+} = require('../../utils/taskDisplay');
+
+function isPersonalStandaloneTask(task) {
+  return Number(task.ownershipType) === 1 || (!task.listId && task.creatorId);
+}
 
 Page({
   data: {
@@ -33,6 +41,28 @@ Page({
       this.loadCategories();
       // loadTasks 已在 checkLoginStatus 中调用，无需重复调用
     }
+  },
+
+  resetGuestData: function () {
+    this.setData({
+      isLoggedIn: false,
+      userInfo: null,
+      currentCategory: 'all',
+      categories: [
+        { _id: 'all', name: '全部', color: '#1989fa' }
+      ],
+      tasks: [],
+      inProgressTasks: [],
+      overdueTasks: [],
+      completedTasks: [],
+      categoryTasks: [],
+      categoryInProgressTasks: [],
+      categoryOverdueTasks: [],
+      categoryCompletedTasks: [],
+      isSearching: false,
+      searchResults: [],
+      searchKeyword: ''
+    });
   },
 
   // 加载用户自定义分类
@@ -71,8 +101,12 @@ Page({
 
   // 检查登录状态
   checkLoginStatus: function () {
-    const isLoggedIn = wx.getStorageSync('isLoggedIn') || false;
-    const userInfo = wx.getStorageSync('userInfo') || null;
+    const { isLoggedIn, userInfo } = app.getLoginState();
+
+    if (!isLoggedIn) {
+      this.resetGuestData();
+      return;
+    }
 
     this.setData({
       isLoggedIn,
@@ -121,28 +155,10 @@ Page({
 
   processTasks: function () {
     const tasks = this.data.tasks;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
 
     // 构造 tasks 集合
     const processedTasks = tasks.map(task => {
-      const dueDate = new Date(task.dueDate);
-      const dueDateOnly = new Date(task.dueDate);
-      dueDateOnly.setHours(0, 0, 0, 0);
-
-      // 过期判断逻辑
-      let isOverdue = false;
-      const taskStatus = Number(task.status);
-      const isPeriodic = task.repeatType > 0;
-
-      if (isPeriodic) {
-        // 周期任务：预生成的实例根据dueDate判断是否过期
-        // 如果截止日期在今天之前，则视为已过期
-        isOverdue = dueDateOnly < today && taskStatus === 0;
-      } else {
-        // 非周期任务：原来的逻辑
-        isOverdue = dueDateOnly < today && taskStatus === 0;
-      }
+      const isOverdue = isTaskOverdueByDate(task);
 
       const priorityColor = this.getPriorityColor(task.priority);
       // 格式化时间显示：MM-DD HH:mm
@@ -155,6 +171,7 @@ Page({
       const category = this.getCategoryById(task.categoryId);
       return {
         ...task,
+        isPersonalTask: isPersonalStandaloneTask(task),
         isOverdue,
         priorityColor,
         time,
@@ -174,7 +191,7 @@ Page({
       .filter(task => task.repeatType > 0 && task.status === 0 && !task.isOverdue)
       .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
       .forEach(task => {
-        const groupId = task.parentTaskId || task._id;
+        const groupId = getTaskSeriesGroupId(task);
         if (!nearestPeriodicByGroup[groupId]) {
           nearestPeriodicByGroup[groupId] = task._id;
         }
@@ -194,12 +211,12 @@ Page({
       if (task.isOverdue) {
         return true;
       }
-      const groupId = task.parentTaskId || task._id;
+      const groupId = getTaskSeriesGroupId(task);
       return task._id === nearestPeriodicByGroup[groupId];
     });
 
     // 构造不同分类的 tasks 集合: 正在进行、已过期、已完成
-    // status: 0-未完成，1-已完成，2-逾期
+    // status 只持久化 0=未完成、1=已完成，逾期由 isOverdue 派生
     const inProgressTasks = filteredTasks.filter(task => task.status === 0 && !task.isOverdue);
     const overdueTasks = filteredTasks.filter(task => task.status === 0 && task.isOverdue);
     const completedTasks = filteredTasks.filter(task => task.status === 1);
@@ -418,6 +435,10 @@ Page({
 
   // 点击任务项，跳转到任务详情
   onTaskClick: function (e) {
+    if (!this.data.isLoggedIn) {
+      return;
+    }
+
     const taskId = e.currentTarget.dataset.id;
     wx.navigateTo({
       url: '/pages/task-detail/task-detail?id=' + taskId
@@ -426,6 +447,10 @@ Page({
 
   // 查看周期任务统计
   onViewStats: function (e) {
+    if (!this.data.isLoggedIn) {
+      return;
+    }
+
     const taskId = e.currentTarget.dataset.id;
     const title = e.currentTarget.dataset.title;
     wx.navigateTo({
@@ -465,6 +490,11 @@ Page({
 
   // 执行搜索
   doSearch: function (keyword) {
+    if (!this.data.isLoggedIn) {
+      this.setData({ isSearching: false, searchResults: [] });
+      return;
+    }
+
     this.setData({ isSearching: true });
 
     wx.cloud.callFunction({
@@ -477,11 +507,7 @@ Page({
       if (res.result && res.result.code === 0) {
         const tasks = (res.result.data.list || []).map(task => {
           const dueDate = new Date(task.dueDate);
-          const dueDateOnly = new Date(task.dueDate);
-          dueDateOnly.setHours(0, 0, 0, 0);
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const isOverdue = dueDateOnly < today && Number(task.status) === 0;
+          const isOverdue = isTaskOverdueByDate(task);
           const priorityColor = this.getPriorityColor(task.priority);
           const month = String(dueDate.getMonth() + 1).padStart(2, '0');
           const day = String(dueDate.getDate()).padStart(2, '0');
@@ -491,6 +517,7 @@ Page({
           const category = this.getCategoryById(task.categoryId);
           return {
             ...task,
+            isPersonalTask: isPersonalStandaloneTask(task),
             isOverdue,
             priorityColor,
             time,
@@ -508,9 +535,9 @@ Page({
   onCreateTask: function () {
     if (!this.data.isLoggedIn) {
       wx.showModal({
-        title: '提示',
-        content: '您需要先登录才能创建任务',
-        confirmText: '去登录',
+        title: '请先完善资料',
+        content: '完善头像和昵称后即可创建任务。',
+        confirmText: '去完善',
         success: (res) => {
           if (res.confirm) {
             wx.navigateTo({

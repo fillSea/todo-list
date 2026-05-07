@@ -1,6 +1,13 @@
 <view class="notification-settings-container">
+  <view class="tips-section" wx:if="{{!isLoggedIn}}">
+    <view class="tip-item">
+      <van-icon name="info-o" size="32rpx" color="#999" />
+      <text class="tip-text">完善资料后可管理通知接收、任务提醒和协作通知设置</text>
+    </view>
+  </view>
+
   <!-- 设置列表 -->
-  <view class="settings-group">
+  <view class="settings-group" wx:if="{{isLoggedIn}}">
     <view class="setting-item" wx:for="{{settingItems}}" wx:key="key">
       <view class="setting-icon" style="background: {{item.color}}20;">
         <van-icon name="{{item.icon}}" size="40rpx" color="{{item.color}}" />
@@ -14,7 +21,7 @@
   </view>
 
   <!-- 说明区域 -->
-  <view class="tips-section">
+  <view class="tips-section" wx:if="{{isLoggedIn}}">
     <view class="tip-item">
       <van-icon name="info-o" size="32rpx" color="#999" />
       <text class="tip-text">关闭"接收通知"后将不再接收任何推送通知，但您仍可在应用内查看消息</text>

@@ -43,7 +43,9 @@ Page({
       statistics: false,
       dashboard: false,
       notifications: false
-    }
+    },
+
+    expiredToastShown: false
   },
 
   onLoad: function (options) {
@@ -52,9 +54,6 @@ Page({
 
   onShow: function () {
     this.checkLoginStatus();
-    if (this.data.isLogin) {
-      this.loadAllData();
-    }
   },
 
   onPullDownRefresh: function () {
@@ -77,17 +76,65 @@ Page({
 
   // 检查登录状态
   checkLoginStatus: function () {
-    const isLoggedIn = wx.getStorageSync('isLoggedIn') || false;
-    const userInfo = wx.getStorageSync('userInfo') || null;
+    const { isLoggedIn, userInfo } = app.getLoginState();
+
+    if (!isLoggedIn) {
+      this.resetGuestView();
+
+      const loginExpired = wx.getStorageSync('loginExpired');
+      if (loginExpired && !this.data.expiredToastShown) {
+        wx.removeStorageSync('loginExpired');
+        this.setData({ expiredToastShown: true });
+        wx.showToast({
+          title: '资料状态已过期',
+          icon: 'none'
+        });
+      }
+
+      return;
+    }
 
     this.setData({
       isLogin: isLoggedIn,
-      userInfo: userInfo
+      userInfo: userInfo,
+      expiredToastShown: false
     });
 
-    if (isLoggedIn) {
-      this.loadAllData();
-    }
+    this.loadAllData();
+  },
+
+  resetGuestView: function () {
+    const featureList = this.data.featureList.map(item => ({ ...item, badge: 0 }));
+
+    this.setData({
+      isLogin: false,
+      userInfo: null,
+      statistics: {
+        myLists: 0,
+        sharedLists: 0,
+        completedTasks: 0
+      },
+      dashboardData: {
+        pieChart: {
+          completed: 0,
+          uncompleted: 0,
+          overdue: 0,
+          total: 0
+        },
+        barChart: []
+      },
+      unreadCount: 0,
+      maxBarValue: 1,
+      featureList,
+      loading: {
+        userInfo: false,
+        statistics: false,
+        dashboard: false,
+        notifications: false
+      }
+    });
+
+    wx.removeTabBarBadge({ index: 3 });
   },
 
   // 加载所有数据
@@ -236,19 +283,18 @@ Page({
 
   // 点击用户卡片 - 编辑资料
   onUserCardTap: function () {
-    if (!this.data.isLogin) {
-      wx.navigateTo({
-        url: '/pages/register/register'
-      });
-    } else {
-      wx.navigateTo({
-        url: '/pages/register/register'
-      });
-    }
+    wx.navigateTo({
+      url: '/pages/register/register'
+    });
   },
 
   // 点击统计项
   onStatisticTap: function (e) {
+    if (!this.data.isLogin) {
+      this.promptLoginBeforeAccess();
+      return;
+    }
+
     const type = e.currentTarget.dataset.type;
 
     // 跳转到对应页面
@@ -272,6 +318,16 @@ Page({
   onFeatureTap: function (e) {
     const index = e.currentTarget.dataset.index;
     const feature = this.data.featureList[index];
+
+     const publicPaths = [
+      '/pages/profile/help/help',
+      '/pages/profile/about/about'
+    ];
+
+    if (!this.data.isLogin && feature.path && !publicPaths.includes(feature.path)) {
+      this.promptLoginBeforeAccess();
+      return;
+    }
 
     if (feature.path) {
       wx.navigateTo({
@@ -314,6 +370,41 @@ Page({
       title: `${featureName}功能开发中`,
       icon: 'none',
       duration: 2000
+    });
+  },
+
+  onLogoutTap: function () {
+    wx.showModal({
+      title: '确认退出',
+      content: '退出后将清除当前设备上的资料状态和本地缓存，云端数据不会被删除。',
+      success: (res) => {
+        if (!res.confirm) {
+          return;
+        }
+
+        app.logout();
+        this.resetGuestView();
+
+        wx.showToast({
+          title: '已退出当前资料状态',
+          icon: 'success'
+        });
+      }
+    });
+  },
+
+  promptLoginBeforeAccess: function () {
+    wx.showModal({
+      title: '请先完善资料',
+      content: '完善头像和昵称后即可开始使用该功能。',
+      confirmText: '去完善',
+      success: (res) => {
+        if (res.confirm) {
+          wx.navigateTo({
+            url: '/pages/register/register'
+          });
+        }
+      }
     });
   }
 });

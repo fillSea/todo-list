@@ -1,7 +1,7 @@
 <view class="register-container">
   <view class="header">
-    <text class="title">完善个人信息</text>
-    <text class="subtitle">让我们更好地了解您</text>
+    <text class="title">{{pageTitle}}</text>
+    <text class="subtitle">{{pageSubtitle}}</text>
   </view>
   <view class="form">
     <!-- 头像选择区域 -->
@@ -30,11 +30,11 @@
     </view>
     <!-- 提交按钮 -->
     <button class="submit-btn {{canSubmit ? '' : 'disabled'}}" bindtap="onSubmit" disabled="{{!canSubmit}}">
-      保存信息
+      {{submitButtonText}}
     </button>
   </view>
-  <!-- 登录状态提示 -->
-  <view class="login-status" wx:if="{{isLoggedIn}}">
-    <text class="status-text">已登录</text>
+  <!-- 资料状态提示 -->
+  <view class="login-status" wx:if="{{statusText}}">
+    <text class="status-text">{{statusText}}</text>
   </view>
 </view>

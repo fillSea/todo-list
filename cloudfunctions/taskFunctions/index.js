@@ -67,6 +67,8 @@ exports.main = async (event, context) => {
         return await batchDeleteTasks(openid, data);
       case 'getPeriodicTaskStats':
         return await getPeriodicTaskStats(openid, data);
+      case 'getPeriodicTaskMonthDetail':
+        return await getPeriodicTaskMonthDetail(openid, data);
       default:
         return {
           code: -1,
@@ -93,6 +95,109 @@ async function getUserId(openid) {
   }
 
   return users[0]._id;
+}
+
+function getOwnershipTypeByListId(listId) {
+  return listId ? 2 : 1;
+}
+
+function buildPersonalTaskQuery(userId) {
+  return _.and([
+    { creatorId: userId },
+    _.or([
+      { ownershipType: 1 },
+      { listId: '' }
+    ])
+  ]);
+}
+
+async function getAccessibleListIds(userId) {
+  const [membershipResult, createdListsResult] = await Promise.all([
+    db.collection('list_members').where({ userId }).get(),
+    db.collection('lists').where({ creatorId: userId }).field({ _id: true }).get()
+  ]);
+
+  return [...new Set([
+    ...membershipResult.data.map(item => item.listId),
+    ...createdListsResult.data.map(item => item._id)
+  ].filter(Boolean))];
+}
+
+async function buildTaskAccessQuery(userId, listId) {
+  if (listId) {
+    return { listId };
+  }
+
+  const accessibleListIds = await getAccessibleListIds(userId);
+  const accessRules = [buildPersonalTaskQuery(userId)];
+
+  if (accessibleListIds.length > 0) {
+    accessRules.push({ listId: _.in(accessibleListIds) });
+  }
+
+  return _.or(accessRules);
+}
+
+function normalizeAttachments(attachments) {
+  if (!Array.isArray(attachments)) {
+    return [];
+  }
+
+  const normalizedAttachments = [];
+  const seenFileIds = new Set();
+
+  for (const attachment of attachments) {
+    if (!attachment || !attachment.fileId) {
+      continue;
+    }
+
+    const fileId = String(attachment.fileId).trim();
+    if (!fileId || seenFileIds.has(fileId)) {
+      continue;
+    }
+
+    seenFileIds.add(fileId);
+    normalizedAttachments.push({
+      fileId,
+      name: attachment.name ? String(attachment.name).trim() : '',
+      size: Number(attachment.size) || 0,
+      type: attachment.type ? String(attachment.type) : 'file'
+    });
+  }
+
+  return normalizedAttachments;
+}
+
+function normalizeAttachmentFileIds(fileIds) {
+  if (!Array.isArray(fileIds)) {
+    return [];
+  }
+
+  return [...new Set(
+    fileIds
+      .map(fileId => typeof fileId === 'string' ? fileId.trim() : '')
+      .filter(Boolean)
+  )];
+}
+
+function getAttachmentFileIds(attachments) {
+  return normalizeAttachments(attachments)
+    .map(attachment => attachment.fileId)
+    .filter(Boolean);
+}
+
+function getRemovedAttachmentFileIds(oldAttachments, newAttachments) {
+  const oldFileIds = getAttachmentFileIds(oldAttachments);
+  const newFileIds = new Set(getAttachmentFileIds(newAttachments));
+  return oldFileIds.filter(fileId => !newFileIds.has(fileId));
+}
+
+function appendAndFilter(baseQuery, filter) {
+  if (!filter) {
+    return baseQuery;
+  }
+
+  return _.and([baseQuery, filter]);
 }
 
 // 验证清单权限
@@ -175,10 +280,13 @@ async function createTask(openid, data) {
       reminderAt = new Date(dueDate.getTime() - reminderMinutes * 60 * 1000);
     }
 
+    const normalizedAttachments = normalizeAttachments(data.attachments);
+
     // 构建任务数据
     const taskData = {
       title: data.title.trim(),
       description: data.description ? data.description.trim() : '',
+      ownershipType: getOwnershipTypeByListId(data.listId),
       dueDate: dueDate,
       priority: data.priority || 1,
       status: 0, // 0-未完成
@@ -189,7 +297,7 @@ async function createTask(openid, data) {
       repeatValue: data.repeatValue || '',
       reminderAt: reminderAt,
       reminderSent: false,
-      attachments: data.attachments || [],
+      attachments: normalizedAttachments,
       createdAt: now,
       updatedAt: now
     };
@@ -268,6 +376,11 @@ async function updateTask(openid, data) {
     }
 
     const oldTask = tasks[0];
+    const targetStatus = data.status !== undefined ? Number(data.status) : undefined;
+    const normalizedAttachments = data.attachments !== undefined
+      ? normalizeAttachments(data.attachments)
+      : normalizeAttachments(oldTask.attachments);
+    const pendingDeleteAttachmentFileIds = normalizeAttachmentFileIds(data.pendingDeleteAttachmentFileIds);
 
     console.log("原任务信息:", JSON.stringify(oldTask, null, 2));
 
@@ -348,6 +461,21 @@ async function updateTask(openid, data) {
 
     const now = db.serverDate();
 
+    if (data.listId !== undefined && data.listId && data.listId !== oldTask.listId) {
+      const { hasPermission } = await verifyListPermission(userId, data.listId, 2);
+      if (!hasPermission) {
+        return {
+          code: -1,
+          message: '无权限移动到目标清单'
+        };
+      }
+    }
+
+    const statusTransition = evaluateTaskStatusTransition(oldTask, targetStatus, data);
+    if (statusTransition.response) {
+      return statusTransition.response;
+    }
+
     // 构建更新数据
     const updateData = {
       title: data.title.trim(),
@@ -363,6 +491,7 @@ async function updateTask(openid, data) {
     }
     if (data.listId !== undefined) {
       updateData.listId = data.listId || '';
+      updateData.ownershipType = getOwnershipTypeByListId(data.listId);
     }
     if (data.categoryId !== undefined) {
       updateData.categoryId = data.categoryId || '';
@@ -374,7 +503,7 @@ async function updateTask(openid, data) {
       updateData.repeatValue = data.repeatValue || '';
     }
     if (data.attachments !== undefined) {
-      updateData.attachments = data.attachments || [];
+      updateData.attachments = normalizedAttachments;
     }
 
     // 处理日期字段
@@ -387,14 +516,33 @@ async function updateTask(openid, data) {
     }
 
     // 处理状态字段
-    if (data.status !== undefined) {
-      updateData.status = data.status;
+    if (targetStatus !== undefined) {
+      updateData.status = targetStatus;
     }
 
     // 更新任务数据（包含所有字段，reminderAt 为 null 时会覆盖原值）
     await db.collection('tasks').doc(taskId).update({
       data: updateData
     });
+
+    const removedAttachmentFileIds = data.attachments !== undefined
+      ? getRemovedAttachmentFileIds(oldTask.attachments, normalizedAttachments)
+      : [];
+    let attachmentCleanupFailed = false;
+
+    if (removedAttachmentFileIds.length > 0) {
+      try {
+        await cloud.deleteFile({ fileList: removedAttachmentFileIds });
+      } catch (attachmentCleanupError) {
+        attachmentCleanupFailed = true;
+        console.error('删除旧附件文件失败:', {
+          taskId,
+          removedAttachmentFileIds,
+          pendingDeleteAttachmentFileIds,
+          error: attachmentCleanupError
+        });
+      }
+    }
 
     // 如果从周期任务改为非周期任务，清理已预生成的未来周期实例
     if (oldTask.repeatType > 0 && updateData.repeatType === 0) {
@@ -426,7 +574,12 @@ async function updateTask(openid, data) {
     await recordOperation('task_update', taskId, userId, {
       taskTitle: oldTask.title,
       old: oldTask,
-      new: updateData
+      new: updateData,
+      removedAttachmentFileIds,
+      newAttachmentCount: normalizedAttachments.length,
+      oldAttachmentCount: Array.isArray(oldTask.attachments) ? oldTask.attachments.length : 0,
+      pendingDeleteAttachmentFileIds,
+      attachmentCleanupFailed
     }, oldTask.listId);
 
     return {
@@ -434,7 +587,9 @@ async function updateTask(openid, data) {
       message: '更新成功',
       data: {
         _id: taskId,
-        ...updateData
+        ...updateData,
+        attachmentCleanupFailed,
+        removedAttachmentFileIds
       }
     };
   } catch (error) {
@@ -458,6 +613,7 @@ async function deleteTask(openid, data) {
 
     const userId = await getUserId(openid);
     const { taskId } = data;
+    const requestedDeleteScope = data.deleteScope || 'single';
 
     // 获取原任务数据
     const { data: tasks } = await db.collection('tasks')
@@ -492,32 +648,89 @@ async function deleteTask(openid, data) {
       }
     }
 
-    // 删除任务
-    await db.collection('tasks').doc(taskId).remove();
+    const isRepeatTask = Number(oldTask.repeatType) > 0;
+    const deleteScope = isRepeatTask && requestedDeleteScope === 'series' ? 'series' : 'single';
 
-    // 删除关联的附件文件
-    if (oldTask.attachments && oldTask.attachments.length > 0) {
-      const fileIds = oldTask.attachments.map(a => a.fileId).filter(Boolean);
+    if (deleteScope === 'series') {
+      const parentTaskId = oldTask.parentTaskId || oldTask._id;
+      const seriesTasks = await getTaskSeriesTasks(parentTaskId);
+
+      const tasksToDelete = seriesTasks.length > 0
+        ? seriesTasks
+        : (oldTask.parentTaskId ? [oldTask] : []);
+      const taskIds = [...new Set(tasksToDelete.map(task => task._id).filter(Boolean))];
+      const fileIds = collectAttachmentFileIds(tasksToDelete);
+
       if (fileIds.length > 0) {
         try {
           await cloud.deleteFile({ fileList: fileIds });
         } catch (fileErr) {
-          console.error('删除附件文件失败:', fileErr);
+          console.error('删除系列附件文件失败:', fileErr);
         }
+      }
+
+      if (taskIds.length > 0) {
+        await db.collection('notifications')
+          .where({ relatedId: _.in(taskIds) })
+          .remove();
+
+        await db.collection('tasks')
+          .where(_.or([
+            { _id: _.in(taskIds) },
+            { parentTaskId }
+          ]))
+          .remove();
+      }
+
+      await recordOperation('task_delete', parentTaskId, userId, {
+        taskTitle: oldTask.title,
+        deleteScope: 'series',
+        parentTaskId,
+        deletedTaskCount: taskIds.length,
+        deletedTaskIds: taskIds,
+        task: oldTask
+      }, oldTask.listId);
+
+      return {
+        code: 0,
+        message: '删除成功',
+        data: {
+          deleteScope: 'series',
+          parentTaskId,
+          deletedTaskCount: taskIds.length
+        }
+      };
+    }
+
+    await db.collection('tasks').doc(taskId).remove();
+
+    const fileIds = collectAttachmentFileIds([oldTask]);
+    if (fileIds.length > 0) {
+      try {
+        await cloud.deleteFile({ fileList: fileIds });
+      } catch (fileErr) {
+        console.error('删除附件文件失败:', fileErr);
       }
     }
 
-    // 删除相关通知
     await db.collection('notifications')
       .where({ relatedId: taskId })
       .remove();
 
-    // 记录操作日志
-    await recordOperation('task_delete', taskId, userId, { taskTitle: oldTask.title, task: oldTask }, oldTask.listId);
+    await recordOperation('task_delete', taskId, userId, {
+      taskTitle: oldTask.title,
+      deleteScope: 'single',
+      parentTaskId: oldTask.parentTaskId || oldTask._id,
+      task: oldTask
+    }, oldTask.listId);
 
     return {
       code: 0,
-      message: '删除成功'
+      message: '删除成功',
+      data: {
+        deleteScope: 'single',
+        deletedTaskCount: 1
+      }
     };
   } catch (error) {
     console.error('删除任务失败:', error);
@@ -650,12 +863,10 @@ async function getTaskList(openid, data) {
       keyword
     } = data || {};
 
-    let query = {};
+    let query = await buildTaskAccessQuery(userId, listId);
 
     // 构建查询条件
     if (listId) {
-      // 查询指定清单的任务
-      query.listId = listId;
       // 验证清单权限
       const { hasPermission } = await verifyListPermission(userId, listId, 3);
       if (!hasPermission) {
@@ -664,33 +875,21 @@ async function getTaskList(openid, data) {
           message: '无权限查看此清单的任务'
         };
       }
-    } else {
-      // 查询用户的所有任务（包括个人任务和共享清单中的任务）
-      const { data: memberships } = await db.collection('list_members')
-        .where({ userId })
-        .get();
-
-      const listIds = memberships.map(m => m.listId);
-
-      query = _.or([
-        { creatorId: userId },
-        { listId: _.in(listIds) }
-      ]);
     }
 
     // 状态筛选
     if (status !== undefined) {
-      query.status = status;
+      query = appendAndFilter(query, { status });
     }
 
     // 分类筛选
     if (categoryId) {
-      query.categoryId = categoryId;
+      query = appendAndFilter(query, { categoryId });
     }
 
     // 优先级筛选
     if (priority) {
-      query.priority = priority;
+      query = appendAndFilter(query, { priority });
     }
 
     // 关键词搜索
@@ -710,7 +909,7 @@ async function getTaskList(openid, data) {
       const dateFilter = {
         dueDate: _.gte(new Date(data.startDate)).and(_.lte(new Date(data.endDate)))
       };
-      query = _.and([query, dateFilter]);
+      query = appendAndFilter(query, dateFilter);
     }
 
     // 查询总数
@@ -794,7 +993,8 @@ async function toggleTaskStatus(openid, data) {
     }
 
     const userId = await getUserId(openid);
-    const { taskId, status } = data;
+    const { taskId } = data;
+    const status = Number(data.status);
 
     // 获取原任务数据
     const { data: tasks } = await db.collection('tasks')
@@ -828,113 +1028,41 @@ async function toggleTaskStatus(openid, data) {
       }
     }
 
-    // 如果任务被标记为完成且有重复设置
-    if (status === 1 && oldTask.repeatType > 0) {
-      const todayDate = getTodayInUTC8();
-      const dueDateOnly = toDateOnlyInUTC8(oldTask.dueDate);
-
-      // 检查任务是否已过期（截止日期在今天之前）
-      const isOverdue = dueDateOnly.getTime() < todayDate.getTime();
-      const isTodayTask = dueDateOnly.getTime() === todayDate.getTime();
-
-      if (isOverdue) {
-        // 已过期的周期任务，需要确认
-        if (!data.confirmCompleteOverdue) {
-          return {
-            code: 0,
-            message: '任务已过期，是否确认完成？',
-            data: {
-              _id: taskId,
-              status: oldTask.status,
-              needConfirmComplete: true,
-              isOverdue: true,
-              isRepeatTask: true
-            }
-          };
-        }
-        // 用户已确认，跳过日期检查，继续执行
-      } else if (!isTodayTask) {
-        // 未过期且非当天的周期任务，提示只能完成当天的
-        const dueDate = new Date(oldTask.dueDate);
-        const utc8Due = new Date(dueDate.getTime() + 8 * 60 * 60 * 1000);
-        const dueDateYear = utc8Due.getUTCFullYear();
-        const dueDateMonth = utc8Due.getUTCMonth();
-        const dueDateDay = utc8Due.getUTCDate();
-        const dateStr = `${dueDateYear}-${String(dueDateMonth + 1).padStart(2, '0')}-${String(dueDateDay).padStart(2, '0')}`;
-        return {
-          code: 0,
-          message: '只能完成当天的周期任务',
-          data: {
-            _id: taskId,
-            status: oldTask.status,
-            needConfirmCompleteNotToday: true,
-            isRepeatTask: true,
-            dueDate: dateStr,
-            confirmMessage: `这是${dateStr}的周期任务，只能完成当天的任务。是否切换到该日期查看？`
-          }
-        };
-      }
-      // 当天的周期任务，正常继续执行
-    }
-
-    // 普通任务（非周期）过期完成确认
-    if (status === 1 && oldTask.status === 0 && oldTask.repeatType === 0) {
-      const todayDate = getTodayInUTC8();
-      const dueDateOnly = toDateOnlyInUTC8(oldTask.dueDate);
-      const isOverdue = dueDateOnly.getTime() < todayDate.getTime();
-
-      if (isOverdue && !data.confirmCompleteOverdue) {
-        return {
-          code: 0,
-          message: '任务已过期，是否确认完成？',
-          data: {
-            _id: taskId,
-            status: oldTask.status,
-            needConfirmComplete: true,
-            isOverdue: true,
-            isRepeatTask: false
-          }
-        };
-      }
-    }
-
-    // 如果任务被取消完成（从已完成改为未完成），先检查是否需要确认
-    // 方案A：只恢复当前任务状态，不删除后续周期任务
-    if (status === 0 && oldTask.status === 1 && !data.confirmUncheck) {
-      // 所有任务（普通任务和周期任务）取消完成时都需要确认
-      const isRepeatTask = oldTask.repeatType > 0;
-      const confirmMessage = isRepeatTask
-        ? '取消完成此任务不会影响后续的周期任务，是否确认？'
-        : '确定要取消完成此任务吗？';
-
-      return {
-        code: 0,
-        message: '需要确认',
-        data: {
-          _id: taskId,
-          status: oldTask.status, // 返回原状态
-          needConfirmUncheck: true,
-          isRepeatTask: isRepeatTask,
-          confirmMessage: confirmMessage
-        }
-      };
+    const statusTransition = evaluateTaskStatusTransition(oldTask, status, data);
+    if (statusTransition.response) {
+      return statusTransition.response;
     }
 
     const serverNow = db.serverDate();
+    const isCompleting = Number(status) === 1;
+    const normalizedParentTaskId = oldTask.parentTaskId || oldTask._id;
+    const completedAtValue = isCompleting ? new Date() : null;
 
     // 更新数据库状态
     await db.collection('tasks').doc(taskId).update({
       data: {
         status: status,
-        updatedAt: serverNow
+        updatedAt: serverNow,
+        completedAt: isCompleting ? serverNow : null,
+        completedBy: isCompleting ? userId : ''
       }
     });
 
     // 记录操作日志
     await recordOperation('task_update', taskId, userId, {
       taskTitle: oldTask.title,
+      action: 'toggle_status',
       old: { status: oldTask.status },
-      new: { status }
+      new: { status },
+      statusTransition: isCompleting ? 'complete' : 'uncomplete',
+      dueDate: oldTask.dueDate,
+      repeatType: oldTask.repeatType || 0,
+      isPeriodicInstance: !!oldTask.isPeriodicInstance,
+      parentTaskId: oldTask.parentTaskId || '',
+      seriesTaskId: normalizedParentTaskId,
+      completedAt: completedAtValue,
+      completedBy: isCompleting ? userId : '',
+      listId: oldTask.listId || ''
     }, oldTask.listId);
 
     // 如果任务被标记为完成且有重复设置，检查是否需要补充生成新的周期任务
@@ -953,6 +1081,8 @@ async function toggleTaskStatus(openid, data) {
       data: {
         _id: taskId,
         status,
+        completedAt: completedAtValue,
+        completedBy: isCompleting ? userId : '',
         newPeriodicTasks: newPeriodicTasks,
         isRepeatTask: oldTask.repeatType > 0,
         nextDueDate: oldTask.repeatType > 0 ? calculateNextRepeatDate(oldTask) : null
@@ -995,19 +1125,18 @@ async function getTasksByCategory(openid, data) {
       };
     }
 
+    const query = appendAndFilter(
+      await buildTaskAccessQuery(userId),
+      { categoryId }
+    );
+
     // 查询任务
     const countResult = await db.collection('tasks')
-      .where({
-        categoryId,
-        creatorId: userId
-      })
+      .where(query)
       .count();
 
     const { data: tasks } = await db.collection('tasks')
-      .where({
-        categoryId,
-        creatorId: userId
-      })
+      .where(query)
       .orderBy('createdAt', 'desc')
       .skip((page - 1) * pageSize)
       .limit(pageSize)
@@ -1103,21 +1232,11 @@ async function getTasksByStatus(openid, data) {
       };
     }
 
-    // 查询用户参与的所有清单
-    const { data: memberships } = await db.collection('list_members')
-      .where({ userId })
-      .get();
-
-    const listIds = memberships.map(m => m.listId);
-
     // 查询任务
-    const query = _.and([
-      { status },
-      _.or([
-        { creatorId: userId },
-        { listId: _.in(listIds) }
-      ])
-    ]);
+    const query = appendAndFilter(
+      await buildTaskAccessQuery(userId),
+      { status }
+    );
 
     const countResult = await db.collection('tasks')
       .where(query)
@@ -1164,24 +1283,14 @@ async function searchTasks(openid, data) {
 
     const searchKey = keyword.trim();
 
-    // 查询用户参与的所有清单
-    const { data: memberships } = await db.collection('list_members')
-      .where({ userId })
-      .get();
-
-    const listIds = memberships.map(m => m.listId);
-
     // 查询任务
-    const query = _.and([
-      _.or([
-        { creatorId: userId },
-        { listId: _.in(listIds) }
-      ]),
+    const query = appendAndFilter(
+      await buildTaskAccessQuery(userId),
       _.or([
         { title: db.RegExp({ regexp: searchKey, options: 'i' }) },
         { description: db.RegExp({ regexp: searchKey, options: 'i' }) }
       ])
-    ]);
+    );
 
     const countResult = await db.collection('tasks')
       .where(query)
@@ -1490,6 +1599,711 @@ function toDateOnlyInUTC8(date) {
   return new Date(Date.UTC(utc8Time.getUTCFullYear(), utc8Time.getUTCMonth(), utc8Time.getUTCDate()) - 8 * 60 * 60 * 1000);
 }
 
+function getEndOfDayInUTC8(date = new Date()) {
+  const dateOnly = toDateOnlyInUTC8(date);
+  return new Date(dateOnly.getTime() + 24 * 60 * 60 * 1000 - 1);
+}
+
+function formatUTC8Date(date) {
+  const utc8Date = new Date(new Date(date).getTime() + 8 * 60 * 60 * 1000);
+  const year = utc8Date.getUTCFullYear();
+  const month = String(utc8Date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(utc8Date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function buildStatusTransitionResponse(oldTask, data) {
+  return {
+    code: 0,
+    message: data.message,
+    data: {
+      _id: oldTask._id,
+      status: oldTask.status,
+      isOverdue: !!data.isOverdue,
+      isRepeatTask: Number(oldTask.repeatType) > 0,
+      ...data.extra
+    }
+  };
+}
+
+function evaluateTaskStatusTransition(oldTask, targetStatus, options = {}) {
+  if (targetStatus === undefined || Number.isNaN(targetStatus) || targetStatus === Number(oldTask.status)) {
+    return { allowed: true, response: null };
+  }
+
+  const currentStatus = Number(oldTask.status);
+  const isRepeatTask = Number(oldTask.repeatType) > 0;
+
+  if (targetStatus === 1 && currentStatus === 0) {
+    const todayDate = getTodayInUTC8();
+    const dueDateOnly = toDateOnlyInUTC8(oldTask.dueDate);
+    const isOverdue = dueDateOnly.getTime() < todayDate.getTime();
+    const isTodayTask = dueDateOnly.getTime() === todayDate.getTime();
+
+    if (isRepeatTask) {
+      if (isOverdue && !options.confirmCompleteOverdue) {
+        return {
+          allowed: false,
+          response: buildStatusTransitionResponse(oldTask, {
+            message: '任务已过期，是否确认完成？',
+            isOverdue: true,
+            extra: { needConfirmComplete: true }
+          })
+        };
+      }
+
+      if (!isOverdue && !isTodayTask) {
+        const dueDate = formatUTC8Date(oldTask.dueDate);
+        return {
+          allowed: false,
+          response: buildStatusTransitionResponse(oldTask, {
+            message: '只能完成当天的周期任务',
+            extra: {
+              needConfirmCompleteNotToday: true,
+              dueDate,
+              confirmMessage: `这是${dueDate}的周期任务，只能完成当天的任务。是否切换到该日期查看？`
+            }
+          })
+        };
+      }
+    } else if (isOverdue && !options.confirmCompleteOverdue) {
+      return {
+        allowed: false,
+        response: buildStatusTransitionResponse(oldTask, {
+          message: '任务已过期，是否确认完成？',
+          isOverdue: true,
+          extra: { needConfirmComplete: true }
+        })
+      };
+    }
+  }
+
+  if (targetStatus === 0 && currentStatus === 1 && !options.confirmUncheck) {
+    return {
+      allowed: false,
+      response: buildStatusTransitionResponse(oldTask, {
+        message: '需要确认',
+        extra: {
+          needConfirmUncheck: true,
+          confirmMessage: isRepeatTask
+            ? '取消完成此任务不会影响后续的周期任务，是否确认？'
+            : '确定要取消完成此任务吗？'
+        }
+      })
+    };
+  }
+
+  return { allowed: true, response: null };
+}
+
+function normalizeWeeklyRepeatDays(repeatValue) {
+  if (!repeatValue) {
+    return [];
+  }
+
+  return [...new Set(
+    String(repeatValue)
+      .split(',')
+      .map(v => parseInt(v, 10))
+      .filter(v => !Number.isNaN(v))
+      .map(v => v === 7 ? 0 : v)
+      .filter(v => v >= 0 && v <= 6)
+  )].sort((a, b) => a - b);
+}
+
+function collectAttachmentFileIds(tasks) {
+  return [...new Set(
+    (tasks || [])
+      .flatMap(task => Array.isArray(task.attachments) ? task.attachments : [])
+      .map(attachment => attachment && attachment.fileId)
+      .filter(Boolean)
+  )];
+}
+
+async function getTaskSeriesTasks(parentTaskId) {
+  const tasks = [];
+  const pageSize = 100;
+  let offset = 0;
+
+  while (true) {
+    const { data } = await db.collection('tasks')
+      .where(_.or([
+        { _id: parentTaskId },
+        { parentTaskId }
+      ]))
+      .skip(offset)
+      .limit(pageSize)
+      .get();
+
+    tasks.push(...data);
+
+    if (data.length < pageSize) {
+      break;
+    }
+
+    offset += pageSize;
+  }
+
+  return tasks;
+}
+
+async function getTaskSeriesTasksInRange(parentTaskId, startDate, endDate) {
+  const tasks = [];
+  const pageSize = 100;
+  let offset = 0;
+
+  while (true) {
+    const { data } = await db.collection('tasks')
+      .where(_.and([
+        _.or([
+          { _id: parentTaskId },
+          { parentTaskId }
+        ]),
+        {
+          dueDate: _.gte(startDate).and(_.lte(endDate))
+        }
+      ]))
+      .orderBy('dueDate', 'asc')
+      .skip(offset)
+      .limit(pageSize)
+      .get();
+
+    tasks.push(...data);
+
+    if (data.length < pageSize) {
+      break;
+    }
+
+    offset += pageSize;
+  }
+
+  return tasks;
+}
+
+async function getTaskById(taskId) {
+  try {
+    const result = await db.collection('tasks').doc(taskId).get();
+    return result.data || null;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function ensureTaskViewPermission(userId, task) {
+  if (!task) {
+    return { hasPermission: false, message: '任务不存在' };
+  }
+
+  if (task.creatorId === userId) {
+    return { hasPermission: true };
+  }
+
+  if (task.listId) {
+    const { hasPermission } = await verifyListPermission(userId, task.listId, 3);
+    if (hasPermission) {
+      return { hasPermission: true };
+    }
+  }
+
+  return { hasPermission: false, message: '无权限查看此任务统计' };
+}
+
+async function resolvePeriodicSeriesTask(taskId) {
+  const task = await getTaskById(taskId);
+  if (!task) {
+    return null;
+  }
+
+  if (Number(task.repeatType) === 0) {
+    return {
+      requestedTask: task,
+      parentTask: null,
+      parentTaskId: null
+    };
+  }
+
+  const parentTaskId = task.parentTaskId || task._id;
+  const parentTask = task.parentTaskId ? await getTaskById(parentTaskId) : task;
+
+  return {
+    requestedTask: task,
+    parentTask: parentTask || task,
+    parentTaskId
+  };
+}
+
+function parseMonthlyRepeatDays(repeatValue) {
+  if (!repeatValue) {
+    return [];
+  }
+
+  return [...new Set(
+    String(repeatValue)
+      .split(',')
+      .map(v => parseInt(v, 10))
+      .filter(v => !Number.isNaN(v) && v >= 1 && v <= 31)
+  )].sort((a, b) => a - b);
+}
+
+function formatMonthKey(date) {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
+function formatMonthLabel(monthKey) {
+  const [year, month] = monthKey.split('-');
+  return `${year}年${Number(month)}月`;
+}
+
+function getMonthRange(monthKey) {
+  const [year, month] = String(monthKey).split('-').map(Number);
+  if (!year || !month) {
+    return null;
+  }
+
+  return {
+    start: new Date(year, month - 1, 1, 0, 0, 0, 0),
+    end: new Date(year, month, 0, 23, 59, 59, 999)
+  };
+}
+
+function createOccurrenceFromDate(baseDueDate, year, monthIndex, day) {
+  const due = new Date(baseDueDate);
+  due.setFullYear(year, monthIndex, day);
+  return due;
+}
+
+function generatePlannedOccurrences(task, startDate, endDate) {
+  if (!task || Number(task.repeatType) === 0 || !task.dueDate || !startDate || !endDate) {
+    return [];
+  }
+
+  const baseDueDate = new Date(task.dueDate);
+  const rangeStart = new Date(startDate);
+  const rangeEnd = new Date(endDate);
+  const occurrences = [];
+
+  if (rangeEnd < baseDueDate) {
+    return [];
+  }
+
+  if (task.repeatType === 1) {
+    const cursor = new Date(baseDueDate);
+    cursor.setHours(baseDueDate.getHours(), baseDueDate.getMinutes(), baseDueDate.getSeconds(), baseDueDate.getMilliseconds());
+    while (cursor <= rangeEnd) {
+      if (cursor >= rangeStart) {
+        occurrences.push(new Date(cursor));
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return occurrences;
+  }
+
+  if (task.repeatType === 2) {
+    const selectedDays = normalizeWeeklyRepeatDays(task.repeatValue);
+    if (selectedDays.length === 0) {
+      return [];
+    }
+
+    const cursor = new Date(rangeStart);
+    cursor.setHours(baseDueDate.getHours(), baseDueDate.getMinutes(), baseDueDate.getSeconds(), baseDueDate.getMilliseconds());
+    while (cursor <= rangeEnd) {
+      if (cursor >= baseDueDate && selectedDays.includes(cursor.getDay())) {
+        occurrences.push(new Date(cursor));
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return occurrences;
+  }
+
+  if (task.repeatType === 3) {
+    let cursor = new Date(baseDueDate);
+    const maxIterations = 1000;
+    let guard = 0;
+
+    while (cursor <= rangeEnd && guard < maxIterations) {
+      if (cursor >= rangeStart) {
+        occurrences.push(new Date(cursor));
+      }
+
+      const nextDueDate = calculateNextRepeatDate({
+        dueDate: cursor,
+        repeatType: task.repeatType,
+        repeatValue: task.repeatValue
+      });
+
+      if (!nextDueDate || nextDueDate.getTime() === cursor.getTime()) {
+        break;
+      }
+
+      cursor = new Date(nextDueDate);
+      guard += 1;
+    }
+
+    return occurrences;
+  }
+
+  return [];
+}
+
+function buildInstanceMap(instances) {
+  return (instances || []).reduce((map, instance) => {
+    const key = formatUTC8Date(instance.dueDate);
+    if (!map[key]) {
+      map[key] = [];
+    }
+    map[key].push(instance);
+    return map;
+  }, {});
+}
+
+function mapOccurrencesWithInstances(occurrences, instances, todayDate) {
+  const instanceMap = buildInstanceMap(instances);
+
+  return occurrences.map(date => {
+    const key = formatUTC8Date(date);
+    const matchedInstances = instanceMap[key] || [];
+    const completedInstance = matchedInstances.find(item => Number(item.status) === 1);
+    const status = completedInstance ? 1 : 0;
+    const dueDateOnly = toDateOnlyInUTC8(date);
+    const isFuture = dueDateOnly.getTime() > todayDate.getTime();
+
+    return {
+      date: new Date(date),
+      dateKey: key,
+      status,
+      isFuture,
+      source: matchedInstances.length > 0 ? 'instance' : 'planned',
+      instanceId: completedInstance ? completedInstance._id : (matchedInstances[0] && matchedInstances[0]._id) || '',
+      dueDate: matchedInstances[0] ? matchedInstances[0].dueDate : date
+    };
+  });
+}
+
+function calculateOccurrenceStreaks(records) {
+  let longestStreak = 0;
+  let currentRun = 0;
+
+  records.forEach(record => {
+    if (record.status === 1) {
+      currentRun += 1;
+      if (currentRun > longestStreak) {
+        longestStreak = currentRun;
+      }
+    } else {
+      currentRun = 0;
+    }
+  });
+
+  let currentStreak = 0;
+  for (let i = records.length - 1; i >= 0; i--) {
+    if (records[i].status === 1) {
+      currentStreak += 1;
+    } else {
+      break;
+    }
+  }
+
+  return { currentStreak, longestStreak };
+}
+
+function buildRepeatDescription(repeatType, repeatValue) {
+  if (Number(repeatType) === 1) {
+    return '每天';
+  }
+
+  if (Number(repeatType) === 2) {
+    const weekMap = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    const labels = normalizeWeeklyRepeatDays(repeatValue).map(day => weekMap[day]);
+    return labels.length > 0 ? `每${labels.join('、')}` : '每周';
+  }
+
+  if (Number(repeatType) === 3) {
+    const labels = parseMonthlyRepeatDays(repeatValue).map(day => `${day}日`);
+    return labels.length > 0 ? `每月 ${labels.join('、')}` : '每月';
+  }
+
+  return '不重复';
+}
+
+function buildPeriodicStatsPayload(parentTask, instances) {
+  const todayDate = getTodayInUTC8();
+  const todayEnd = getEndOfDayInUTC8();
+  const latestInstanceDueDate = instances.length > 0
+    ? new Date(Math.max(...instances.map(item => new Date(item.dueDate).getTime())))
+    : new Date(parentTask.dueDate);
+
+  const occurrenceStart = new Date(parentTask.dueDate);
+  const latestInstanceDateOnly = toDateOnlyInUTC8(latestInstanceDueDate);
+  const occurrenceEnd = latestInstanceDateOnly.getTime() < todayDate.getTime()
+    ? latestInstanceDueDate
+    : todayEnd;
+  const occurrences = generatePlannedOccurrences(parentTask, occurrenceStart, occurrenceEnd);
+  const occurrenceRecords = mapOccurrencesWithInstances(occurrences, instances, todayDate);
+  const dueRecords = occurrenceRecords.filter(item => !item.isFuture);
+
+  const totalDueCount = dueRecords.length;
+  const completedDueCount = dueRecords.filter(item => item.status === 1).length;
+  const missedDueCount = dueRecords.filter(item => item.status === 0).length;
+  const completionRate = totalDueCount > 0 ? Math.round((completedDueCount / totalDueCount) * 100) : 0;
+  const streaks = calculateOccurrenceStreaks(dueRecords);
+
+  const last7Records = dueRecords.slice(-7);
+  const last30Records = dueRecords.slice(-30);
+  const last7Rate = last7Records.length > 0
+    ? Math.round((last7Records.filter(item => item.status === 1).length / last7Records.length) * 100)
+    : 0;
+  const last30Rate = last30Records.length > 0
+    ? Math.round((last30Records.filter(item => item.status === 1).length / last30Records.length) * 100)
+    : 0;
+
+  const currentMonthKey = formatMonthKey(todayDate);
+  const monthlyMap = {};
+  occurrenceRecords.forEach(record => {
+    const monthKey = formatMonthKey(record.date);
+    if (!monthlyMap[monthKey]) {
+      monthlyMap[monthKey] = {
+        month: monthKey,
+        label: formatMonthLabel(monthKey),
+        planned: 0,
+        completed: 0,
+        missed: 0,
+        future: 0,
+        completionRate: 0
+      };
+    }
+
+    monthlyMap[monthKey].planned += 1;
+    if (record.isFuture) {
+      monthlyMap[monthKey].future += 1;
+    } else if (record.status === 1) {
+      monthlyMap[monthKey].completed += 1;
+    } else {
+      monthlyMap[monthKey].missed += 1;
+    }
+  });
+
+  const monthlyStats = Object.values(monthlyMap)
+    .sort((a, b) => a.month.localeCompare(b.month))
+    .map(item => ({
+      ...item,
+      completionRate: (item.completed + item.missed) > 0
+        ? Math.round((item.completed / (item.completed + item.missed)) * 100)
+        : 0
+    }));
+
+  const thisMonthStats = monthlyMap[currentMonthKey] || {
+    planned: 0,
+    completed: 0,
+    missed: 0
+  };
+
+  const lastMissedRecord = [...dueRecords].reverse().find(item => item.status === 0) || null;
+
+  const recentRecords = [...occurrenceRecords]
+    .filter(item => !item.isFuture)
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, 20)
+    .map(item => ({
+      date: item.date,
+      dateKey: item.dateKey,
+      status: item.status,
+      source: item.source,
+      formattedDate: item.dateKey
+    }));
+
+  const allRecords = occurrenceRecords.map(item => ({
+    date: item.date,
+    dateKey: item.dateKey,
+    status: item.status,
+    isFuture: item.isFuture,
+    source: item.source
+  }));
+
+  return {
+    summary: {
+      completionRate,
+      totalDueCount,
+      completedDueCount,
+      missedDueCount,
+      currentStreak: streaks.currentStreak,
+      longestStreak: streaks.longestStreak,
+      last7Rate,
+      last30Rate,
+      lastMissedDate: lastMissedRecord ? lastMissedRecord.date : null,
+      thisMonthPlanned: thisMonthStats.planned,
+      thisMonthCompleted: thisMonthStats.completed,
+      thisMonthMissed: thisMonthStats.missed
+    },
+    monthlyStats,
+    recentRecords,
+    allRecords,
+    legacyStats: {
+      totalCount: totalDueCount,
+      completedCount: completedDueCount,
+      incompleteCount: missedDueCount,
+      completionRate,
+      currentStreak: streaks.currentStreak,
+      longestStreak: streaks.longestStreak
+    }
+  };
+}
+
+function getPeriodicStatusTransitionType(content) {
+  if (!content) {
+    return '';
+  }
+
+  if (content.action === 'toggle_status' && content.statusTransition) {
+    return content.statusTransition;
+  }
+
+  const oldStatus = content.old && content.old.status;
+  const newStatus = content.new && content.new.status;
+  if (oldStatus === undefined || newStatus === undefined) {
+    return '';
+  }
+
+  if (Number(oldStatus) === 0 && Number(newStatus) === 1) {
+    return 'complete';
+  }
+
+  if (Number(oldStatus) === 1 && Number(newStatus) === 0) {
+    return 'uncomplete';
+  }
+
+  return '';
+}
+
+async function getUsersByIds(userIds) {
+  const ids = [...new Set((userIds || []).filter(Boolean))];
+  if (ids.length === 0) {
+    return {};
+  }
+
+  const userMap = {};
+  const batchSize = 100;
+
+  for (let i = 0; i < ids.length; i += batchSize) {
+    const batchIds = ids.slice(i, i + batchSize);
+    const { data } = await db.collection('users')
+      .where({ _id: _.in(batchIds) })
+      .field({ _id: true, nickname: true, avatarUrl: true })
+      .get();
+
+    data.forEach(user => {
+      userMap[user._id] = {
+        userId: user._id,
+        nickname: user.nickname || '',
+        avatarUrl: user.avatarUrl || ''
+      };
+    });
+  }
+
+  return userMap;
+}
+
+function buildTaskLookupMap(tasks) {
+  return (tasks || []).reduce((map, task) => {
+    if (task && task._id) {
+      map[task._id] = task;
+    }
+    return map;
+  }, {});
+}
+
+function normalizePeriodicOperationEvent(operation, taskMap, userMap) {
+  if (!operation || operation.type !== 'task_update') {
+    return null;
+  }
+
+  const content = operation.content || {};
+  const eventType = getPeriodicStatusTransitionType(content);
+  if (!eventType) {
+    return null;
+  }
+
+  const task = taskMap[operation.targetId] || null;
+  const dueDate = content.dueDate || (task && task.dueDate) || null;
+  const dateKey = dueDate ? formatUTC8Date(dueDate) : '';
+  const operatorId = operation.userId || '';
+  const operatorInfo = userMap[operatorId] || { userId: operatorId, nickname: '', avatarUrl: '' };
+  const completedBy = content.completedBy || (eventType === 'complete' ? operatorId : '');
+  const completedByInfo = completedBy
+    ? (userMap[completedBy] || { userId: completedBy, nickname: '', avatarUrl: '' })
+    : null;
+
+  return {
+    eventId: operation._id,
+    taskId: operation.targetId,
+    seriesTaskId: content.seriesTaskId || content.parentTaskId || (task && (task.parentTaskId || task._id)) || '',
+    taskTitle: content.taskTitle || (task && task.title) || '',
+    dueDate,
+    dateKey,
+    eventType,
+    operatedAt: operation.createdAt,
+    operatorId,
+    operatorInfo,
+    completedAt: content.completedAt || operation.createdAt,
+    completedBy,
+    completedByInfo,
+    isPeriodicInstance: content.isPeriodicInstance !== undefined
+      ? !!content.isPeriodicInstance
+      : !!(task && task.isPeriodicInstance)
+  };
+}
+
+async function getPeriodicSeriesOperationEvents(seriesTasks) {
+  const taskIds = [...new Set((seriesTasks || []).map(task => task && task._id).filter(Boolean))];
+  if (taskIds.length === 0) {
+    return [];
+  }
+
+  const operations = [];
+  const batchSize = 50;
+
+  for (let i = 0; i < taskIds.length; i += batchSize) {
+    const batchTaskIds = taskIds.slice(i, i + batchSize);
+    let offset = 0;
+    const pageSize = 100;
+
+    while (true) {
+      const { data } = await db.collection('operations')
+        .where({
+          type: 'task_update',
+          targetId: _.in(batchTaskIds)
+        })
+        .orderBy('createdAt', 'desc')
+        .skip(offset)
+        .limit(pageSize)
+        .get();
+
+      operations.push(...data);
+
+      if (data.length < pageSize) {
+        break;
+      }
+
+      offset += pageSize;
+    }
+  }
+
+  const taskMap = buildTaskLookupMap(seriesTasks);
+  const userIds = [...new Set(operations
+    .flatMap(item => {
+      const content = item.content || {};
+      return [item.userId, content.completedBy].filter(Boolean);
+    }))];
+  const userMap = await getUsersByIds(userIds);
+
+  return operations
+    .map(operation => normalizePeriodicOperationEvent(operation, taskMap, userMap))
+    .filter(Boolean)
+    .sort((a, b) => new Date(b.operatedAt) - new Date(a.operatedAt));
+}
+
 // 获取提醒分钟数
 function getReminderMinutes(reminderValue) {
   const minutesMap = {
@@ -1504,6 +2318,28 @@ function getReminderMinutes(reminderValue) {
     9: 10080   // 提前1周
   };
   return minutesMap[reminderValue] || 0;
+}
+
+function getPeriodicGenerationPolicy(repeatType) {
+  switch (Number(repeatType)) {
+    case 1:
+      return {
+        horizonDays: 14,
+        maxInstances: 14
+      };
+    case 2:
+      return {
+        horizonDays: 56,
+        maxInstances: 20
+      };
+    case 3:
+      return {
+        horizonDays: 180,
+        maxInstances: 12
+      };
+    default:
+      return null;
+  }
 }
 
 // 格式化日期时间
@@ -1543,24 +2379,13 @@ async function generatePeriodicTasks(openid, originalTask, parentTaskId) {
     const userId = await getUserId(openid);
     const tasks = [];
 
-    // 根据重复类型决定预生成的时间范围
-    let preGenerateDays;
-    switch (originalTask.repeatType) {
-      case 1: // 每天 → 预生成30天
-        preGenerateDays = 30;
-        break;
-      case 2: // 每周 → 预生成12周（84天）
-        preGenerateDays = 84;
-        break;
-      case 3: // 每月 → 预生成6个月（180天）
-        preGenerateDays = 180;
-        break;
-      default:
-        return [];
+    const generationPolicy = getPeriodicGenerationPolicy(originalTask.repeatType);
+    if (!generationPolicy) {
+      return [];
     }
 
     const endDate = new Date();
-    endDate.setDate(endDate.getDate() + preGenerateDays);
+    endDate.setDate(endDate.getDate() + generationPolicy.horizonDays);
 
     let currentDueDate = new Date(originalTask.dueDate);
 
@@ -1572,8 +2397,12 @@ async function generatePeriodicTasks(openid, originalTask, parentTaskId) {
       reminderOffset = originalDue.getTime() - originalReminder.getTime();
     }
 
-    // 按时间窗口生成，直到超出预生成范围
+    // 按时间窗口与实例上限双重控制生成数量
     while (true) {
+      if (tasks.length >= generationPolicy.maxInstances) {
+        break;
+      }
+
       const nextDueDate = calculateNextRepeatDate({
         dueDate: currentDueDate,
         repeatType: originalTask.repeatType,
@@ -1591,6 +2420,7 @@ async function generatePeriodicTasks(openid, originalTask, parentTaskId) {
         title: originalTask.title,
         description: originalTask.description || '',
         priority: originalTask.priority || 1,
+        ownershipType: getOwnershipTypeByListId(originalTask.listId),
         listId: originalTask.listId || '',
         categoryId: originalTask.categoryId || '',
         creatorId: userId,
@@ -1618,7 +2448,7 @@ async function generatePeriodicTasks(openid, originalTask, parentTaskId) {
       currentDueDate = nextDueDate;
     }
 
-    console.log(`[generatePeriodicTasks] repeatType=${originalTask.repeatType}, 预生成${preGenerateDays}天, 生成了 ${tasks.length} 个实例`);
+    console.log(`[generatePeriodicTasks] repeatType=${originalTask.repeatType}, horizonDays=${generationPolicy.horizonDays}, maxInstances=${generationPolicy.maxInstances}, generatedCount=${tasks.length}`);
     return tasks;
   } catch (error) {
     console.error('预生成周期任务失败:', error);
@@ -1642,11 +2472,14 @@ function calculateNextRepeatDate(task) {
 
     case 2: // 每周重复
       if (task.repeatValue) {
-        // repeatValue 中 1-7 表示周一到周日（数据设计约定）
-        // JS getDay() 返回 0=周日, 1=周一, ..., 6=周六
-        // 需要将 getDay() 转换为 1-7 格式：周日 0 -> 7，其余不变
-        const selectedDays = task.repeatValue.split(',').map(v => parseInt(v)).sort((a, b) => a - b);
-        const currentDay = currentDue.getDay() || 7; // 转换为 1-7（周一=1, 周日=7）
+        // 统一使用 0-6：0=周日, 1=周一, ..., 6=周六；兼容历史值 7=周日
+        const selectedDays = normalizeWeeklyRepeatDays(task.repeatValue);
+        const currentDay = currentDue.getDay();
+
+        if (selectedDays.length === 0) {
+          nextDue.setDate(currentDue.getDate() + 7);
+          break;
+        }
 
         // 查找下一个重复的星期几
         let nextDay = selectedDays.find(day => day > currentDay);
@@ -1721,6 +2554,7 @@ async function createRepeatTask(openid, originalTask, nextDueDate) {
       title: originalTask.title,
       description: originalTask.description || '',
       priority: originalTask.priority || 1,
+      ownershipType: getOwnershipTypeByListId(originalTask.listId),
       listId: originalTask.listId || '',
       categoryId: originalTask.categoryId || '',
       creatorId: userId,
@@ -1859,18 +2693,14 @@ async function ensurePeriodicTasks(openid, completedTask) {
   try {
     const userId = await getUserId(openid);
 
-    // 根据重复类型决定预生成的时间范围
-    let preGenerateDays;
-    switch (completedTask.repeatType) {
-      case 1: preGenerateDays = 30; break;
-      case 2: preGenerateDays = 84; break;
-      case 3: preGenerateDays = 180; break;
-      default: return [];
+    const generationPolicy = getPeriodicGenerationPolicy(completedTask.repeatType);
+    if (!generationPolicy) {
+      return [];
     }
 
     const parentTaskId = completedTask.parentTaskId || completedTask._id;
 
-    // 查询该父任务下最晚的未来周期任务实例
+    // 查询该父任务下所有未来未完成实例，用于同时计算补齐上界和最晚截止日期
     const now = new Date();
     const { data: existingTasks } = await db.collection('tasks')
       .where({
@@ -1879,12 +2709,17 @@ async function ensurePeriodicTasks(openid, completedTask) {
         status: 0
       })
       .orderBy('dueDate', 'desc')
-      .limit(1)
       .get();
+
+    const remainingCapacity = generationPolicy.maxInstances - existingTasks.length;
+    if (remainingCapacity <= 0) {
+      console.log(`[ensurePeriodicTasks] repeatType=${completedTask.repeatType}, horizonDays=${generationPolicy.horizonDays}, maxInstances=${generationPolicy.maxInstances}, existingFutureCount=${existingTasks.length}, generatedCount=0`);
+      return [];
+    }
 
     let lastDueDate = existingTasks.length > 0 ? new Date(existingTasks[0].dueDate) : new Date(completedTask.dueDate);
     const targetDate = new Date();
-    targetDate.setDate(targetDate.getDate() + preGenerateDays);
+    targetDate.setDate(targetDate.getDate() + generationPolicy.horizonDays);
 
     if (lastDueDate >= targetDate) {
       return [];
@@ -1912,6 +2747,10 @@ async function ensurePeriodicTasks(openid, completedTask) {
     let currentDueDate = new Date(lastDueDate);
 
     while (true) {
+      if (tasksToGenerate.length >= remainingCapacity) {
+        break;
+      }
+
       const nextDueDate = calculateNextRepeatDate({
         dueDate: currentDueDate,
         repeatType: parentTask.repeatType,
@@ -1929,6 +2768,7 @@ async function ensurePeriodicTasks(openid, completedTask) {
         title: parentTask.title,
         description: parentTask.description || '',
         priority: parentTask.priority || 1,
+        ownershipType: getOwnershipTypeByListId(parentTask.listId),
         listId: parentTask.listId || '',
         categoryId: parentTask.categoryId || '',
         creatorId: userId,
@@ -1956,7 +2796,7 @@ async function ensurePeriodicTasks(openid, completedTask) {
       currentDueDate = nextDueDate;
     }
 
-    console.log(`[ensurePeriodicTasks] repeatType=${parentTask.repeatType}, 补充生成了 ${tasksToGenerate.length} 个实例`);
+    console.log(`[ensurePeriodicTasks] repeatType=${parentTask.repeatType}, horizonDays=${generationPolicy.horizonDays}, maxInstances=${generationPolicy.maxInstances}, existingFutureCount=${existingTasks.length}, generatedCount=${tasksToGenerate.length}`);
     return tasksToGenerate;
   } catch (error) {
     console.error('确保周期任务失败:', error);
@@ -2066,127 +2906,29 @@ async function getPeriodicTaskStats(openid, data) {
     const userId = await getUserId(openid);
     const { taskId } = data;
 
-    // 获取父任务信息
-    let parentTask;
-    try {
-      const result = await db.collection('tasks').doc(taskId).get();
-      parentTask = result.data;
-    } catch (e) {
+    const resolvedSeries = await resolvePeriodicSeriesTask(taskId);
+    if (!resolvedSeries || !resolvedSeries.requestedTask) {
       return { code: -1, message: '任务不存在' };
     }
 
-    if (!parentTask) {
-      return { code: -1, message: '任务不存在' };
-    }
+    const { requestedTask, parentTask, parentTaskId } = resolvedSeries;
 
-    // 验证权限
-    if (parentTask.creatorId !== userId) {
-      return { code: -1, message: '无权限查看此任务统计' };
+    const permission = await ensureTaskViewPermission(userId, requestedTask);
+    if (!permission.hasPermission) {
+      return { code: -1, message: permission.message };
     }
 
     // 如果不是周期任务，返回错误
-    if (parentTask.repeatType === 0) {
+    if (!parentTask || Number(parentTask.repeatType) === 0) {
       return { code: -1, message: '此任务不是周期任务' };
     }
 
-    // 查询所有周期任务实例（包括父任务本身）
-    // 分批查询以突破100条限制
-    let allInstances = [];
-    const batchSize = 100;
-    let batchIndex = 0;
-    while (true) {
-      const { data: batch } = await db.collection('tasks')
-        .where(_.or([
-          { _id: taskId },
-          { parentTaskId: taskId }
-        ]))
-        .orderBy('dueDate', 'asc')
-        .skip(batchIndex * batchSize)
-        .limit(batchSize)
-        .get();
-      allInstances = allInstances.concat(batch);
-      if (batch.length < batchSize) break;
-      batchIndex++;
-    }
-
-    // 过滤出属于当前用户的
-    allInstances = allInstances.filter(t => t.creatorId === userId);
-
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-
-    // 区分：截止日期 <= 今天的为"已到期"实例，用于统计
-    const dueInstances = allInstances.filter(t => {
-      const d = new Date(t.dueDate);
-      d.setHours(0, 0, 0, 0);
-      return d <= now;
-    });
-    const futureInstances = allInstances.filter(t => {
-      const d = new Date(t.dueDate);
-      d.setHours(0, 0, 0, 0);
-      return d > now;
-    });
-
-    // 基础统计（只统计已到期的）
-    const totalCount = dueInstances.length;
-    const completedCount = dueInstances.filter(t => t.status === 1).length;
-    const overdueCount = dueInstances.filter(t => t.status === 0).length;
-    const completionRate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-
-    // 按日期排序（升序），用于连续天数计算
-    const sortedDue = dueInstances
+    const seriesTasks = await getTaskSeriesTasks(parentTaskId);
+    const allInstances = seriesTasks
+      .filter(Boolean)
       .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
-
-    // 计算连续完成天数（考虑周期间隔）
-    let currentStreak = 0;
-    let longestStreak = 0;
-    let tempStreak = 0;
-
-    for (let i = 0; i < sortedDue.length; i++) {
-      if (sortedDue[i].status === 1) {
-        tempStreak++;
-        longestStreak = Math.max(longestStreak, tempStreak);
-      } else {
-        tempStreak = 0;
-      }
-    }
-
-    // 当前连续（从最近一天往回数）
-    for (let i = sortedDue.length - 1; i >= 0; i--) {
-      if (sortedDue[i].status === 1) {
-        currentStreak++;
-      } else {
-        break;
-      }
-    }
-
-    // 构建所有记录（包含未来的）
-    const allRecords = allInstances.map(t => {
-      const d = new Date(t.dueDate);
-      d.setHours(0, 0, 0, 0);
-      const isFuture = d > now;
-      return {
-        date: t.dueDate,
-        status: t.status,
-        isFuture
-      };
-    });
-
-    // 按月分组统计
-    const monthlyStats = {};
-    dueInstances.forEach(t => {
-      const d = new Date(t.dueDate);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (!monthlyStats[key]) {
-        monthlyStats[key] = { completed: 0, total: 0, overdue: 0 };
-      }
-      monthlyStats[key].total++;
-      if (t.status === 1) {
-        monthlyStats[key].completed++;
-      } else {
-        monthlyStats[key].overdue++;
-      }
-    });
+    const statsPayload = buildPeriodicStatsPayload(parentTask, allInstances);
+    const recentEventRecords = await getPeriodicSeriesOperationEvents(allInstances);
 
     return {
       code: 0,
@@ -2194,23 +2936,22 @@ async function getPeriodicTaskStats(openid, data) {
       data: {
         taskInfo: {
           _id: parentTask._id,
+          seriesTaskId: parentTaskId,
+          requestedTaskId: requestedTask._id,
           title: parentTask.title,
           repeatType: parentTask.repeatType,
           repeatValue: parentTask.repeatValue,
           priority: parentTask.priority,
-          createdAt: parentTask.createdAt
+          dueDate: parentTask.dueDate,
+          createdAt: parentTask.createdAt,
+          repeatDescription: buildRepeatDescription(parentTask.repeatType, parentTask.repeatValue)
         },
-        stats: {
-          totalCount,
-          completedCount,
-          incompleteCount: overdueCount,
-          completionRate,
-          currentStreak,
-          longestStreak,
-          futureCount: futureInstances.length
-        },
-        allRecords,
-        monthlyStats
+        summary: statsPayload.summary,
+        monthlyStats: statsPayload.monthlyStats,
+        recentRecords: statsPayload.recentRecords,
+        recentEventRecords,
+        stats: statsPayload.legacyStats,
+        allRecords: statsPayload.allRecords
       }
     };
   } catch (error) {
@@ -2218,6 +2959,69 @@ async function getPeriodicTaskStats(openid, data) {
     return {
       code: -1,
       message: error.message || '获取统计信息失败'
+    };
+  }
+}
+
+async function getPeriodicTaskMonthDetail(openid, data) {
+  try {
+    if (!data || !data.taskId || !data.month) {
+      return {
+        code: -1,
+        message: '任务ID和月份不能为空'
+      };
+    }
+
+    const userId = await getUserId(openid);
+    const { taskId, month } = data;
+    const resolvedSeries = await resolvePeriodicSeriesTask(taskId);
+
+    if (!resolvedSeries || !resolvedSeries.requestedTask) {
+      return { code: -1, message: '任务不存在' };
+    }
+
+    const { requestedTask, parentTask, parentTaskId } = resolvedSeries;
+    const permission = await ensureTaskViewPermission(userId, requestedTask);
+    if (!permission.hasPermission) {
+      return { code: -1, message: permission.message };
+    }
+
+    if (!parentTask || Number(parentTask.repeatType) === 0) {
+      return { code: -1, message: '此任务不是周期任务' };
+    }
+
+    const monthRange = getMonthRange(month);
+    if (!monthRange) {
+      return { code: -1, message: '月份格式错误' };
+    }
+
+    const allInstances = await getTaskSeriesTasksInRange(parentTaskId, monthRange.start, monthRange.end);
+    const filteredInstances = allInstances.filter(Boolean);
+    const todayDate = getTodayInUTC8();
+    const todayEnd = getEndOfDayInUTC8();
+    const effectiveMonthEnd = monthRange.end < todayEnd ? monthRange.end : todayEnd;
+    const monthOccurrences = generatePlannedOccurrences(parentTask, monthRange.start, effectiveMonthEnd);
+    const monthRecords = mapOccurrencesWithInstances(monthOccurrences, filteredInstances, todayDate);
+
+    return {
+      code: 0,
+      message: '获取成功',
+      data: {
+        taskId: parentTaskId,
+        month,
+        label: formatMonthLabel(month),
+        days: monthRecords.map(item => ({
+          date: item.dateKey,
+          status: item.status,
+          source: item.source
+        }))
+      }
+    };
+  } catch (error) {
+    console.error('获取周期任务月份明细失败:', error);
+    return {
+      code: -1,
+      message: error.message || '获取月份明细失败'
     };
   }
 }

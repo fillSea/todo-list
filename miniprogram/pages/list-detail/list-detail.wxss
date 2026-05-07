@@ -19,11 +19,25 @@
 /* 顶部导航栏 */
 .header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  box-sizing: border-box;
+  padding: 0 16px;
   background-color: #fff;
   border-bottom: 1rpx solid #eee;
+}
+
+.header-side {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.header-side-left {
+  justify-content: flex-start;
+}
+
+.header-side-right {
+  justify-content: flex-start;
 }
 
 .header-left {
@@ -51,6 +65,7 @@
 
 .header-right {
   display: flex;
+  justify-content: flex-start;
   gap: 8px;
 }
 

@@ -35,7 +35,7 @@
     <!-- 空状态 -->
     <view class="empty-state" wx:if="{{!loading && notifications.length === 0}}">
       <van-icon name="bell" size="120rpx" color="#ddd" />
-      <text class="empty-text">暂无通知</text>
+      <text class="empty-text">{{isLoggedIn ? '暂无通知' : '完善资料后查看通知'}}</text>
     </view>
   </view>
 

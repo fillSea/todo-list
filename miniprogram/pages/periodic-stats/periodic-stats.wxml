@@ -1,5 +1,7 @@
 <view class="container">
-  <van-nav-bar title="周期任务统计" left-text="返回" left-arrow bind:click-left="onBack" />
+  <view class="page-nav">
+    <van-nav-bar title="周期统计" left-arrow bind:click-left="onBack" />
+  </view>
 
   <view wx:if="{{loading}}" class="loading-container">
     <van-loading type="spinner" size="40px">加载中...</van-loading>
@@ -10,51 +12,48 @@
   </view>
 
   <view wx:else class="content">
-    <!-- 任务信息 -->
     <view class="task-info-card">
       <view class="task-title">{{taskInfo.title}}</view>
       <view class="task-meta">
-        <van-tag type="primary" wx:if="{{taskInfo.repeatType === 1}}">每天</van-tag>
-        <van-tag type="primary" wx:if="{{taskInfo.repeatType === 2}}">每周</van-tag>
-        <van-tag type="primary" wx:if="{{taskInfo.repeatType === 3}}">每月</van-tag>
+        <van-tag type="primary">{{taskInfo.repeatDescription}}</van-tag>
         <van-tag color="{{priorityColor}}" style="margin-left: 10rpx;">{{priorityText}}</van-tag>
       </view>
+      <view class="task-subtitle">起始时间 {{taskInfo.startDateText}}</view>
     </view>
 
-    <!-- 统计概览 -->
     <view class="stats-overview-card">
       <view class="card-title">完成概览</view>
       <view class="stats-grid">
         <view class="stats-item">
-          <view class="stats-value highlight">{{stats.completionRate}}%</view>
+          <view class="stats-value highlight">{{summary.completionRate}}%</view>
           <view class="stats-label">完成率</view>
         </view>
         <view class="stats-item">
-          <view class="stats-value green">{{stats.completedCount}}</view>
-          <view class="stats-label">已完成</view>
+          <view class="stats-value green">{{summary.last7Rate}}%</view>
+          <view class="stats-label">最近7次</view>
         </view>
         <view class="stats-item">
-          <view class="stats-value red">{{stats.incompleteCount}}</view>
-          <view class="stats-label">未完成</view>
+          <view class="stats-value red">{{summary.thisMonthMissed}}</view>
+          <view class="stats-label">本月漏做</view>
         </view>
         <view class="stats-item">
-          <view class="stats-value">{{stats.totalCount}}</view>
-          <view class="stats-label">已到期</view>
+          <view class="stats-value">{{summary.totalDueCount}}</view>
+          <view class="stats-label">累计应做</view>
         </view>
       </view>
       <view class="progress-section">
-        <van-progress percentage="{{stats.completionRate}}" stroke-height="16" color="#07c160" />
+        <van-progress percentage="{{summary.completionRate}}" stroke-height="16" color="#07c160" />
       </view>
+      <view class="stats-hint">{{statsHint}}</view>
     </view>
 
-    <!-- 连续完成 -->
     <view class="streak-card">
       <view class="streak-title">连续完成</view>
       <view class="streak-content">
         <view class="streak-item">
           <view class="streak-icon">🔥</view>
           <view class="streak-info">
-            <view class="streak-value">{{stats.currentStreak}}</view>
+            <view class="streak-value">{{summary.currentStreak}}</view>
             <view class="streak-label">当前连续</view>
           </view>
         </view>
@@ -62,14 +61,60 @@
         <view class="streak-item">
           <view class="streak-icon">🏆</view>
           <view class="streak-info">
-            <view class="streak-value">{{stats.longestStreak}}</view>
+            <view class="streak-value">{{summary.longestStreak}}</view>
             <view class="streak-label">最长连续</view>
           </view>
         </view>
       </view>
     </view>
 
-    <!-- 按月日历 -->
+    <view class="detail-card">
+      <view class="card-title">统计详情</view>
+      <view class="detail-grid">
+        <view class="detail-item">
+          <view class="detail-label">已到期周期点</view>
+          <view class="detail-value">{{summary.totalDueCount}}</view>
+        </view>
+        <view class="detail-item">
+          <view class="detail-label">已完成</view>
+          <view class="detail-value green">{{summary.completedDueCount}}</view>
+        </view>
+        <view class="detail-item">
+          <view class="detail-label">未完成</view>
+          <view class="detail-value red">{{summary.missedDueCount}}</view>
+        </view>
+        <view class="detail-item">
+          <view class="detail-label">最近30次</view>
+          <view class="detail-value">{{summary.last30Rate}}%</view>
+        </view>
+        <view class="detail-item">
+          <view class="detail-label">本月应做</view>
+          <view class="detail-value">{{summary.thisMonthPlanned}}</view>
+        </view>
+        <view class="detail-item">
+          <view class="detail-label">本月已做</view>
+          <view class="detail-value">{{summary.thisMonthCompleted}}</view>
+        </view>
+      </view>
+      <view class="date-meta" wx:if="{{summary.lastMissedDate}}">最近漏做 {{summary.lastMissedDate}}</view>
+    </view>
+
+    <view class="trend-card" wx:if="{{trendMonthlyStats.length > 0}}">
+      <view class="card-title">近月趋势</view>
+      <view class="trend-list">
+        <view wx:for="{{trendMonthlyStats}}" wx:key="month" class="trend-item">
+          <view class="trend-header">
+            <text class="trend-month">{{item.label}}</text>
+            <text class="trend-rate">{{item.completionRate}}%</text>
+          </view>
+          <view class="trend-bar-track">
+            <view class="trend-bar-fill" style="width: {{item.completionRate}}%;"></view>
+          </view>
+          <view class="trend-meta">应做 {{item.planned}} / 已做 {{item.completed}} / 漏做 {{item.missed}}</view>
+        </view>
+      </view>
+    </view>
+
     <view class="calendar-card" wx:for="{{calendarMonths}}" wx:key="label">
       <view class="card-title">{{item.label}}</view>
       <view class="weekday-header">
@@ -83,16 +128,18 @@
       </view>
       <view class="calendar-grid">
         <view wx:for="{{item.days}}" wx:for-item="day" wx:key="date"
-          class="calendar-day {{day.status === 1 ? 'completed' : day.status === 0 ? 'incomplete' : day.status === 2 ? 'future' : ''}}">
+          class="calendar-day {{day.status === 1 ? 'completed' : day.status === 0 ? 'incomplete' : ''}}">
           <view class="day-number">{{day.day}}</view>
           <view wx:if="{{day.status === 1}}" class="status-dot completed-dot"></view>
           <view wx:elif="{{day.status === 0}}" class="status-dot incomplete-dot"></view>
-          <view wx:elif="{{day.status === 2}}" class="status-dot future-dot"></view>
         </view>
       </view>
     </view>
 
-    <!-- 图例 -->
+    <view class="load-more-wrap" wx:if="{{canLoadMoreMonths}}">
+      <van-button plain type="primary" size="small" bind:click="onLoadMoreMonths">查看更多月份</van-button>
+    </view>
+
     <view class="legend">
       <view class="legend-item">
         <view class="legend-dot completed-bg"></view>
@@ -102,21 +149,17 @@
         <view class="legend-dot incomplete-bg"></view>
         <text>未完成</text>
       </view>
-      <view class="legend-item">
-        <view class="legend-dot future-bg"></view>
-        <text>待完成</text>
-      </view>
     </view>
 
-    <!-- 历史记录 -->
     <view class="history-card" wx:if="{{historyRecords.length > 0}}">
-      <view class="card-title">历史记录</view>
+      <view class="card-title">最近记录</view>
       <view class="history-list">
-        <view wx:for="{{historyRecords}}" wx:key="date" class="history-item">
+        <view wx:for="{{historyRecords}}" wx:key="eventId" class="history-item">
           <view class="history-date">{{item.formattedDate}}</view>
-          <view class="history-status {{item.status === 1 ? 'status-completed' : 'status-incomplete'}}">
-            {{item.status === 1 ? '已完成' : '未完成'}}
+          <view class="history-status {{item.displayStatusClass}}">
+            {{item.eventLabel}}
           </view>
+          <view class="history-desc">{{item.description}}</view>
         </view>
       </view>
     </view>

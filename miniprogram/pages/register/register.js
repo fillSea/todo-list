@@ -10,7 +10,11 @@ Page({
     // 页面状态
     canSubmit: false,
     isLoggedIn: false,
-    isLoading: false
+    isLoading: false,
+    pageTitle: '完善个人资料',
+    pageSubtitle: '完成后即可使用任务、清单和通知等功能',
+    submitButtonText: '保存并开始使用',
+    statusText: ''
   },
 
   onLoad: function () {
@@ -32,10 +36,27 @@ Page({
         avatarUrl: userInfo.avatarUrl || '',
         nickname: userInfo.nickname || '',
         enableNotifications: userInfo.enableNotifications !== false,
-        isLoggedIn: true
+        isLoggedIn: true,
+        pageTitle: '个人资料',
+        pageSubtitle: '可随时修改头像、昵称和通知偏好',
+        submitButtonText: '保存修改',
+        statusText: '个人资料已完善'
       });
       this.checkCanSubmit();
+      return;
     }
+
+    this.setData({
+      avatarUrl: '',
+      nickname: '',
+      enableNotifications: true,
+      canSubmit: false,
+      isLoggedIn: false,
+      pageTitle: '完善个人资料',
+      pageSubtitle: '完成后即可使用任务、清单和通知等功能',
+      submitButtonText: '保存并开始使用',
+      statusText: ''
+    });
   },
 
   // 选择头像
@@ -188,6 +209,10 @@ Page({
 
       wx.setStorageSync('userInfo', userInfo);
       wx.setStorageSync('isLoggedIn', true);
+      wx.setStorageSync('loginTime', new Date().getTime());
+
+      app.globalData.userInfo = userInfo;
+      app.globalData.isLoggedIn = true;
 
       wx.showToast({
         title: '已本地保存',
@@ -210,28 +235,26 @@ Page({
   // 退出登录
   logout: function () {
     wx.showModal({
-      title: '确认退出',
-      content: '退出后将清除登录状态，是否继续？',
+      title: '确认退出当前资料状态',
+      content: '退出后将清除当前设备上的资料状态和本地缓存，云端数据不会被删除。',
       success: (res) => {
         if (res.confirm) {
-          // 清除本地存储
-          wx.removeStorageSync('userInfo');
-          wx.removeStorageSync('isLoggedIn');
-          wx.removeStorageSync('loginTime');
-
-          // 清除全局数据
-          app.globalData.userInfo = null;
-          app.globalData.isLoggedIn = false;
+          app.logout();
 
           this.setData({
             avatarUrl: '',
             nickname: '',
             enableNotifications: true,
-            isLoggedIn: false
+            canSubmit: false,
+            isLoggedIn: false,
+            pageTitle: '完善个人资料',
+            pageSubtitle: '完成后即可使用任务、清单和通知等功能',
+            submitButtonText: '保存并开始使用',
+            statusText: ''
           });
 
           wx.showToast({
-            title: '已退出登录',
+            title: '已退出当前资料状态',
             icon: 'success'
           });
         }

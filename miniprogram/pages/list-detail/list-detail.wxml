@@ -1,18 +1,22 @@
 <view class="list-detail-container">
   <!-- 顶部导航栏 -->
-  <view class="header-fixed">
-    <view class="header">
-      <view class="header-left" bindtap="onBack">
-        <van-icon name="arrow-left" size="20px" color="#333" />
-        <text class="back-text">返回</text>
+  <view class="header-fixed" style="padding-top: {{statusBarHeight}}px;">
+    <view class="header" style="height: {{navBarHeight}}px;">
+      <view class="header-side header-side-left" style="min-width: {{headerSideWidth}}px;">
+        <view class="header-left" bindtap="onBack">
+          <van-icon name="arrow-left" size="20px" color="#333" />
+          <text class="back-text">返回</text>
+        </view>
       </view>
       <text class="header-title">{{listInfo.name || '清单详情'}}</text>
-      <view class="header-right">
-        <view class="action-btn" bindtap="onEditList" wx:if="{{canEdit}}">
-          <van-icon name="edit" size="20px" color="#333" />
-        </view>
-        <view class="action-btn" bindtap="onMoreActions">
-          <van-icon name="ellipsis" size="20px" color="#333" />
+      <view class="header-side header-side-right" style="min-width: {{headerSideWidth}}px;">
+        <view class="header-right">
+          <view class="action-btn" bindtap="onEditList" wx:if="{{canEdit}}">
+            <van-icon name="edit" size="20px" color="#333" />
+          </view>
+          <view class="action-btn" bindtap="onMoreActions">
+            <van-icon name="ellipsis" size="20px" color="#333" />
+          </view>
         </view>
       </view>
     </view>
@@ -155,7 +159,7 @@
   <van-action-sheet show="{{showActionSheet}}" actions="{{actionSheetActions}}" bind:close="onActionSheetClose" bind:select="onActionSheetSelect" />
 
   <!-- 删除确认弹窗 -->
-  <van-dialog id="delete-dialog" show="{{showDeleteDialog}}" title="确认删除" message="删除后无法恢复，确定要删除此任务吗？" show-cancel-button confirm-button-text="删除" confirm-button-color="#ee0a24" bind:close="onDeleteDialogClose" bind:confirm="onDeleteConfirm" />
+  <van-dialog id="delete-dialog" show="{{showDeleteDialog}}" title="{{deleteDialogTitle}}" message="{{deleteDialogMessage}}" show-cancel-button confirm-button-text="删除" confirm-button-color="#ee0a24" bind:close="onDeleteDialogClose" bind:confirm="onDeleteConfirm" />
 
   <!-- 任务操作菜单 -->
   <van-action-sheet show="{{showTaskActionSheet}}" actions="{{taskActionSheetActions}}" bind:close="onTaskActionSheetClose" bind:select="onTaskActionSheetSelect" />

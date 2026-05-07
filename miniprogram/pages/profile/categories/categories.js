@@ -4,6 +4,7 @@ Page({
   data: {
     // 分类列表
     categories: [],
+    isLoggedIn: false,
     // 加载状态
     loading: false,
     // 编辑中的分类
@@ -23,21 +24,46 @@ Page({
   },
 
   onLoad: function () {
-    this.loadCategories();
+    this.syncLoginState();
   },
 
   onShow: function () {
-    this.loadCategories();
+    this.syncLoginState();
   },
 
   onPullDownRefresh: function () {
+    if (!this.data.isLoggedIn) {
+      wx.stopPullDownRefresh();
+      return;
+    }
+
     this.loadCategories().then(() => {
       wx.stopPullDownRefresh();
     });
   },
 
+  syncLoginState: function () {
+    const { isLoggedIn } = app.getLoginState();
+
+    if (!isLoggedIn) {
+      this.setData({
+        isLoggedIn: false,
+        categories: [],
+        loading: false,
+        showEditModal: false,
+        editingCategory: null
+      });
+      return;
+    }
+
+    this.setData({ isLoggedIn: true });
+    this.loadCategories();
+  },
+
   // 加载分类列表
   loadCategories: async function () {
+    if (!this.data.isLoggedIn) return;
+
     this.setData({ loading: true });
 
     try {
@@ -71,6 +97,13 @@ Page({
 
   // 显示创建弹窗
   onShowCreateModal: function () {
+    if (!this.data.isLoggedIn) {
+      wx.navigateTo({
+        url: '/pages/register/register'
+      });
+      return;
+    }
+
     this.setData({
       editingCategory: null,
       showEditModal: true,
@@ -83,6 +116,8 @@ Page({
 
   // 显示编辑弹窗
   onShowEditModal: function (e) {
+    if (!this.data.isLoggedIn) return;
+
     const category = e.currentTarget.dataset.category;
     this.setData({
       editingCategory: category,
@@ -119,6 +154,8 @@ Page({
 
   // 保存分类
   onSaveCategory: async function () {
+    if (!this.data.isLoggedIn) return;
+
     const { formData, editingCategory } = this.data;
 
     if (!formData.name.trim()) {
@@ -177,6 +214,8 @@ Page({
 
   // 删除分类
   onDeleteCategory: function (e) {
+    if (!this.data.isLoggedIn) return;
+
     const category = e.currentTarget.dataset.category;
 
     wx.showModal({
@@ -193,6 +232,8 @@ Page({
 
   // 执行删除
   deleteCategory: async function (categoryId) {
+    if (!this.data.isLoggedIn) return;
+
     try {
       wx.showLoading({ title: '删除中...' });
 

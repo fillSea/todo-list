@@ -4,6 +4,7 @@ Page({
   data: {
     // 清单列表
     lists: [],
+    isLoggedIn: false,
     // 页面类型：all-全部, shared-共享的
     type: 'all',
     // 加载状态
@@ -24,14 +25,19 @@ Page({
     const title = type === 'shared' ? '共享清单' : '我的清单';
     wx.setNavigationBarTitle({ title });
 
-    this.loadLists();
+    this.syncLoginState();
   },
 
   onShow: function () {
-    this.loadLists();
+    this.syncLoginState();
   },
 
   onPullDownRefresh: function () {
+    if (!this.data.isLoggedIn) {
+      wx.stopPullDownRefresh();
+      return;
+    }
+
     this.setData({ page: 1, hasMore: true });
     this.loadLists().then(() => {
       wx.stopPullDownRefresh();
@@ -39,13 +45,33 @@ Page({
   },
 
   onReachBottom: function () {
-    if (this.data.hasMore && !this.data.loading) {
+    if (this.data.isLoggedIn && this.data.hasMore && !this.data.loading) {
       this.loadMoreLists();
     }
   },
 
+  syncLoginState: function () {
+    const { isLoggedIn } = app.getLoginState();
+
+    if (!isLoggedIn) {
+      this.setData({
+        isLoggedIn: false,
+        lists: [],
+        loading: false,
+        hasMore: false,
+        page: 1
+      });
+      return;
+    }
+
+    this.setData({ isLoggedIn: true });
+    this.loadLists();
+  },
+
   // 加载清单列表
   loadLists: async function () {
+    if (!this.data.isLoggedIn) return;
+
     this.setData({ loading: true });
 
     try {
@@ -90,7 +116,7 @@ Page({
 
   // 加载更多清单
   loadMoreLists: async function () {
-    if (this.data.loading || !this.data.hasMore) return;
+    if (!this.data.isLoggedIn || this.data.loading || !this.data.hasMore) return;
 
     this.setData({ loading: true });
     const nextPage = this.data.page + 1;
@@ -128,6 +154,8 @@ Page({
 
   // 点击清单项
   onListTap: function (e) {
+    if (!this.data.isLoggedIn) return;
+
     const listId = e.currentTarget.dataset.id;
     wx.navigateTo({
       url: `/pages/list-detail/list-detail?id=${listId}`
@@ -136,6 +164,13 @@ Page({
 
   // 创建新清单
   onCreateList: function () {
+    if (!this.data.isLoggedIn) {
+      wx.navigateTo({
+        url: '/pages/register/register'
+      });
+      return;
+    }
+
     wx.navigateTo({
       url: '/pages/list-edit/list-edit'
     });

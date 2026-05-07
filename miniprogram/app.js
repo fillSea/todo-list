@@ -9,6 +9,17 @@ App({
     isLoggedIn: false
   },
 
+  userCacheKeys: [
+    'userInfo',
+    'isLoggedIn',
+    'loginTime',
+    'cachedTasks',
+    'cachedTasksTime',
+    'cachedCategories',
+    'notificationSettings',
+    'jumpToDate'
+  ],
+
   onLaunch: function () {
     if (!wx.cloud) {
       console.error("请使用 2.2.3 或以上的基础库以使用云能力");
@@ -37,6 +48,7 @@ App({
       if (loginTime && (now - loginTime) > expireTime) {
         // 登录已过期，清除登录状态
         this.clearLoginStatus();
+        wx.setStorageSync('loginExpired', true);
       } else {
         // 登录有效，更新全局数据
         this.globalData.userInfo = userInfo;
@@ -68,12 +80,23 @@ App({
 
   // 清除登录状态
   clearLoginStatus: function () {
-    wx.removeStorageSync('userInfo');
-    wx.removeStorageSync('isLoggedIn');
-    wx.removeStorageSync('loginTime');
+    this.userCacheKeys.forEach(key => {
+      wx.removeStorageSync(key);
+    });
+
+    const storageInfo = wx.getStorageInfoSync();
+    storageInfo.keys
+      .filter(key => key.startsWith('calendarTasks_'))
+      .forEach(key => wx.removeStorageSync(key));
+
+    wx.removeTabBarBadge({ index: 3 });
 
     this.globalData.userInfo = null;
     this.globalData.isLoggedIn = false;
+  },
+
+  logout: function () {
+    this.clearLoginStatus();
   },
 
   // 设置登录状态
@@ -84,5 +107,25 @@ App({
     wx.setStorageSync('userInfo', userInfo);
     wx.setStorageSync('isLoggedIn', true);
     wx.setStorageSync('loginTime', new Date().getTime());
+    wx.removeStorageSync('loginExpired');
+  },
+
+  getLoginState: function () {
+    return {
+      userInfo: wx.getStorageSync('userInfo') || null,
+      isLoggedIn: wx.getStorageSync('isLoggedIn') || false,
+      loginTime: wx.getStorageSync('loginTime') || null
+    };
+  },
+
+  clearTaskCaches: function () {
+    ['cachedTasks', 'cachedTasksTime'].forEach(key => {
+      wx.removeStorageSync(key);
+    });
+
+    const storageInfo = wx.getStorageInfoSync();
+    storageInfo.keys
+      .filter(key => key.startsWith('calendarTasks_'))
+      .forEach(key => wx.removeStorageSync(key));
   }
 });

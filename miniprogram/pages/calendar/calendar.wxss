@@ -291,6 +291,43 @@
   padding: 100rpx 0;
 }
 
+.guest-state {
+  padding: 80rpx 40rpx;
+  background: #fff;
+  border-radius: 24rpx;
+  text-align: center;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+
+.guest-title {
+  display: block;
+  font-size: 36rpx;
+  color: #333;
+  font-weight: 600;
+}
+
+.guest-desc {
+  display: block;
+  margin-top: 16rpx;
+  font-size: 28rpx;
+  color: #999;
+  line-height: 1.6;
+}
+
+.guest-button {
+  margin-top: 32rpx;
+  border: none;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #1989fa 0%, #07c160 100%);
+  color: #fff;
+  font-size: 30rpx;
+  line-height: 88rpx;
+}
+
+.guest-button::after {
+  border: none;
+}
+
 .empty-text {
   font-size: 30rpx;
   color: #999;

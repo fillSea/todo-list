@@ -1,5 +1,5 @@
 {
-    "navigationBarTitleText": "清单详情",
+    "navigationStyle": "custom",
     "usingComponents": {
         "van-icon": "@vant/weapp/icon/index",
         "van-action-sheet": "@vant/weapp/action-sheet/index",

@@ -33,6 +33,12 @@
   </view>
   <!-- 正常视图 -->
   <view wx:if="{{!isSearching}}">
+  <view wx:if="{{!isLoggedIn}}" class="guest-state">
+    <text class="guest-title">完善资料后查看你的任务</text>
+    <text class="guest-desc">完善个人资料后可同步任务、分类和周期统计</text>
+    <button class="guest-button" bindtap="onCreateTask">去完善资料</button>
+  </view>
+  <block wx:else>
   <!-- 顶部任务导航栏 -->
   <view class="category-tabs">
     <view wx:for="{{categories}}" wx:key="_id" class="category-tab {{currentCategory === item._id ? 'active' : ''}}" bindtap="onCategoryChange" data-id="{{item._id}}" style="{{currentCategory === item._id ? 'color: ' + item.color + ';' : ''}}">
@@ -217,6 +223,7 @@
       </view>
     </block>
   </view>
+  </block>
   </view>
 </view>
 <view class="fab-button" bindtap="onCreateTask">

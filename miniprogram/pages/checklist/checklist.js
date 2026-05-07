@@ -193,6 +193,7 @@ Page({
 
     // 用户信息
     userInfo: null,
+    isLoggedIn: false,
 
     // 滚动区域顶部间距（根据搜索框显示状态动态调整）
     scrollMarginTop: 104,
@@ -205,32 +206,74 @@ Page({
   },
 
   onLoad: function (options) {
-    // 获取用户信息
-    const userInfo = wx.getStorageSync('userInfo') || app.globalData.userInfo;
-
     // 计算滚动区域高度
     const scrollMarginTop = 104;
     const windowHeight = wx.getSystemInfoSync().windowHeight;
 
     this.setData({
-      userInfo,
       scrollMarginTop,
       scrollHeight: windowHeight - scrollMarginTop
     });
 
-    // 加载清单列表
-    this.loadLists();
+    this.syncLoginState();
   },
 
   onShow: function () {
-    // 页面显示时刷新数据（从其他页面返回时同步最新状态）
-    this.loadLists(false);
+    this.syncLoginState(false);
+  },
+
+  syncLoginState(showLoading = true) {
+    const { isLoggedIn, userInfo } = app.getLoginState();
+
+    if (!isLoggedIn) {
+      this.resetGuestData();
+      return;
+    }
+
+    this.setData({
+      isLoggedIn: true,
+      userInfo
+    }, () => {
+      this.loadLists(showLoading);
+    });
+  },
+
+  resetGuestData() {
+    this.setData({
+      isLoggedIn: false,
+      userInfo: null,
+      lists: [],
+      filteredLists: [],
+      currentFilter: 'all',
+      isSearching: false,
+      searchKeyword: '',
+      isLoading: false,
+      isRefreshing: false,
+      isLoadingMore: false,
+      hasMore: true,
+      page: 1,
+      showDialog: false,
+      isEditing: false,
+      editingId: null,
+      showActionSheet: false,
+      actionSheetActions: [],
+      selectedListId: null,
+      showDeleteDialog: false,
+      deletingId: null,
+      emptyTitle: '完善资料后查看你的清单',
+      emptyDesc: '完善个人资料后可创建个人清单和共享清单'
+    });
   },
 
   // ==================== 数据加载 ====================
 
   // 加载清单列表
   async loadLists(showLoading = true) {
+    if (!this.data.isLoggedIn) {
+      this.resetGuestData();
+      return;
+    }
+
     if (showLoading) {
       this.setData({ isLoading: true });
     }
@@ -439,6 +482,10 @@ Page({
 
   // 显示搜索框
   onSearch() {
+    if (!this.data.isLoggedIn) {
+      return;
+    }
+
     const windowHeight = wx.getSystemInfoSync().windowHeight;
     const scrollMarginTop = 156;
     this.setData({
@@ -487,6 +534,10 @@ Page({
 
   // 下拉刷新
   onRefresh() {
+    if (!this.data.isLoggedIn) {
+      return;
+    }
+
     this.setData({
       isRefreshing: true,
       page: 1,
@@ -498,7 +549,7 @@ Page({
 
   // 上拉加载更多
   onLoadMore() {
-    if (this.data.isLoadingMore || !this.data.hasMore) return;
+    if (!this.data.isLoggedIn || this.data.isLoadingMore || !this.data.hasMore) return;
 
     this.setData({
       isLoadingMore: true,
@@ -512,6 +563,10 @@ Page({
 
   // 点击清单卡片
   onListClick(e) {
+    if (!this.data.isLoggedIn) {
+      return;
+    }
+
     const listId = e.currentTarget.dataset.id;
     const list = this.data.lists.find(item => item._id === listId);
 
@@ -525,6 +580,10 @@ Page({
 
   // 长按清单卡片
   onListLongPress(e) {
+    if (!this.data.isLoggedIn) {
+      return;
+    }
+
     const listId = e.currentTarget.dataset.id;
     const list = this.data.lists.find(item => item._id === listId);
 
@@ -607,6 +666,13 @@ Page({
 
   // 打开创建弹窗
   onCreateList() {
+    if (!this.data.isLoggedIn) {
+      wx.navigateTo({
+        url: '/pages/register/register'
+      });
+      return;
+    }
+
     this.setData({
       showDialog: true,
       isEditing: false,

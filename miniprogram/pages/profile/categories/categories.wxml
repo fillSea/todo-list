@@ -20,8 +20,8 @@
     <!-- 空状态 -->
     <view class="empty-state" wx:if="{{!loading && categories.length === 0}}">
       <van-icon name="label-o" size="120rpx" color="#ddd" />
-      <text class="empty-text">暂无分类标签</text>
-      <text class="empty-subtext">点击右下角按钮创建新分类</text>
+      <text class="empty-text">{{isLoggedIn ? '暂无分类标签' : '完善资料后查看分类标签'}}</text>
+      <text class="empty-subtext">{{isLoggedIn ? '点击右下角按钮创建新分类' : '完善个人资料后可管理分类标签'}}</text>
     </view>
   </view>
 

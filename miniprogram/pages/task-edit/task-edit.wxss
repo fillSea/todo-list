@@ -7,13 +7,32 @@
 }
 
 /* 顶部导航栏 */
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
+.header-shell {
   background-color: #fff;
   border-bottom: 1rpx solid #eee;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0 16px;
+  background-color: #fff;
+}
+
+.header-side {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.header-side-left {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.header-side-right {
+  justify-content: flex-start;
 }
 
 .header-left {
@@ -25,22 +44,29 @@
 }
 
 .header-title {
+  flex: 1;
   font-size: 17px;
   font-weight: 600;
   color: #333;
+  text-align: center;
+  padding: 0 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-right {
-  width: 40px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  width: 100%;
 }
 
 .save-btn {
   font-size: 15px;
   color: #1976D2;
   font-weight: 500;
+  line-height: 40px;
 }
 
 .save-btn:active {
@@ -50,7 +76,7 @@
 /* 表单滚动区域 */
 .form-scroll {
   flex: 1;
-  padding: 12px 0;
+  padding: 12px 0 160px;
 }
 
 /* 表单分组 */
@@ -241,7 +267,7 @@
 .delete-section {
   background-color: #fff;
   padding: 16px;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .delete-btn {
@@ -257,6 +283,34 @@
 .delete-btn:active {
   background-color: #f5f5f5;
   border-radius: 8px;
+}
+
+.bottom-action-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 120;
+  box-sizing: border-box;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  background: #fff;
+  border-top: 1rpx solid #eee;
+}
+
+.bottom-save-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  border-radius: 12px;
+  background: #1976D2;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.bottom-save-btn:active {
+  opacity: 0.9;
 }
 
 /* 弹窗样式 */

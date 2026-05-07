@@ -4,6 +4,7 @@ Page({
   data: {
     // 通知列表
     notifications: [],
+    isLoggedIn: false,
     // 加载状态
     loading: false,
     // 是否还有更多数据
@@ -26,14 +27,19 @@ Page({
   },
 
   onLoad: function () {
-    this.loadNotifications();
+    this.syncLoginState();
   },
 
   onShow: function () {
-    this.loadNotifications();
+    this.syncLoginState();
   },
 
   onPullDownRefresh: function () {
+    if (!this.data.isLoggedIn) {
+      wx.stopPullDownRefresh();
+      return;
+    }
+
     this.setData({ page: 1, hasMore: true });
     this.loadNotifications().then(() => {
       wx.stopPullDownRefresh();
@@ -41,13 +47,33 @@ Page({
   },
 
   onReachBottom: function () {
-    if (this.data.hasMore && !this.data.loading) {
+    if (this.data.isLoggedIn && this.data.hasMore && !this.data.loading) {
       this.loadMoreNotifications();
     }
   },
 
+  syncLoginState: function () {
+    const { isLoggedIn } = app.getLoginState();
+
+    if (!isLoggedIn) {
+      this.setData({
+        isLoggedIn: false,
+        notifications: [],
+        loading: false,
+        hasMore: false,
+        page: 1
+      });
+      return;
+    }
+
+    this.setData({ isLoggedIn: true });
+    this.loadNotifications();
+  },
+
   // 加载通知列表
   loadNotifications: async function () {
+    if (!this.data.isLoggedIn) return;
+
     this.setData({ loading: true });
 
     try {
@@ -90,7 +116,7 @@ Page({
 
   // 加载更多通知
   loadMoreNotifications: async function () {
-    if (this.data.loading || !this.data.hasMore) return;
+    if (!this.data.isLoggedIn || this.data.loading || !this.data.hasMore) return;
 
     this.setData({ loading: true });
     const nextPage = this.data.page + 1;
@@ -127,6 +153,8 @@ Page({
 
   // 切换通知类型
   onTypeChange: function (e) {
+    if (!this.data.isLoggedIn) return;
+
     const type = e.currentTarget.dataset.type;
     this.setData({ currentType: type, page: 1, hasMore: true });
     this.loadNotifications();
@@ -134,6 +162,8 @@ Page({
 
   // 点击通知
   onNotificationTap: function (e) {
+    if (!this.data.isLoggedIn) return;
+
     const notification = e.currentTarget.dataset.item;
 
     // 标记为已读
@@ -169,6 +199,8 @@ Page({
 
   // 标记单条通知为已读
   markAsRead: async function (notificationId) {
+    if (!this.data.isLoggedIn) return;
+
     try {
       const res = await wx.cloud.callFunction({
         name: 'profileFunctions',
@@ -195,6 +227,13 @@ Page({
 
   // 标记所有通知为已读
   onMarkAllRead: async function () {
+    if (!this.data.isLoggedIn) {
+      wx.navigateTo({
+        url: '/pages/register/register'
+      });
+      return;
+    }
+
     try {
       wx.showLoading({ title: '处理中...' });
 
@@ -236,6 +275,8 @@ Page({
 
   // 删除通知
   onDeleteNotification: function (e) {
+    if (!this.data.isLoggedIn) return;
+
     const notificationId = e.currentTarget.dataset.id;
 
     wx.showModal({
@@ -252,6 +293,8 @@ Page({
 
   // 执行删除
   deleteNotification: async function (notificationId) {
+    if (!this.data.isLoggedIn) return;
+
     try {
       const res = await wx.cloud.callFunction({
         name: 'profileFunctions',

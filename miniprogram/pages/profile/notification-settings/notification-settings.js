@@ -2,6 +2,7 @@ const app = getApp();
 
 Page({
   data: {
+    isLoggedIn: false,
     // 通知设置
     settings: {
       enableNotifications: true,
@@ -45,11 +46,38 @@ Page({
   },
 
   onLoad: function () {
+    this.syncLoginState();
+  },
+
+  onShow: function () {
+    this.syncLoginState();
+  },
+
+  syncLoginState: function () {
+    const { isLoggedIn } = app.getLoginState();
+
+    if (!isLoggedIn) {
+      this.setData({
+        isLoggedIn: false,
+        loading: false,
+        settings: {
+          enableNotifications: true,
+          taskReminder: true,
+          listCollaboration: true,
+          systemNotice: true
+        }
+      });
+      return;
+    }
+
+    this.setData({ isLoggedIn: true });
     this.loadSettings();
   },
 
   // 加载设置
   loadSettings: async function () {
+    if (!this.data.isLoggedIn) return;
+
     this.setData({ loading: true });
 
     try {
@@ -81,6 +109,8 @@ Page({
 
   // 切换设置
   onSettingChange: async function (e) {
+    if (!this.data.isLoggedIn) return;
+
     const key = e.currentTarget.dataset.key;
     const value = e.detail.value;
 
@@ -126,6 +156,13 @@ Page({
 
   // 请求订阅消息权限
   onRequestSubscribe: function () {
+    if (!this.data.isLoggedIn) {
+      wx.navigateTo({
+        url: '/pages/register/register'
+      });
+      return;
+    }
+
     wx.requestSubscribeMessage({
       tmplIds: [
         'TASK_REMINDER', // 任务提醒模板ID
@@ -151,6 +188,13 @@ Page({
 
   // 打开系统通知设置
   onOpenSystemSettings: function () {
+    if (!this.data.isLoggedIn) {
+      wx.navigateTo({
+        url: '/pages/register/register'
+      });
+      return;
+    }
+
     wx.openSetting({
       withSubscriptions: true
     });

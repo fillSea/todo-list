@@ -118,7 +118,10 @@
       <van-icon name="records" size="80px" color="#ddd" />
       <text class="empty-title">{{emptyTitle}}</text>
       <text class="empty-desc">{{emptyDesc}}</text>
-      <view class="empty-action" wx:if="{{currentFilter === 'all' || currentFilter === 'created'}}">
+      <view class="empty-action" wx:if="{{!isLoggedIn}}">
+        <van-button type="info" size="small" bind:click="onCreateList">去完善资料</van-button>
+      </view>
+      <view class="empty-action" wx:elif="{{currentFilter === 'all' || currentFilter === 'created'}}">
         <van-button type="info" size="small" bind:click="onCreateList">创建清单</van-button>
       </view>
     </view>
