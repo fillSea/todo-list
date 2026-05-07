@@ -129,17 +129,23 @@
 
 /* 分类标签 */
 .category-tabs {
-  display: flex;
   background: white;
   padding: 20rpx 0;
   margin-top: 20rpx;
   border-top: 1rpx solid #f0f0f0;
+  white-space: nowrap;
+}
+
+.category-tabs-inner {
+  display: inline-flex;
+  min-width: 100%;
+  padding: 0 12rpx;
 }
 
 .category-tab {
-  flex: 1;
+  flex: 0 0 auto;
   text-align: center;
-  padding: 16rpx 0;
+  padding: 16rpx 24rpx;
   font-size: 30rpx;
   color: #666;
   position: relative;
@@ -262,18 +268,21 @@
 }
 
 .stats-btn {
-  width: 48rpx;
-  height: 48rpx;
+  min-width: 72rpx;
+  height: 44rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f0f0f0;
-  border-radius: 50%;
+  background: #edf4ff;
+  border-radius: 22rpx;
   margin-bottom: 4rpx;
+  padding: 0 16rpx;
 }
 
-.stats-icon {
-  font-size: 28rpx;
+.stats-label {
+  font-size: 22rpx;
+  color: #1989fa;
+  font-weight: 500;
 }
 
 .task-time {

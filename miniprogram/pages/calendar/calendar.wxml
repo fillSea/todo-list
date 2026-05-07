@@ -33,14 +33,16 @@
     </view>
   </view>
   <!-- 分类标签 -->
-  <view class="category-tabs">
-    <view wx:for="{{categories}}" wx:key="_id" class="category-tab {{currentCategory === item._id ? 'active' : ''}}" bindtap="onCategoryChange" data-id="{{item._id}}" style="{{currentCategory === item._id ? 'color: ' + item.color + ';' : ''}}">
-      <text style="{{currentCategory === item._id ? 'color: ' + item.color + ';' : ''}}">
-        {{item.name}}
-      </text>
-      <view wx:if="{{currentCategory === item._id}}" class="active-line" style="background: {{item.color}};"></view>
+  <scroll-view class="category-tabs" scroll-x="true" show-scrollbar="false" enhanced="true">
+    <view class="category-tabs-inner">
+      <view wx:for="{{categories}}" wx:key="_id" class="category-tab {{currentCategory === item._id ? 'active' : ''}}" bindtap="onCategoryChange" data-id="{{item._id}}" style="{{currentCategory === item._id ? 'color: ' + item.color + ';' : ''}}">
+        <text style="{{currentCategory === item._id ? 'color: ' + item.color + ';' : ''}}">
+          {{item.name}}
+        </text>
+        <view wx:if="{{currentCategory === item._id}}" class="active-line" style="background: {{item.color}};"></view>
+      </view>
     </view>
-  </view>
+  </scroll-view>
   <!-- 任务列表 -->
   <view class="task-sections">
     <view wx:if="{{!isRegistered}}" class="guest-state">
@@ -67,8 +69,8 @@
           </view>
         </view>
         <view class="task-actions">
-          <view wx:if="{{item.repeatType > 0}}" class="stats-btn" catchtap="onViewStats" data-id="{{item.parentTaskId || item._id}}" data-title="{{item.title}}">
-            <text class="stats-icon">📊</text>
+          <view wx:if="{{item.repeatType > 0}}" class="stats-btn" catchtap="onViewStats" data-id="{{item.parentTaskId || item._id}}">
+            <text class="stats-label">统计</text>
           </view>
           <view class="task-time">{{item.time}}</view>
         </view>
@@ -92,8 +94,8 @@
           </view>
         </view>
         <view class="task-actions">
-          <view wx:if="{{item.repeatType > 0}}" class="stats-btn" catchtap="onViewStats" data-id="{{item.parentTaskId || item._id}}" data-title="{{item.title}}">
-            <text class="stats-icon">📊</text>
+          <view wx:if="{{item.repeatType > 0}}" class="stats-btn" catchtap="onViewStats" data-id="{{item.parentTaskId || item._id}}">
+            <text class="stats-label">统计</text>
           </view>
           <view class="task-time overdue">{{item.time}}</view>
         </view>
@@ -117,8 +119,8 @@
           </view>
         </view>
         <view class="task-actions">
-          <view wx:if="{{item.repeatType > 0}}" class="stats-btn" catchtap="onViewStats" data-id="{{item.parentTaskId || item._id}}" data-title="{{item.title}}">
-            <text class="stats-icon">📊</text>
+          <view wx:if="{{item.repeatType > 0}}" class="stats-btn" catchtap="onViewStats" data-id="{{item.parentTaskId || item._id}}">
+            <text class="stats-label">统计</text>
           </view>
           <view class="task-time">{{item.time}}</view>
         </view>

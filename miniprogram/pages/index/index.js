@@ -3,6 +3,10 @@ const {
   isTaskOverdueByDate,
   getTaskSeriesGroupId
 } = require('../../utils/taskDisplay');
+const {
+  normalizeCheckboxValue,
+  handleTaskStatusToggle
+} = require('../../utils/taskToggle');
 
 function isPersonalStandaloneTask(task) {
   return Number(task.ownershipType) === 1 || (!task.listId && task.creatorId);
@@ -268,164 +272,33 @@ Page({
 
   onTaskComplete: async function (e) {
     const taskId = e.currentTarget.dataset.id;
-    const newStatus = e.detail ? 1 : 0;
+    const newStatus = normalizeCheckboxValue(e.detail) ? 1 : 0;
+    const task = this.data.tasks.find(t => t._id === taskId);
 
-    // 如果是将已过期任务标记为完成，先弹出确认框
-    let confirmedOverdue = false;
-    if (newStatus === 1) {
-      const task = this.data.tasks.find(t => t._id === taskId);
-      if (task && task.isOverdue) {
-        const res = await new Promise(resolve => {
-          wx.showModal({
-            title: '提示',
-            content: '该任务已过期，确认要标记为已完成吗？',
-            confirmText: '确认完成',
-            cancelText: '取消',
-            success: resolve
-          });
-        });
-        if (!res.confirm) return;
-        confirmedOverdue = true;
-      }
-    }
-
-    // 调用云函数更新状态
-    try {
-      const result = await wx.cloud.callFunction({
-        name: 'taskFunctions',
-        data: {
-          action: 'toggleTaskStatus',
-          data: {
-            taskId,
-            status: newStatus,
-            confirmCompleteOverdue: confirmedOverdue || undefined
+    await handleTaskStatusToggle({
+      taskId,
+      task,
+      newStatus,
+      refreshView: () => this.loadTasks(),
+      reloadTasks: () => this.loadTasks(),
+      updateLocalTaskStatus: (status) => {
+        const tasks = this.data.tasks.map(item => {
+          if (item._id === taskId) {
+            return { ...item, status };
           }
-        }
-      });
-
-      // 检查云函数返回结果
-      if (result.result && result.result.code !== 0) {
-        // 云函数返回错误，显示错误提示
-        wx.showToast({
-          title: result.result.message || '操作失败',
-          icon: 'none'
-        });
-        // 恢复任务状态（强制刷新 checkbox）
-        const tasks = this.data.tasks.map(task => {
-          if (task._id === taskId) {
-            // 恢复原状态（与 newStatus 相反）
-            return { ...task, status: newStatus === 1 ? 0 : 1 };
-          }
-          return task;
+          return item;
         });
         this.setData({ tasks });
-        return;
-      }
-
-      const resultData = result.result && result.result.data;
-
-      // 规则：进行中的周期任务只能完成当天的任务
-      if (resultData && resultData.needConfirmCompleteNotToday) {
-        // 非当天的周期任务，提示用户只能完成当天的任务
-        wx.showModal({
-          title: '提示',
-          content: resultData.confirmMessage || '只能完成当天的周期任务',
-          confirmText: '去查看',
-          cancelText: '取消',
-          success: (res) => {
-            if (res.confirm) {
-              // 跳转到日历页面并切换到该日期
-              const dueDate = resultData.dueDate;
-              if (dueDate) {
-                wx.switchTab({
-                  url: '/pages/calendar/calendar'
-                });
-                // 将日期信息存储到全局，日历页面读取后自动切换
-                wx.setStorageSync('jumpToDate', dueDate);
-              }
-            }
-            // 如果用户选择取消，不做任何操作，保持原状态
-          }
+        this.processTasks();
+      },
+      navigateToDate: (dateStr) => {
+        wx.switchTab({
+          url: '/pages/calendar/calendar'
         });
-        return;
-      }
-
-      // 方案A：如果需要确认取消完成（周期任务），显示确认对话框
-      if (resultData && resultData.needConfirmUncheck) {
-        // 只针对周期任务显示确认提示
-        const confirmMessage = resultData.confirmMessage || '取消完成此任务不会影响后续的周期任务，是否确认？';
-
-        wx.showModal({
-          title: '提示',
-          content: confirmMessage,
-          confirmText: '确认',
-          cancelText: '取消',
-          success: async (res) => {
-            if (res.confirm) {
-              // 用户确认，再次调用云函数并传入确认参数
-              try {
-                const confirmResult = await wx.cloud.callFunction({
-                  name: 'taskFunctions',
-                  data: {
-                    action: 'toggleTaskStatus',
-                    data: {
-                      taskId,
-                      status: newStatus,
-                      confirmUncheck: true // 方案A：只恢复当前任务，不删除后续任务
-                    }
-                  }
-                });
-
-                // 检查云函数返回结果
-                if (confirmResult.result && confirmResult.result.code === 0) {
-                  // 方案A：只更新当前任务状态，不删除任何后续任务
-                  const tasks = this.data.tasks.map(task => {
-                    if (task._id === taskId) {
-                      return { ...task, status: newStatus };
-                    }
-                    return task;
-                  });
-                  this.setData({ tasks });
-                  this.processTasks();
-
-                  wx.showToast({
-                    title: '已取消完成',
-                    icon: 'success'
-                  });
-                }
-              } catch (error) {
-                console.error('操作失败:', error);
-              }
-            }
-            // 如果用户选择取消，不做任何操作，保持原状态
-          }
-        });
-        return;
-      }
-
-      // 更新本地状态（云函数调用成功后且不需要确认）
-      const tasks = this.data.tasks.map(task => {
-        if (task._id === taskId) {
-          return { ...task, status: newStatus };
-        }
-        return task;
-      });
-      this.setData({ tasks });
-      this.processTasks();
-
-      // 如果生成了新的周期任务，或者完成的是周期任务，刷新列表以显示下一个周期任务
-      if (resultData && (resultData.newPeriodicTasks || resultData.isRepeatTask)) {
-        this.loadTasks();
-      }
-    } catch (error) {
-      console.error('更新任务状态失败:', error);
-      wx.showToast({
-        title: '操作失败',
-        icon: 'none'
-      });
-      // 刷新列表恢复正确状态
-      this.loadTasks();
-    }
+        wx.setStorageSync('jumpToDate', dateStr);
+      },
+      notTodayConfirmText: '去查看'
+    });
   },
 
   // 阻止复选框点击事件冒泡

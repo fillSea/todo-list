@@ -43,10 +43,50 @@ function getUTC8DateString(input) {
   return `${year}-${month}-${day}`;
 }
 
+function compareUTC8DateStrings(dateA, dateB) {
+  if (!dateA && !dateB) {
+    return 0;
+  }
+  if (!dateA) {
+    return -1;
+  }
+  if (!dateB) {
+    return 1;
+  }
+  if (dateA === dateB) {
+    return 0;
+  }
+  return dateA < dateB ? -1 : 1;
+}
+
+function getSelectedDateMode(dateStr) {
+  const todayStr = getUTC8DateString(new Date());
+  const compareResult = compareUTC8DateStrings(dateStr, todayStr);
+  if (compareResult < 0) {
+    return 'past';
+  }
+  if (compareResult > 0) {
+    return 'future';
+  }
+  return 'today';
+}
+
+function isDateBeforeTodayUTC8(dateStr) {
+  return getSelectedDateMode(dateStr) === 'past';
+}
+
+function isDateTodayUTC8(dateStr) {
+  return getSelectedDateMode(dateStr) === 'today';
+}
+
 module.exports = {
   toUTC8DateOnly,
   getTodayInUTC8,
   isTaskOverdueByDate,
   getTaskSeriesGroupId,
-  getUTC8DateString
+  getUTC8DateString,
+  compareUTC8DateStrings,
+  getSelectedDateMode,
+  isDateBeforeTodayUTC8,
+  isDateTodayUTC8
 };

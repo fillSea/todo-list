@@ -1,8 +1,15 @@
 const app = getApp();
 const {
-  getTodayInUTC8,
-  toUTC8DateOnly
+  toUTC8DateOnly,
+  getTaskSeriesGroupId,
+  getUTC8DateString,
+  compareUTC8DateStrings,
+  getSelectedDateMode
 } = require('../../utils/taskDisplay');
+const {
+  normalizeCheckboxValue,
+  handleTaskStatusToggle
+} = require('../../utils/taskToggle');
 
 function isPersonalStandaloneTask(task) {
   return Number(task.ownershipType) === 1 || (!task.listId && task.creatorId);
@@ -24,6 +31,7 @@ Page({
       { _id: 'all', name: '全部', color: '#999' }
     ],
     currentCategory: 'all',
+    selectedDateMode: 'today',
     selectedDateTasks: [],
     inProgressTasks: [],
     overdueTasks: [],
@@ -37,13 +45,16 @@ Page({
     // 检查是否有跳转日期（从首页跳转过来）
     const jumpToDate = wx.getStorageSync('jumpToDate');
     if (jumpToDate) {
+      const [jy, jm] = jumpToDate.split('-').map(Number);
       // 清除存储的日期
       wx.removeStorageSync('jumpToDate');
       // 使用跳转日期
       this.setData({
         isRegistered: isLoggedIn,
         userId,
-        selectedDate: jumpToDate
+        selectedDate: jumpToDate,
+        currentYear: jy,
+        currentMonth: jm
       });
     } else {
       const today = new Date();
@@ -96,6 +107,7 @@ Page({
         { _id: 'all', name: '全部', color: '#999' }
       ],
       currentCategory: 'all',
+      selectedDateMode: getSelectedDateMode(this.data.selectedDate || getUTC8DateString(new Date())),
       tasks: [],
       selectedDateTasks: [],
       inProgressTasks: [],
@@ -282,44 +294,41 @@ Page({
   // 根据云函数定义: repeatType 0-不重复, 1-每天, 2-每周, 3-每月
   // repeatValue 格式: "1,3,5"-每周一三五, "1,15"-每月1号和15号
   isTaskRepeatingOnDate: function (task, dateStr) {
-    // 统一提取日期部分（支持多种格式）
-    const taskDateObj = new Date(task.dueDate);
-    const taskDate = this.formatDate(taskDateObj.getFullYear(), taskDateObj.getMonth() + 1, taskDateObj.getDate());
+    const repeatType = Number(task.repeatType);
+    const taskDate = getUTC8DateString(task.dueDate);
 
-    // 如果任务日期就是目标日期，直接匹配
     if (taskDate === dateStr) {
       return true;
     }
 
-    // 不重复
-    if (task.repeatType === 0) {
+    if (repeatType === 0) {
       return false;
     }
 
-    // 对于预生成的周期任务实例，只匹配dueDate，不重复计算
     if (task.isPeriodicInstance) {
       return false;
     }
 
-    // 以下逻辑只适用于原始的父周期任务（用于计算周期徽章数量）
-    const targetDate = new Date(dateStr);
-    const targetDayOfWeek = targetDate.getDay() || 7; // 1-7 (周一到周日)
-    const targetDayOfMonth = targetDate.getDate();
+    if (compareUTC8DateStrings(dateStr, taskDate) < 0) {
+      return false;
+    }
 
-    // 每天重复 (repeatType = 1)
-    if (task.repeatType === 1) {
+    const targetDate = toUTC8DateOnly(`${dateStr}T00:00:00+08:00`);
+    const utc8TargetDate = new Date(targetDate.getTime() + 8 * 60 * 60 * 1000);
+    const targetDayOfWeek = utc8TargetDate.getUTCDay() || 7; // 1-7 (周一到周日)
+    const targetDayOfMonth = utc8TargetDate.getUTCDate();
+
+    if (repeatType === 1) {
       return true;
     }
 
-    // 每周重复 (repeatType = 2)
-    if (task.repeatType === 2) {
+    if (repeatType === 2) {
       if (!task.repeatValue) return false;
       const repeatDays = task.repeatValue.split(',').map(v => parseInt(v.trim()));
       return repeatDays.includes(targetDayOfWeek);
     }
 
-    // 每月重复 (repeatType = 3)
-    if (task.repeatType === 3) {
+    if (repeatType === 3) {
       if (!task.repeatValue) return false;
       const repeatDays = task.repeatValue.split(',').map(v => parseInt(v.trim()));
       return repeatDays.includes(targetDayOfMonth);
@@ -332,50 +341,171 @@ Page({
   // 选中日期显示当天的进行中周期任务数量
   // 选中日期之后的日期显示：选中日期的进行中周期任务系列在该日期的未完成实例数
   calculatePeriodicCount: function (dateStr) {
-    const { tasks, selectedDate } = this.data;
+    const { tasks, selectedDate, currentCategory } = this.data;
     if (!selectedDate || !tasks || tasks.length === 0) return 0;
 
-    const currentDateTime = new Date(dateStr).getTime();
-    const selectedDateTime = new Date(selectedDate).getTime();
-
-    // 选中日期当天：显示该日期的进行中周期任务数量
-    if (dateStr === selectedDate) {
-      const periodicTasks = tasks.filter(task => {
-        return task.repeatType > 0 && Number(task.status) === 0 && this.isTaskRepeatingOnDate(task, dateStr);
-      });
-      return periodicTasks.length;
-    }
-
-    // 只计算选中日期之后的日期
-    if (currentDateTime <= selectedDateTime) {
+    if (compareUTC8DateStrings(dateStr, selectedDate) < 0) {
       return 0;
     }
 
-    // 找到选中日期上存在的进行中周期任务的系列ID
-    const selectedDatePeriodicTasks = tasks.filter(task => {
-      return task.repeatType > 0 && Number(task.status) === 0 && this.isTaskRepeatingOnDate(task, selectedDate);
-    });
-
-    const seriesIds = new Set();
-    selectedDatePeriodicTasks.forEach(task => {
-      seriesIds.add(task.parentTaskId || task._id);
-    });
+    const seriesIds = this.getSelectedDateDisplayPeriodicSeriesIds(selectedDate, tasks, currentCategory);
 
     if (seriesIds.size === 0) return 0;
 
-    // 在目标日期上，检查这些系列是否有未完成的实例
     let count = 0;
     seriesIds.forEach(seriesId => {
-      const hasUnfinishedInstance = tasks.some(task => {
+      const hasSeriesTask = tasks.some(task => {
         const belongsToSeries = (task.parentTaskId === seriesId || task._id === seriesId);
         if (!belongsToSeries) return false;
-        if (Number(task.status) !== 0) return false; // 只计算未完成的
         return this.isTaskRepeatingOnDate(task, dateStr);
       });
-      if (hasUnfinishedInstance) count++;
+      if (hasSeriesTask) count++;
     });
 
     return count;
+  },
+
+  getSelectedDateTaskCandidates: function (selectedDate, tasks) {
+    return tasks.filter(task => this.isTaskRepeatingOnDate(task, selectedDate));
+  },
+
+  choosePreferredSelectedDateTask: function (tasks, selectedDate) {
+    if (!tasks || tasks.length === 0) {
+      return null;
+    }
+
+    return tasks
+      .slice()
+      .sort((taskA, taskB) => {
+        const isExactDateA = getUTC8DateString(taskA.dueDate) === selectedDate;
+        const isExactDateB = getUTC8DateString(taskB.dueDate) === selectedDate;
+        if (isExactDateA !== isExactDateB) {
+          return isExactDateA ? -1 : 1;
+        }
+
+        const isInstanceA = Boolean(taskA.isPeriodicInstance);
+        const isInstanceB = Boolean(taskB.isPeriodicInstance);
+        if (isInstanceA !== isInstanceB) {
+          return isInstanceA ? -1 : 1;
+        }
+
+        const statusA = Number(taskA.status);
+        const statusB = Number(taskB.status);
+        if (statusA !== statusB) {
+          return statusA - statusB;
+        }
+
+        const updatedAtA = new Date(taskA.updatedAt || taskA.createdAt || 0).getTime();
+        const updatedAtB = new Date(taskB.updatedAt || taskB.createdAt || 0).getTime();
+        if (updatedAtA !== updatedAtB) {
+          return updatedAtB - updatedAtA;
+        }
+
+        return 0;
+      })[0];
+  },
+
+  dedupeSelectedDatePeriodicTasks: function (taskCandidates, selectedDate) {
+    const nonPeriodicTasks = [];
+    const periodicTaskGroups = {};
+
+    taskCandidates.forEach(task => {
+      if (Number(task.repeatType) === 0) {
+        nonPeriodicTasks.push(task);
+        return;
+      }
+
+      const seriesId = getTaskSeriesGroupId(task);
+      if (!periodicTaskGroups[seriesId]) {
+        periodicTaskGroups[seriesId] = [];
+      }
+      periodicTaskGroups[seriesId].push(task);
+    });
+
+    const dedupedPeriodicTasks = Object.values(periodicTaskGroups)
+      .map(seriesTasks => {
+        const exactDateTasks = seriesTasks.filter(task => getUTC8DateString(task.dueDate) === selectedDate);
+        if (exactDateTasks.length > 0) {
+          return this.choosePreferredSelectedDateTask(exactDateTasks, selectedDate);
+        }
+
+        const projectionTasks = seriesTasks.filter(task => !task.isPeriodicInstance);
+        return this.choosePreferredSelectedDateTask(projectionTasks, selectedDate)
+          || this.choosePreferredSelectedDateTask(seriesTasks, selectedDate);
+      })
+      .filter(Boolean);
+
+    return [...nonPeriodicTasks, ...dedupedPeriodicTasks];
+  },
+
+  getDisplayTasksForSelectedDate: function (selectedDate, tasks) {
+    const taskCandidates = this.getSelectedDateTaskCandidates(selectedDate, tasks);
+    return this.dedupeSelectedDatePeriodicTasks(taskCandidates, selectedDate);
+  },
+
+  getSelectedDateDisplayTasks: function (selectedDate, tasks, currentCategory) {
+    let displayTasks = this.getDisplayTasksForSelectedDate(selectedDate, tasks);
+    const selectedDateMode = getSelectedDateMode(selectedDate);
+
+    if (selectedDateMode === 'future') {
+      displayTasks = displayTasks.filter(task => Number(task.status) === 0);
+    }
+
+    if (currentCategory !== 'all') {
+      displayTasks = displayTasks.filter(task => task.categoryId === currentCategory);
+    }
+
+    return displayTasks;
+  },
+
+  getSelectedDateDisplayPeriodicSeriesIds: function (selectedDate, tasks, currentCategory) {
+    const displayTasks = this.getSelectedDateDisplayTasks(selectedDate, tasks, currentCategory);
+    const seriesIds = new Set();
+
+    displayTasks.forEach(task => {
+      if (Number(task.repeatType) > 0) {
+        seriesIds.add(getTaskSeriesGroupId(task));
+      }
+    });
+
+    return seriesIds;
+  },
+
+  splitSelectedDateTasksByMode: function (tasks, selectedDateMode) {
+    if (selectedDateMode === 'past') {
+      return {
+        inProgressTasks: [],
+        overdueTasks: tasks.filter(task => task.status === 0),
+        completedTasks: tasks.filter(task => task.status === 1)
+      };
+    }
+
+    if (selectedDateMode === 'future') {
+      return {
+        inProgressTasks: tasks.filter(task => task.status === 0),
+        overdueTasks: [],
+        completedTasks: []
+      };
+    }
+
+    return {
+      inProgressTasks: tasks.filter(task => task.status === 0),
+      overdueTasks: [],
+      completedTasks: tasks.filter(task => task.status === 1)
+    };
+  },
+
+  updateLocalTaskStatus: function (taskId, newStatus) {
+    const tasks = this.data.tasks.map(task => {
+      if (task._id === taskId) {
+        return { ...task, status: newStatus };
+      }
+      return task;
+    });
+
+    this.setData({ tasks });
+    this.generateCalendar();
+    this.loadTasksForSelectedDate();
   },
 
   // 上一年
@@ -435,50 +565,12 @@ Page({
     const { selectedDate, tasks, currentCategory } = this.data;
     if (!selectedDate) return;
 
-    // 过滤选中日期的任务（包括重复任务）
-    let selectedDateTasks = tasks.filter(task => {
-      return this.isTaskRepeatingOnDate(task, selectedDate);
-    });
-
-    // 按分类过滤
-    if (currentCategory !== 'all') {
-      selectedDateTasks = selectedDateTasks.filter(task => task.categoryId === currentCategory);
-    }
-
-    // 处理任务数据
-    const now = new Date();
-    const today = getTodayInUTC8();
-
-    // 判断选中日期是否是今天
-    // 将 YYYY-MM-DD 格式转换为本地日期，避免时区问题
-    const [selectedYear, selectedMonth, selectedDay] = selectedDate.split('-').map(Number);
-    const selectedDateObj = toUTC8DateOnly(new Date(`${selectedDate}T00:00:00+08:00`));
-    const isToday = selectedDateObj.getTime() === today.getTime();
+    const selectedDateMode = getSelectedDateMode(selectedDate);
+    const selectedDateTasks = this.getSelectedDateDisplayTasks(selectedDate, tasks, currentCategory);
 
     const processedTasks = selectedDateTasks.map(task => {
-      const dueDate = new Date(task.dueDate);
-      let isOverdue;
       const taskStatus = Number(task.status);
-      const isPeriodic = task.repeatType > 0;
-
-      // 过期判断逻辑以系统时间为基准，周期任务与非周期任务统一处理
-      if (isToday) {
-        // 选中当天时，判断日期和时间（周期任务按选中日期当天结束判断）
-        if (isPeriodic) {
-          isOverdue = false;
-        } else {
-          isOverdue = dueDate < now && taskStatus === 0;
-        }
-      } else if (selectedDateObj < today) {
-        // 选中过去的日期：该日期的所有未完成任务都显示为已过期
-        isOverdue = taskStatus === 0;
-      } else {
-        // 选中未来的日期：不显示为过期
-        isOverdue = false;
-      }
-
       const priorityColor = this.getPriorityColor(task.priority);
-      // 处理时间显示 - 支持多种日期格式
       let time = '';
       if (task.dueDate) {
         const dateObj = new Date(task.dueDate);
@@ -491,7 +583,7 @@ Page({
         ...task,
         isPersonalTask: isPersonalStandaloneTask(task),
         status: taskStatus,
-        isOverdue,
+        isOverdue: selectedDateMode === 'past' && taskStatus === 0,
         priorityColor,
         time,
         categoryName: category ? category.name : '未分类',
@@ -499,13 +591,14 @@ Page({
       };
     });
 
-    // status 只持久化 0=未完成、1=已完成，逾期由 isOverdue 派生
-    // 过期判断以系统时间为基准
-    const inProgressTasks = processedTasks.filter(task => task.status === 0 && !task.isOverdue);
-    const overdueTasks = processedTasks.filter(task => task.status === 0 && task.isOverdue);
-    const completedTasks = processedTasks.filter(task => task.status === 1);
+    const {
+      inProgressTasks,
+      overdueTasks,
+      completedTasks
+    } = this.splitSelectedDateTasksByMode(processedTasks, selectedDateMode);
 
     this.setData({
+      selectedDateMode,
       selectedDateTasks: processedTasks,
       inProgressTasks,
       overdueTasks,
@@ -552,205 +645,20 @@ Page({
   // status 只持久化 0=未完成、1=已完成，逾期由 isOverdue 派生
   onTaskComplete: async function (e) {
     const taskId = e.currentTarget.dataset.id;
-    const completed = e.detail;
-    const newStatus = completed ? 1 : 0;
+    const newStatus = normalizeCheckboxValue(e.detail) ? 1 : 0;
+    const task = this.data.selectedDateTasks.find(t => t._id === taskId) || this.data.tasks.find(t => t._id === taskId);
 
-    // 前端拦截：已过期任务完成确认 & 周期任务只能在当日完成
-    let confirmedOverdue = false;
-    if (newStatus === 1) {
-      const task = this.data.tasks.find(t => t._id === taskId);
-      if (task && task.repeatType > 0) {
-        const { selectedDate } = this.data;
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const [sy, sm, sd] = selectedDate.split('-').map(Number);
-        const selDateObj = new Date(sy, sm - 1, sd);
-        selDateObj.setHours(0, 0, 0, 0);
-
-        if (selDateObj < today) {
-          // 已过期的周期任务：弹出确认框
-          const confirmRes = await new Promise(resolve => {
-            wx.showModal({
-              title: '提示',
-              content: '该任务已过期，确认要标记为已完成吗？',
-              confirmText: '确认完成',
-              cancelText: '取消',
-              success: resolve
-            });
-          });
-          if (!confirmRes.confirm) {
-            this.loadTasksForSelectedDate();
-            return;
-          }
-          confirmedOverdue = true;
-        } else if (selDateObj.getTime() !== today.getTime()) {
-          // 非当日（未来日期）的周期任务：直接拦截，提示无法完成
-          wx.showModal({
-            title: '提示',
-            content: '无法完成非当日的周期任务',
-            showCancel: false,
-            confirmText: '知道了'
-          });
-          // 恢复 checkbox 状态
-          this.loadTasksForSelectedDate();
-          return;
-        }
-        // 当日周期任务：正常完成，不拦截
-      } else if (task && task.isOverdue) {
-        // 非周期的已过期任务：弹出确认框
-        const confirmRes = await new Promise(resolve => {
-          wx.showModal({
-            title: '提示',
-            content: '该任务已过期，确认要标记为已完成吗？',
-            confirmText: '确认完成',
-            cancelText: '取消',
-            success: resolve
-          });
-        });
-        if (!confirmRes.confirm) {
-          this.loadTasksForSelectedDate();
-          return;
-        }
-        confirmedOverdue = true;
-      }
-    }
-
-    // 调用云函数更新状态
-    try {
-      const result = await wx.cloud.callFunction({
-        name: 'taskFunctions',
-        data: {
-          action: 'toggleTaskStatus',
-          data: {
-            taskId,
-            status: newStatus,
-            confirmCompleteOverdue: confirmedOverdue || undefined
-          }
-        }
-      });
-
-      // 检查云函数返回结果
-      if (result.result && result.result.code !== 0) {
-        // 云函数返回错误，显示错误提示
-        wx.showToast({
-          title: result.result.message || '操作失败',
-          icon: 'none'
-        });
-        // 恢复任务状态（强制刷新 checkbox）
-        const tasks = this.data.tasks.map(task => {
-          if (task._id === taskId) {
-            // 恢复原状态（与 newStatus 相反）
-            return { ...task, status: newStatus === 1 ? 0 : 1 };
-          }
-          return task;
-        });
-        this.setData({ tasks });
-        return;
-      }
-
-      const resultData = result.result && result.result.data;
-
-      // 规则：进行中的周期任务只能完成当天的任务
-      if (resultData && resultData.needConfirmCompleteNotToday) {
-        // 非当天的周期任务，提示用户只能完成当天的任务
-        wx.showModal({
-          title: '提示',
-          content: resultData.confirmMessage || '只能完成当天的周期任务',
-          confirmText: '切换日期',
-          cancelText: '取消',
-          success: (res) => {
-            if (res.confirm) {
-              // 切换到该日期
-              const dueDate = resultData.dueDate;
-              if (dueDate) {
-                this.jumpToDate(dueDate);
-              }
-            }
-            // 如果用户选择取消，不做任何操作，保持原状态
-          }
-        });
-        return;
-      }
-
-      // 方案A：如果需要确认取消完成（周期任务），显示确认对话框
-      if (resultData && resultData.needConfirmUncheck) {
-        // 只针对周期任务显示确认提示
-        const confirmMessage = resultData.confirmMessage || '取消完成此任务不会影响后续的周期任务，是否确认？';
-
-        wx.showModal({
-          title: '提示',
-          content: confirmMessage,
-          confirmText: '确认',
-          cancelText: '取消',
-          success: async (res) => {
-            if (res.confirm) {
-              // 用户确认，再次调用云函数并传入确认参数
-              try {
-                const confirmResult = await wx.cloud.callFunction({
-                  name: 'taskFunctions',
-                  data: {
-                    action: 'toggleTaskStatus',
-                    data: {
-                      taskId,
-                      status: newStatus,
-                      confirmUncheck: true // 方案A：只恢复当前任务，不删除后续任务
-                    }
-                  }
-                });
-
-                // 检查云函数返回结果
-                if (confirmResult.result && confirmResult.result.code === 0) {
-                  // 方案A：只更新当前任务状态，不删除任何后续任务
-                  const tasks = this.data.tasks.map(task => {
-                    if (task._id === taskId) {
-                      return { ...task, status: newStatus };
-                    }
-                    return task;
-                  });
-                  this.setData({ tasks });
-                  this.generateCalendar();
-                  this.loadTasksForSelectedDate();
-
-                  wx.showToast({
-                    title: '已取消完成',
-                    icon: 'success'
-                  });
-                }
-              } catch (error) {
-                console.error('操作失败:', error);
-              }
-            }
-            // 如果用户选择取消，不做任何操作，保持原状态
-          }
-        });
-        return;
-      }
-
-      // 如果生成了重复任务，需要重新加载所有任务
-        if (resultData && (resultData.newPeriodicTasks || resultData.isRepeatTask)) {
-          await this.loadTasks();
-          return;
-        }
-
-      // 更新本地状态（云函数调用成功后且不需要确认）
-      const tasks = this.data.tasks.map(task => {
-        if (task._id === taskId) {
-          return { ...task, status: newStatus };
-        }
-        return task;
-      });
-      this.setData({ tasks });
-      this.generateCalendar();
-      this.loadTasksForSelectedDate();
-    } catch (error) {
-      console.error('更新任务状态失败:', error);
-      wx.showToast({
-        title: '操作失败',
-        icon: 'none'
-      });
-      // 刷新列表恢复正确状态
-      this.loadTasksForSelectedDate();
-    }
+    await handleTaskStatusToggle({
+      taskId,
+      task,
+      newStatus,
+      selectedDate: this.data.selectedDate,
+      refreshView: () => this.loadTasksForSelectedDate(),
+      reloadTasks: () => this.loadTasks(),
+      updateLocalTaskStatus: (status) => this.updateLocalTaskStatus(taskId, status),
+      navigateToDate: (dateStr) => this.jumpToDate(dateStr),
+      notTodayConfirmText: '切换日期'
+    });
   },
 
   // 阻止复选框点击事件冒泡
@@ -785,12 +693,22 @@ Page({
 
   // 跳转到指定日期
   jumpToDate: function (dateStr) {
-    // dateStr 格式: YYYY-MM-DD
+    const [year, month] = dateStr.split('-').map(Number);
+    const needsReload = year !== this.data.currentYear || month !== this.data.currentMonth;
+
     this.setData({
-      selectedDate: dateStr
+      selectedDate: dateStr,
+      currentYear: year,
+      currentMonth: month
+    }, () => {
+      if (needsReload) {
+        this.loadTasks();
+        return;
+      }
+
+      this.generateCalendar();
+      this.loadTasksForSelectedDate();
     });
-    this.generateCalendar();
-    this.loadTasksForSelectedDate();
   },
 
   onCreateTask: function () {
