@@ -18,11 +18,11 @@ Page({
     // 通知类型
     typeOptions: [
       { value: 'all', label: '全部' },
-      { value: 'task_assigned', label: '任务分配' },
-      { value: 'task_updated', label: '任务更新' },
-      { value: 'list_shared', label: '清单共享' },
       { value: 'list_invite', label: '清单邀请' },
-      { value: 'deadline_reminder', label: '截止提醒' },
+      { value: 'invite_remind', label: '邀请提醒' },
+      { value: 'join_request', label: '加入申请' },
+      { value: 'application_approved', label: '申请通过' },
+      { value: 'application_rejected', label: '申请被拒' },
       { value: 'task_reminder', label: '任务提醒' }
     ]
   },

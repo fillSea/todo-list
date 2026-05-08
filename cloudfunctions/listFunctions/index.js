@@ -117,6 +117,33 @@ async function getUserBasicInfo(userId) {
   return users.length > 0 ? users[0] : null;
 }
 
+async function createNotificationIfEnabled(userId, notificationData) {
+  if (!userId) {
+    return false;
+  }
+
+  const { data: users } = await db.collection('users')
+    .where({ _id: userId })
+    .field({ enableNotifications: true })
+    .limit(1)
+    .get();
+
+  if (users.length === 0 || users[0].enableNotifications === false) {
+    return false;
+  }
+
+  await db.collection('notifications').add({
+    data: {
+      ...notificationData,
+      userId,
+      isRead: false,
+      createdAt: db.serverDate()
+    }
+  });
+
+  return true;
+}
+
 function generateInviteCode(length = 16) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let inviteCode = '';
@@ -1387,16 +1414,10 @@ async function inviteMember(openid, data) {
       }
     });
 
-    // 创建通知
-    await db.collection('notifications').add({
-      data: {
-        type: 'list_invite',
-        userId: targetUserId,
-        relatedId: inviteCode,
-        content: `您收到了清单"${permission.list.name}"的协作邀请`,
-        isRead: false,
-        createdAt: db.serverDate()
-      }
+    await createNotificationIfEnabled(targetUserId, {
+      type: 'list_invite',
+      relatedId: inviteCode,
+      content: `您收到了清单"${permission.list.name}"的协作邀请`
     });
 
     // 记录操作日志
@@ -2329,17 +2350,12 @@ async function applyJoinList(openid, data) {
       .get();
     const userName = users.length > 0 ? users[0].nickname : '未知用户';
 
-    await db.collection('notifications').add({
-      data: {
-        type: 'join_request',
-        userId: invite.inviterId,
-        relatedId: invite.listId,
-        content: pendingInvite
-          ? `${userName} 确认加入清单"${listName}"，等待您审核`
-          : `${userName} 申请加入清单"${listName}"`,
-        isRead: false,
-        createdAt: db.serverDate()
-      }
+    await createNotificationIfEnabled(invite.inviterId, {
+      type: 'join_request',
+      relatedId: invite.listId,
+      content: pendingInvite
+        ? `${userName} 确认加入清单"${listName}"，等待您审核`
+        : `${userName} 申请加入清单"${listName}"`
     });
 
     await logOperation('join_apply', invite.listId, userId, {
@@ -2465,15 +2481,10 @@ async function remindInvite(openid, data) {
 
     // 创建提醒通知
     if (invite.inviteeId) {
-      await db.collection('notifications').add({
-        data: {
-          type: 'invite_remind',
-          userId: invite.inviteeId,
-          relatedId: invite.inviteCode,
-          content: `${inviterName} 提醒您接受清单"${listName}"的邀请`,
-          isRead: false,
-          createdAt: db.serverDate()
-        }
+      await createNotificationIfEnabled(invite.inviteeId, {
+        type: 'invite_remind',
+        relatedId: invite.inviteCode,
+        content: `${inviterName} 提醒您接受清单"${listName}"的邀请`
       });
     }
 
@@ -2600,16 +2611,10 @@ async function approveApplication(openid, data) {
       invite.inviteType === 'link' ? 'link' : 'invite'
     );
 
-    // 创建通知给申请人
-    await db.collection('notifications').add({
-      data: {
-        type: 'application_approved',
-        userId: invite.inviteeId,
-        relatedId: invite.listId,
-        content: `您加入清单"${lists[0].name}"的申请已通过`,
-        isRead: false,
-        createdAt: db.serverDate()
-      }
+    await createNotificationIfEnabled(invite.inviteeId, {
+      type: 'application_approved',
+      relatedId: invite.listId,
+      content: `您加入清单"${lists[0].name}"的申请已通过`
     });
 
     await logOperation('application_approve', invite.listId, userId, {
@@ -2688,16 +2693,10 @@ async function rejectApplication(openid, data) {
       }
     });
 
-    // 创建通知给申请人
-    await db.collection('notifications').add({
-      data: {
-        type: 'application_rejected',
-        userId: invite.inviteeId,
-        relatedId: invite.listId,
-        content: `您加入清单"${lists[0].name}"的申请已被拒绝`,
-        isRead: false,
-        createdAt: db.serverDate()
-      }
+    await createNotificationIfEnabled(invite.inviteeId, {
+      type: 'application_rejected',
+      relatedId: invite.listId,
+      content: `您加入清单"${lists[0].name}"的申请已被拒绝`
     });
 
     await logOperation('application_reject', invite.listId, userId, {

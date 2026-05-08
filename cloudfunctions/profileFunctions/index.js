@@ -630,7 +630,8 @@ async function getNotifications(openid, data) {
       return {
         code: 0,
         message: 'success',
-        data: { list: [], total: 0 }
+        data: [],
+        total: 0
       };
     }
 
