@@ -7,6 +7,22 @@ const db = cloud.database();
 const _ = db.command;
 const testData = require('./testData');
 const notificationTestData = require('./notificationTestData');
+const SUPPORTED_NOTIFICATION_TYPES = [
+  'list_invite',
+  'invite_remind',
+  'join_request',
+  'application_approved',
+  'application_rejected',
+  'task_reminder'
+];
+
+function buildNotificationQuery(userId, extra = {}) {
+  return {
+    userId,
+    type: _.in(SUPPORTED_NOTIFICATION_TYPES),
+    ...extra
+  };
+}
 
 // 主入口函数
 exports.main = async (event, context) => {
@@ -319,10 +335,9 @@ async function getUnreadNotificationCount(openid) {
 
     const userId = users[0]._id;
 
-    const result = await db.collection('notifications').where({
-      userId: userId,
+    const result = await db.collection('notifications').where(buildNotificationQuery(userId, {
       isRead: false
-    }).count();
+    })).count();
 
     return {
       code: 0,
@@ -362,10 +377,9 @@ async function markAllNotificationsAsRead(openid) {
 
     while (true) {
       const { data: batch } = await db.collection('notifications')
-        .where({
-          userId: userId,
+        .where(buildNotificationQuery(userId, {
           isRead: false
-        })
+        }))
         .skip(batchIndex * batchSize)
         .limit(batchSize)
         .get();
@@ -637,10 +651,19 @@ async function getNotifications(openid, data) {
 
     const userId = users[0]._id;
 
-    let query = { userId };
+    let query = buildNotificationQuery(userId);
 
     if (type !== 'all') {
-      query.type = type;
+      if (!SUPPORTED_NOTIFICATION_TYPES.includes(type)) {
+        return {
+          code: 0,
+          message: 'success',
+          data: [],
+          total: 0
+        };
+      }
+
+      query = buildNotificationQuery(userId, { type });
     }
 
     // 查询总数
@@ -656,7 +679,6 @@ async function getNotifications(openid, data) {
       .limit(pageSize)
       .get();
 
-    // 格式化时间
     const formattedNotifications = notifications.map(item => ({
       ...item,
       createdAt: formatTime(item.createdAt)

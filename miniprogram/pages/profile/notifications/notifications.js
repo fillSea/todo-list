@@ -1,22 +1,6 @@
 const app = getApp();
 
 const NOTIFICATION_TYPE_CONFIG = {
-  task_assigned: {
-    text: '任务分配',
-    icon: 'todo-list-o'
-  },
-  task_update: {
-    text: '任务更新',
-    icon: 'edit'
-  },
-  task_updated: {
-    text: '任务更新',
-    icon: 'edit'
-  },
-  list_shared: {
-    text: '清单共享',
-    icon: 'share-o'
-  },
   list_invite: {
     text: '清单邀请',
     icon: 'friends-o'
@@ -36,10 +20,6 @@ const NOTIFICATION_TYPE_CONFIG = {
   application_rejected: {
     text: '申请被拒',
     icon: 'close'
-  },
-  deadline_reminder: {
-    text: '截止提醒',
-    icon: 'clock-o'
   },
   task_reminder: {
     text: '任务提醒',
@@ -219,23 +199,12 @@ Page({
       this.markAsRead(notification._id);
     }
 
-    const normalizedType = this.normalizeNotificationType(notification.type);
-
     // 根据通知类型跳转到对应页面
-    switch (normalizedType) {
-      case 'task_assigned':
-      case 'task_update':
+    switch (notification.type) {
       case 'task_reminder':
         if (notification.relatedId) {
           wx.navigateTo({
             url: `/pages/task-detail/task-detail?id=${notification.relatedId}`
-          });
-        }
-        break;
-      case 'list_shared':
-        if (notification.relatedId) {
-          wx.navigateTo({
-            url: `/pages/list-detail/list-detail?id=${notification.relatedId}`
           });
         }
         break;
@@ -265,11 +234,6 @@ Page({
         wx.showToast({
           title: '你的加入申请未通过',
           icon: 'none'
-        });
-        break;
-      case 'deadline_reminder':
-        wx.switchTab({
-          url: '/pages/index/index'
         });
         break;
     }
@@ -434,24 +398,14 @@ Page({
     return app.getUnreadNotificationCount();
   },
 
-  normalizeNotificationType: function (type) {
-    if (type === 'task_updated') {
-      return 'task_update';
-    }
-
-    return type;
-  },
-
   // 获取通知类型文本
   getNotificationTypeText: function (type) {
-    const normalizedType = this.normalizeNotificationType(type);
-    return NOTIFICATION_TYPE_CONFIG[normalizedType]?.text || '系统通知';
+    return NOTIFICATION_TYPE_CONFIG[type]?.text || '系统通知';
   },
 
   // 获取通知图标
   getNotificationIcon: function (type) {
-    const normalizedType = this.normalizeNotificationType(type);
-    return NOTIFICATION_TYPE_CONFIG[normalizedType]?.icon || 'info-o';
+    return NOTIFICATION_TYPE_CONFIG[type]?.icon || 'info-o';
   },
 
   // 为通知数据补充图标名和类型文本（wxml 无法直接调用 JS 方法）
