@@ -7,7 +7,8 @@ App({
     env: "cloud1-0g144inb6530ffb6",
     userInfo: null,
     isLoggedIn: false,
-    shareEntryInfo: null
+    shareEntryInfo: null,
+    unreadNotificationCount: 0
   },
 
   userCacheKeys: [
@@ -112,6 +113,7 @@ App({
 
     this.globalData.userInfo = null;
     this.globalData.isLoggedIn = false;
+    this.globalData.unreadNotificationCount = 0;
   },
 
   logout: function () {
@@ -139,6 +141,25 @@ App({
 
   getShareEntryInfo: function () {
     return this.globalData.shareEntryInfo || null;
+  },
+
+  setUnreadNotificationCount: function (count) {
+    const safeCount = Math.max(0, Number(count) || 0);
+    this.globalData.unreadNotificationCount = safeCount;
+
+    if (safeCount > 0) {
+      wx.setTabBarBadge({
+        index: 3,
+        text: safeCount > 99 ? '99+' : String(safeCount)
+      });
+      return;
+    }
+
+    wx.removeTabBarBadge({ index: 3 });
+  },
+
+  getUnreadNotificationCount: function () {
+    return Number(this.globalData.unreadNotificationCount) || 0;
   },
 
   clearTaskCaches: function () {

@@ -1,4 +1,5 @@
 const app = getApp();
+const NOTIFICATION_FEATURE_PATH = '/pages/profile/notifications/notifications';
 
 Page({
   data: {
@@ -100,10 +101,14 @@ Page({
       expiredToastShown: false
     });
 
+    this.applyUnreadCount(app.getUnreadNotificationCount());
+
     this.loadAllData();
   },
 
   resetGuestView: function () {
+    app.setUnreadNotificationCount(0);
+
     const featureList = this.data.featureList.map(item => ({ ...item, badge: 0 }));
 
     this.setData({
@@ -134,7 +139,22 @@ Page({
       }
     });
 
-    wx.removeTabBarBadge({ index: 3 });
+  },
+
+  applyUnreadCount: function (count) {
+    const safeCount = Math.max(0, Number(count) || 0);
+    const featureList = this.data.featureList.map(item => {
+      if (item.path === NOTIFICATION_FEATURE_PATH) {
+        return { ...item, badge: safeCount };
+      }
+
+      return item;
+    });
+
+    this.setData({
+      unreadCount: safeCount,
+      featureList
+    });
   },
 
   // 加载所有数据
@@ -253,28 +273,8 @@ Page({
       if (res.result && res.result.code === 0) {
         const count = res.result.data.count;
 
-        // 更新功能列表中的通知角标
-        const featureList = this.data.featureList.map((item, index) => {
-          if (index === 2) { // 我的通知
-            return { ...item, badge: count };
-          }
-          return item;
-        });
-
-        this.setData({
-          unreadCount: count,
-          featureList: featureList
-        });
-
-        // 设置TabBar红点
-        if (count > 0) {
-          wx.setTabBarBadge({
-            index: 3,
-            text: count > 99 ? '99+' : String(count)
-          });
-        } else {
-          wx.removeTabBarBadge({ index: 3 });
-        }
+        app.setUnreadNotificationCount(count);
+        this.applyUnreadCount(count);
       }
     } catch (error) {
       console.error('加载未读通知数量失败:', error);

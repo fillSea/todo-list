@@ -1,5 +1,52 @@
 const app = getApp();
 
+const NOTIFICATION_TYPE_CONFIG = {
+  task_assigned: {
+    text: '任务分配',
+    icon: 'todo-list-o'
+  },
+  task_update: {
+    text: '任务更新',
+    icon: 'edit'
+  },
+  task_updated: {
+    text: '任务更新',
+    icon: 'edit'
+  },
+  list_shared: {
+    text: '清单共享',
+    icon: 'share-o'
+  },
+  list_invite: {
+    text: '清单邀请',
+    icon: 'friends-o'
+  },
+  invite_remind: {
+    text: '邀请提醒',
+    icon: 'bell'
+  },
+  join_request: {
+    text: '加入申请',
+    icon: 'user-o'
+  },
+  application_approved: {
+    text: '申请通过',
+    icon: 'success'
+  },
+  application_rejected: {
+    text: '申请被拒',
+    icon: 'close'
+  },
+  deadline_reminder: {
+    text: '截止提醒',
+    icon: 'clock-o'
+  },
+  task_reminder: {
+    text: '任务提醒',
+    icon: 'bell'
+  }
+};
+
 Page({
   data: {
     // 通知列表
@@ -172,10 +219,12 @@ Page({
       this.markAsRead(notification._id);
     }
 
+    const normalizedType = this.normalizeNotificationType(notification.type);
+
     // 根据通知类型跳转到对应页面
-    switch (notification.type) {
+    switch (normalizedType) {
       case 'task_assigned':
-      case 'task_updated':
+      case 'task_update':
       case 'task_reminder':
         if (notification.relatedId) {
           wx.navigateTo({
@@ -248,6 +297,7 @@ Page({
           return item;
         });
         this.setData({ notifications });
+        this.refreshUnreadCount();
       }
     } catch (error) {
       console.error('标记已读失败:', error);
@@ -286,6 +336,7 @@ Page({
           isRead: true
         }));
         this.setData({ notifications });
+        await this.refreshUnreadCount();
       } else {
         wx.showToast({
           title: res.result?.message || '操作失败',
@@ -341,6 +392,7 @@ Page({
         // 从列表中移除
         const notifications = this.data.notifications.filter(item => item._id !== notificationId);
         this.setData({ notifications });
+        await this.refreshUnreadCount();
       } else {
         wx.showToast({
           title: res.result?.message || '删除失败',
@@ -356,38 +408,50 @@ Page({
     }
   },
 
+  refreshUnreadCount: async function () {
+    if (!this.data.isLoggedIn) {
+      app.setUnreadNotificationCount(0);
+      return 0;
+    }
+
+    try {
+      const res = await wx.cloud.callFunction({
+        name: 'profileFunctions',
+        data: {
+          action: 'getUnreadNotificationCount'
+        }
+      });
+
+      if (res.result && res.result.code === 0) {
+        const count = res.result.data.count;
+        app.setUnreadNotificationCount(count);
+        return count;
+      }
+    } catch (error) {
+      console.error('刷新未读通知数量失败:', error);
+    }
+
+    return app.getUnreadNotificationCount();
+  },
+
+  normalizeNotificationType: function (type) {
+    if (type === 'task_updated') {
+      return 'task_update';
+    }
+
+    return type;
+  },
+
   // 获取通知类型文本
   getNotificationTypeText: function (type) {
-    const typeMap = {
-      'task_assigned': '任务分配',
-      'task_updated': '任务更新',
-      'list_shared': '清单共享',
-      'list_invite': '清单邀请',
-      'invite_remind': '邀请提醒',
-      'join_request': '加入申请',
-      'application_approved': '申请通过',
-      'application_rejected': '申请被拒',
-      'deadline_reminder': '截止提醒',
-      'task_reminder': '任务提醒'
-    };
-    return typeMap[type] || '系统通知';
+    const normalizedType = this.normalizeNotificationType(type);
+    return NOTIFICATION_TYPE_CONFIG[normalizedType]?.text || '系统通知';
   },
 
   // 获取通知图标
   getNotificationIcon: function (type) {
-    const iconMap = {
-      'task_assigned': 'todo-list-o',
-      'task_updated': 'edit',
-      'list_shared': 'share-o',
-      'list_invite': 'friends-o',
-      'invite_remind': 'bell',
-      'join_request': 'user-o',
-      'application_approved': 'success',
-      'application_rejected': 'close',
-      'deadline_reminder': 'clock-o',
-      'task_reminder': 'bell'
-    };
-    return iconMap[type] || 'info-o';
+    const normalizedType = this.normalizeNotificationType(type);
+    return NOTIFICATION_TYPE_CONFIG[normalizedType]?.icon || 'info-o';
   },
 
   // 为通知数据补充图标名和类型文本（wxml 无法直接调用 JS 方法）
