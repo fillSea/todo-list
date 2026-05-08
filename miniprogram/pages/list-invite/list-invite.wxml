@@ -46,7 +46,7 @@
         <view class="method-icon recent">
           <van-icon name="clock-o" size="28px" color="#fff" />
         </view>
-        <text class="method-name">最近协作</text>
+        <text class="method-name">最近协作者</text>
         <text class="method-desc">从历史选择</text>
       </view>
     </view>
@@ -119,7 +119,7 @@
   <!-- 最近协作成员 -->
   <view class="recent-section" wx:if="{{recentMembers.length > 0}}">
     <view class="section-header">
-      <text class="section-title">最近协作</text>
+      <text class="section-title">最近协作者</text>
     </view>
     <view class="recent-list">
       <view class="recent-item" wx:for="{{recentMembers}}" wx:key="userId" bindtap="onInviteRecent" data-user="{{item}}">

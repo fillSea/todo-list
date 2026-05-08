@@ -1834,37 +1834,84 @@ async function getInviteList(openid, data) {
 // 获取最近协作成员
 async function getRecentCollaborators(openid, data) {
   try {
+    const { listId, limit = 20 } = data || {};
+
+    if (!listId) {
+      return { code: -1, message: '清单ID不能为空' };
+    }
+
     const userId = await getUserId(openid);
+    if (!userId) {
+      return { success: true, members: [] };
+    }
 
-    // 查询用户参与的所有清单
-    const { data: memberships } = await db.collection('list_members')
-      .where({ userId })
-      .get();
+    const access = await verifyListAccess(userId, listId);
+    if (!access.allowed) {
+      return { code: -1, message: access.message || '无权限访问该清单' };
+    }
 
-    const listIds = memberships.map(m => m.listId);
+    const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 20);
+
+    // 查询用户参与的所有共享清单成员关系
+    const memberships = await fetchAllByWhere('list_members', { userId }, {
+      field: { listId: true }
+    });
+
+    const listIds = [...new Set(memberships.map(m => m.listId).filter(id => id && id !== listId))];
 
     if (listIds.length === 0) {
       return { success: true, members: [] };
     }
 
-    // 查询这些清单中的其他成员
-    const { data: coMembers } = await db.collection('list_members')
-      .where({
-        listId: _.in(listIds),
-        userId: _.neq(userId)
-      })
-      .orderBy('joinedAt', 'desc')
-      .get();
+    const coMembers = await fetchAllByWhere('list_members', {
+      listId: _.in(listIds),
+      userId: _.neq(userId)
+    }, {
+      orderByField: 'joinedAt',
+      orderDirection: 'desc'
+    });
+
+    if (coMembers.length === 0) {
+      return { success: true, members: [] };
+    }
+
+    const targetMembers = await fetchAllByWhere('list_members', { listId }, {
+      field: { userId: true }
+    });
+    const memberUserIds = new Set(targetMembers.map(member => member.userId).filter(Boolean));
+
+    const blockedInvites = await fetchAllByWhere('list_invites', {
+      listId,
+      status: _.in([0, 4])
+    }, {
+      field: { inviteeId: true }
+    });
+    const blockedInviteeIds = new Set(
+      blockedInvites
+        .filter(invite => isUserInviteRecord(invite))
+        .map(invite => invite.inviteeId)
+    );
 
     // 去重，保留最近的记录
     const seen = new Set();
     const uniqueUserIds = [];
     for (const m of coMembers) {
+      if (!m.userId || m.userId === userId) {
+        continue;
+      }
+
+      if (memberUserIds.has(m.userId) || blockedInviteeIds.has(m.userId)) {
+        continue;
+      }
+
       if (!seen.has(m.userId)) {
         seen.add(m.userId);
         uniqueUserIds.push(m.userId);
       }
-      if (uniqueUserIds.length >= 20) break;
+
+      if (uniqueUserIds.length >= safeLimit) {
+        break;
+      }
     }
 
     if (uniqueUserIds.length === 0) {

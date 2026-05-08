@@ -275,7 +275,9 @@ Page({
           name: 'listFunctions',
           data: {
             action: 'getRecentCollaborators',
-            data: {}
+            data: {
+              listId: this.data.listId
+            }
           }
         });
 
@@ -757,8 +759,9 @@ Page({
           icon: 'success'
         });
 
-        // 刷新待处理邀请列表
+        // 刷新待处理邀请列表和最近协作者
         this.loadPendingInvites();
+        this.loadRecentMembers();
       } else {
         // 调用云函数邀请成员
         const result = await wx.cloud.callFunction({
@@ -779,9 +782,10 @@ Page({
             title: '邀请已发送',
             icon: 'success'
           });
-          // 刷新清单信息和待处理邀请列表
+          // 刷新清单信息、待处理邀请列表和最近协作者
           this.loadListInfo();
           this.loadPendingInvites();
+          this.loadRecentMembers();
         } else {
           throw new Error(result.result?.message || '邀请失败');
         }
