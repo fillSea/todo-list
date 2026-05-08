@@ -275,7 +275,7 @@ async function getDashboardData(openid) {
       const countRes = await db.collection('tasks').where({
         creatorId: userId,
         status: 1,
-        updatedAt: _.gte(startOfDay).and(_.lte(endOfDay))
+        completedAt: _.gte(startOfDay).and(_.lte(endOfDay))
       }).count();
 
       barChart.push({
