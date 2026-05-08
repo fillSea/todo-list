@@ -2048,34 +2048,72 @@ async function createWechatInvite(openid, data) {
 // 搜索用户
 async function searchUser(openid, data) {
   try {
-    const { keyword } = data || {};
+    const { listId, keyword } = data || {};
+    const searchLimit = 20;
+    const batchSize = 100;
+
+    if (!listId) {
+      return { code: -1, message: '清单ID不能为空' };
+    }
 
     if (!keyword) {
       return { code: -1, message: '搜索关键词不能为空' };
     }
 
-    // 按昵称模糊搜索
-    const { data: users } = await db.collection('users')
-      .where({
-        nickname: db.RegExp({
-          regexp: keyword,
-          options: 'i'
-        })
-      })
-      .limit(20)
-      .get();
+    const trimmedKeyword = keyword.trim();
+    if (!trimmedKeyword) {
+      return { code: -1, message: '搜索关键词不能为空' };
+    }
 
-    // 过滤掉当前用户
     const userId = await getUserId(openid);
-    const filtered = users
-      .filter(u => u._id !== userId)
-      .map(u => ({
-        userId: u._id,
-        nickname: u.nickname,
-        avatarUrl: u.avatarUrl
-      }));
+    const permission = await verifyListPermission(userId, listId, [1]);
+    if (!permission.allowed) {
+      return { code: -1, message: permission.message || '无权限搜索用户' };
+    }
 
-    return { success: true, users: filtered };
+    const members = await fetchAllByWhere('list_members', { listId }, {
+      field: { userId: true }
+    });
+
+    const memberUserIds = new Set(members.map(member => member.userId));
+    const escapedKeyword = escapeRegExp(trimmedKeyword);
+    const filteredUsers = [];
+    let offset = 0;
+
+    while (filteredUsers.length < searchLimit) {
+      const { data: users } = await db.collection('users')
+        .where({
+          nickname: db.RegExp({
+            regexp: escapedKeyword,
+            options: 'i'
+          })
+        })
+        .skip(offset)
+        .limit(batchSize)
+        .get();
+
+      if (users.length === 0) {
+        break;
+      }
+
+      const validUsers = users
+        .filter(u => u._id !== userId && !memberUserIds.has(u._id))
+        .map(u => ({
+          userId: u._id,
+          nickname: u.nickname,
+          avatarUrl: u.avatarUrl
+        }));
+
+      filteredUsers.push(...validUsers);
+
+      if (users.length < batchSize) {
+        break;
+      }
+
+      offset += users.length;
+    }
+
+    return { success: true, users: filteredUsers.slice(0, searchLimit) };
   } catch (error) {
     console.error('搜索用户失败:', error);
     return { code: -1, message: '搜索用户失败' };

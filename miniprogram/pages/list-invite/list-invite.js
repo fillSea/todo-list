@@ -614,7 +614,7 @@ Page({
   },
 
   async onSearchConfirm() {
-    const { searchKeyword } = this.data;
+    const { listId, searchKeyword } = this.data;
 
     if (!searchKeyword || searchKeyword.trim().length === 0) {
       wx.showToast({
@@ -648,7 +648,10 @@ Page({
           name: 'listFunctions',
           data: {
             action: 'searchUser',
-            data: { keyword: searchKeyword.trim() }
+            data: {
+              listId,
+              keyword: searchKeyword.trim()
+            }
           }
         });
 

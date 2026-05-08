@@ -40,7 +40,7 @@
           <van-icon name="search" size="28px" color="#fff" />
         </view>
         <text class="method-name">搜索用户</text>
-        <text class="method-desc">输入用户ID</text>
+        <text class="method-desc">输入用户昵称</text>
       </view>
       <view class="method-item" bindtap="onRecentInvite">
         <view class="method-icon recent">
@@ -198,7 +198,7 @@
     <view class="popup-content">
       <view class="search-box">
         <van-icon name="search" size="18px" color="#999" />
-        <input class="search-input" placeholder="输入用户ID或昵称" value="{{searchKeyword}}" bindinput="onSearchInput" confirm-type="search" bindconfirm="onSearchConfirm" />
+        <input class="search-input" placeholder="输入用户昵称" value="{{searchKeyword}}" bindinput="onSearchInput" confirm-type="search" bindconfirm="onSearchConfirm" />
         <view class="search-clear" wx:if="{{searchKeyword}}" bindtap="onClearSearch">
           <van-icon name="clear" size="16px" color="#999" />
         </view>
