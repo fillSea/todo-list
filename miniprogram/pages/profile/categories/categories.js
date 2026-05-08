@@ -190,6 +190,7 @@ Page({
       wx.hideLoading();
 
       if (res.result && res.result.code === 0) {
+        app.clearCategoryCaches();
         wx.showToast({
           title: editingCategory ? '更新成功' : '创建成功',
           icon: 'success'
@@ -248,6 +249,7 @@ Page({
       wx.hideLoading();
 
       if (res.result && res.result.code === 0) {
+        app.clearCategoryCaches();
         wx.showToast({
           title: '删除成功',
           icon: 'success'

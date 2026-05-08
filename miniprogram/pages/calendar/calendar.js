@@ -324,7 +324,11 @@ Page({
 
     if (repeatType === 2) {
       if (!task.repeatValue) return false;
-      const repeatDays = task.repeatValue.split(',').map(v => parseInt(v.trim()));
+      const repeatDays = task.repeatValue
+        .split(',')
+        .map(v => parseInt(v.trim(), 10))
+        .filter(v => !Number.isNaN(v))
+        .map(v => v === 0 ? 7 : v);
       return repeatDays.includes(targetDayOfWeek);
     }
 
@@ -608,6 +612,9 @@ Page({
 
   // 根据ID获取分类
   getCategoryById: function (categoryId) {
+    if (!categoryId) {
+      return null;
+    }
     return this.data.categories.find(cat => cat._id === categoryId);
   },
 

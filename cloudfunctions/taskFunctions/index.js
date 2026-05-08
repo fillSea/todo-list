@@ -111,6 +111,20 @@ function buildPersonalTaskQuery(userId) {
   ]);
 }
 
+function stripCategoryForSharedListTask(task, listInfo) {
+  if (!listInfo || !listInfo.isShared) {
+    return task;
+  }
+
+  return {
+    ...task,
+    categoryId: '',
+    categoryName: '',
+    categoryColor: '',
+    categoryInfo: null
+  };
+}
+
 async function getAccessibleListIds(userId) {
   const [membershipResult, createdListsResult] = await Promise.all([
     db.collection('list_members').where({ userId }).get(),
@@ -229,6 +243,46 @@ async function verifyListPermission(userId, listId, requiredRole = 3) {
   return { hasPermission: role <= requiredRole, role };
 }
 
+async function getListCategoryPolicy(listId) {
+  if (!listId) {
+    return {
+      listId: '',
+      isShared: false
+    };
+  }
+
+  const { data: lists } = await db.collection('lists')
+    .where({ _id: listId })
+    .field({ _id: true, isShared: true })
+    .get();
+
+  const list = lists[0] || null;
+  const isShared = !!(list && list.isShared);
+
+  return {
+    listId,
+    isShared
+  };
+}
+
+async function getSharedListIdSet(listIds) {
+  const normalizedListIds = [...new Set((listIds || []).filter(Boolean))];
+  if (normalizedListIds.length === 0) {
+    return new Set();
+  }
+
+  const { data: lists } = await db.collection('lists')
+    .where({ _id: _.in(normalizedListIds) })
+    .field({ _id: true, isShared: true })
+    .get();
+
+  return new Set(
+    lists
+      .filter(list => !!list.isShared)
+      .map(list => list._id)
+  );
+}
+
 // 创建任务
 async function createTask(openid, data) {
   try {
@@ -274,8 +328,10 @@ async function createTask(openid, data) {
     let dueDate = null;
     let reminderAt = null;
 
+    const hasDueTime = data.hasDueTime === true;
+
     if (data.dueDate) {
-      if (data.dueTime) {
+      if (hasDueTime && data.dueTime) {
         // 前端传来的日期和时间是用户本地时间（UTC+8），需要正确转换为 UTC 存储
         dueDate = new Date(`${data.dueDate}T${data.dueTime}:00+08:00`);
       } else {
@@ -290,6 +346,8 @@ async function createTask(openid, data) {
     }
 
     const normalizedAttachments = normalizeAttachments(data.attachments);
+    const listCategoryPolicy = await getListCategoryPolicy(targetListId);
+    const normalizedCategoryId = listCategoryPolicy.isShared ? '' : (data.categoryId || '');
 
     // 构建任务数据
     const taskData = {
@@ -301,10 +359,12 @@ async function createTask(openid, data) {
       status: 0, // 0-未完成
       listId: targetListId,
       creatorId: userId,
-      categoryId: data.categoryId || '',
+      categoryId: normalizedCategoryId,
       repeatType: data.repeatType || 0, // 0-不重复，1-每天，2-每周，3-每月
       repeatValue: data.repeatValue || '',
+      hasDueTime,
       reminderAt: reminderAt,
+      reminderValue: data.reminderValue || 0,
       reminderSent: false,
       attachments: normalizedAttachments,
       createdAt: now,
@@ -416,16 +476,19 @@ async function updateTask(openid, data) {
     let dueDate = oldTask.dueDate;
     let reminderAt = oldTask.reminderAt;
     let reminderSent = oldTask.reminderSent;
+    let hasDueTime = oldTask.hasDueTime === true;
 
     // 处理截止日期和时间
     const hasDueDateChange = data.dueDate !== undefined;
     const hasDueTimeChange = data.dueTime !== undefined;
+    const hasDueTimeFlagChange = data.hasDueTime !== undefined;
 
-    if (hasDueDateChange || hasDueTimeChange) {
+    if (hasDueDateChange || hasDueTimeChange || hasDueTimeFlagChange) {
       // 获取当前日期和时间值
       // 注意：currentDate 需要转换到 UTC+8 来提取日期/时间部分
       let currentDate = dueDate ? new Date(dueDate) : null;
       let dateStr, timeStr;
+      hasDueTime = data.hasDueTime !== undefined ? data.hasDueTime === true : hasDueTime;
 
       if (data.dueDate !== undefined) {
         dateStr = data.dueDate;
@@ -439,17 +502,19 @@ async function updateTask(openid, data) {
 
       if (data.dueTime !== undefined) {
         timeStr = data.dueTime;
-      } else if (currentDate) {
+      } else if (currentDate && hasDueTime) {
         // 将已有的 UTC 时间转换为 UTC+8 再提取时间部分
         const localDate = new Date(currentDate.getTime() + 8 * 60 * 60 * 1000);
         timeStr = localDate.toISOString().slice(11, 16);
       } else {
-        timeStr = '00:00';
+        timeStr = '';
       }
 
       if (dateStr) {
         // 前端传来的日期和时间是用户本地时间（UTC+8），需要正确转换为 UTC 存储
-        dueDate = new Date(`${dateStr}T${timeStr}:00+08:00`);
+        dueDate = hasDueTime && timeStr
+          ? new Date(`${dateStr}T${timeStr}:00+08:00`)
+          : new Date(`${dateStr}T00:00:00+08:00`);
       } else {
         dueDate = null;
       }
@@ -480,6 +545,10 @@ async function updateTask(openid, data) {
       }
     }
 
+    const nextListId = data.listId !== undefined ? (data.listId || '') : (oldTask.listId || '');
+    const listCategoryPolicy = await getListCategoryPolicy(nextListId);
+    const normalizedCategoryId = listCategoryPolicy.isShared ? '' : (data.categoryId || '');
+
     const statusTransition = evaluateTaskStatusTransition(oldTask, targetStatus, data);
     if (statusTransition.response) {
       return statusTransition.response;
@@ -503,13 +572,19 @@ async function updateTask(openid, data) {
       updateData.ownershipType = getOwnershipTypeByListId(data.listId);
     }
     if (data.categoryId !== undefined) {
-      updateData.categoryId = data.categoryId || '';
+      updateData.categoryId = normalizedCategoryId;
+    }
+    if (listCategoryPolicy.isShared) {
+      updateData.categoryId = '';
     }
     if (data.repeatType !== undefined) {
       updateData.repeatType = data.repeatType || 0;
     }
     if (data.repeatValue !== undefined) {
       updateData.repeatValue = data.repeatValue || '';
+    }
+    if (data.hasDueTime !== undefined) {
+      updateData.hasDueTime = data.hasDueTime === true;
     }
     if (data.attachments !== undefined) {
       updateData.attachments = normalizedAttachments;
@@ -519,8 +594,11 @@ async function updateTask(openid, data) {
     if (data.dueDate !== undefined || data.dueTime !== undefined) {
       updateData.dueDate = dueDate;
     }
-    if (data.reminderValue !== undefined || data.dueDate !== undefined || data.dueTime !== undefined) {
+    if (data.reminderValue !== undefined || data.dueDate !== undefined || data.dueTime !== undefined || data.hasDueTime !== undefined) {
       updateData.reminderAt = reminderAt;
+      updateData.reminderValue = data.reminderValue !== undefined
+        ? (data.reminderValue || 0)
+        : (oldTask.reminderValue || 0);
       updateData.reminderSent = reminderSent;
     }
 
@@ -579,7 +657,7 @@ async function updateTask(openid, data) {
       }
     }
 
-    const nextListId = updateData.listId !== undefined ? updateData.listId : oldTask.listId;
+    const nextListIdForLog = updateData.listId !== undefined ? updateData.listId : oldTask.listId;
 
     // 记录操作日志
     await recordOperation('task_update', taskId, userId, {
@@ -593,7 +671,7 @@ async function updateTask(openid, data) {
       oldAttachmentCount: Array.isArray(oldTask.attachments) ? oldTask.attachments.length : 0,
       pendingDeleteAttachmentFileIds,
       attachmentCleanupFailed
-    }, nextListId);
+    }, nextListIdForLog);
 
     return {
       code: 0,
@@ -779,7 +857,7 @@ async function getTaskDetail(openid, data) {
       };
     }
 
-    const task = tasks[0];
+    const task = normalizeTaskTimeSemantics(tasks[0]);
 
     // 验证权限
     if (task.creatorId !== userId) {
@@ -805,13 +883,14 @@ async function getTaskDetail(openid, data) {
       const { data: lists } = await db.collection('lists')
         .where({ _id: task.listId })
         .get();
-      if (lists.length > 0) {
-        listInfo = {
-          _id: lists[0]._id,
-          name: lists[0].name
-        };
+        if (lists.length > 0) {
+          listInfo = {
+            _id: lists[0]._id,
+            name: lists[0].name,
+            isShared: !!lists[0].isShared
+          };
+        }
       }
-    }
 
     // 获取分类信息
     let categoryInfo = null;
@@ -841,13 +920,16 @@ async function getTaskDetail(openid, data) {
       };
     }
 
+    const normalizedTask = stripCategoryForSharedListTask(task, listInfo);
+    const normalizedCategoryInfo = listInfo && listInfo.isShared ? null : categoryInfo;
+
     return {
       code: 0,
       message: 'success',
       data: {
-        ...task,
+        ...normalizedTask,
         listInfo,
-        categoryInfo,
+        categoryInfo: normalizedCategoryInfo,
         creatorInfo
       }
     };
@@ -897,7 +979,24 @@ async function getTaskList(openid, data) {
 
     // 分类筛选
     if (categoryId) {
-      query = appendAndFilter(query, { categoryId });
+      const accessibleListIds = await getAccessibleListIds(userId);
+      const sharedListIds = await getSharedListIdSet(accessibleListIds);
+      const nonSharedListIds = accessibleListIds.filter(id => !sharedListIds.has(id));
+      const categoryScopeRules = [
+        _.and([
+          buildPersonalTaskQuery(userId),
+          { categoryId }
+        ])
+      ];
+
+      if (nonSharedListIds.length > 0) {
+        categoryScopeRules.push({
+          listId: _.in(nonSharedListIds),
+          categoryId
+        });
+      }
+
+      query = appendAndFilter(query, _.or(categoryScopeRules));
     }
 
     // 优先级筛选
@@ -965,15 +1064,16 @@ async function getTaskList(openid, data) {
       categories.forEach(c => { categoriesMap[c._id] = c; });
     }
 
-    const enrichedTasks = tasks.map(task => {
+    const enrichedTasks = tasks.map(rawTask => {
+      const task = normalizeTaskTimeSemantics(rawTask);
       const list = task.listId ? listsMap[task.listId] : null;
       const category = task.categoryId ? categoriesMap[task.categoryId] : null;
-      return {
+      return stripCategoryForSharedListTask({
         ...task,
         listName: list ? list.name : '',
         categoryName: category ? category.name : '',
         categoryColor: category ? category.color : ''
-      };
+      }, list);
     });
 
     return {
@@ -1138,10 +1238,24 @@ async function getTasksByCategory(openid, data) {
       };
     }
 
-    const query = appendAndFilter(
-      await buildTaskAccessQuery(userId),
-      { categoryId }
-    );
+    const accessibleListIds = await getAccessibleListIds(userId);
+    const sharedListIds = await getSharedListIdSet(accessibleListIds);
+    const nonSharedListIds = accessibleListIds.filter(id => !sharedListIds.has(id));
+    const categoryScopeRules = [
+      _.and([
+        buildPersonalTaskQuery(userId),
+        { categoryId }
+      ])
+    ];
+
+    if (nonSharedListIds.length > 0) {
+      categoryScopeRules.push({
+        listId: _.in(nonSharedListIds),
+        categoryId
+      });
+    }
+
+    const query = _.or(categoryScopeRules);
 
     // 查询任务
     const countResult = await db.collection('tasks')
@@ -1155,11 +1269,22 @@ async function getTasksByCategory(openid, data) {
       .limit(pageSize)
       .get();
 
+    const listIds = [...new Set(tasks.filter(task => task.listId).map(task => task.listId))];
+    let listsMap = {};
+    if (listIds.length > 0) {
+      const { data: lists } = await db.collection('lists')
+        .where({ _id: _.in(listIds) })
+        .get();
+      lists.forEach(list => { listsMap[list._id] = list; });
+    }
+
+    const normalizedTasks = tasks.map(task => stripCategoryForSharedListTask(task, listsMap[task.listId] || null));
+
     return {
       code: 0,
       message: 'success',
       data: {
-        list: tasks,
+        list: normalizedTasks,
         total: countResult.total,
         page,
         pageSize
@@ -1213,11 +1338,20 @@ async function getTasksByList(openid, data) {
       .limit(pageSize)
       .get();
 
+    const { data: lists } = await db.collection('lists')
+      .where({ _id: listId })
+      .get();
+    const listInfo = lists[0] || null;
+    const normalizedTasks = tasks.map(task => stripCategoryForSharedListTask(
+      normalizeTaskTimeSemantics(task),
+      listInfo
+    ));
+
     return {
       code: 0,
       message: 'success',
       data: {
-        list: tasks,
+        list: normalizedTasks,
         total: countResult.total,
         page,
         pageSize
@@ -1262,11 +1396,25 @@ async function getTasksByStatus(openid, data) {
       .limit(pageSize)
       .get();
 
+    const listIds = [...new Set(tasks.filter(task => task.listId).map(task => task.listId))];
+    let listsMap = {};
+    if (listIds.length > 0) {
+      const { data: lists } = await db.collection('lists')
+        .where({ _id: _.in(listIds) })
+        .get();
+      lists.forEach(list => { listsMap[list._id] = list; });
+    }
+
+    const normalizedTasks = tasks.map(task => stripCategoryForSharedListTask(
+      normalizeTaskTimeSemantics(task),
+      listsMap[task.listId] || null
+    ));
+
     return {
       code: 0,
       message: 'success',
       data: {
-        list: tasks,
+        list: normalizedTasks,
         total: countResult.total,
         page,
         pageSize
@@ -1316,11 +1464,22 @@ async function searchTasks(openid, data) {
       .limit(pageSize)
       .get();
 
+    const listIds = [...new Set(tasks.filter(task => task.listId).map(task => task.listId))];
+    let listsMap = {};
+    if (listIds.length > 0) {
+      const { data: lists } = await db.collection('lists')
+        .where({ _id: _.in(listIds) })
+        .get();
+      lists.forEach(list => { listsMap[list._id] = list; });
+    }
+
+    const normalizedTasks = tasks.map(task => stripCategoryForSharedListTask(task, listsMap[task.listId] || null));
+
     return {
       code: 0,
       message: 'success',
       data: {
-        list: tasks,
+        list: normalizedTasks,
         total: countResult.total,
         page,
         pageSize
@@ -1356,10 +1515,6 @@ async function batchUpdateTasks(openid, data) {
     }
 
     const now = db.serverDate();
-    const updateFields = {
-      ...updateData,
-      updatedAt: now
-    };
 
     // 批量更新
     const updatePromises = taskIds.map(async (taskId) => {
@@ -1386,8 +1541,22 @@ async function batchUpdateTasks(openid, data) {
         }
       }
 
+      const listCategoryPolicy = await getListCategoryPolicy(task.listId || '');
+      const normalizedUpdateFields = {
+        ...updateData,
+        updatedAt: now
+      };
+
+      if (updateData.categoryId !== undefined) {
+        normalizedUpdateFields.categoryId = listCategoryPolicy.isShared ? '' : (updateData.categoryId || '');
+      }
+
+      if (listCategoryPolicy.isShared) {
+        normalizedUpdateFields.categoryId = '';
+      }
+
       await db.collection('tasks').doc(taskId).update({
-        data: updateFields
+        data: normalizedUpdateFields
       });
 
       return { taskId, success: true };
@@ -1722,6 +1891,18 @@ function normalizeWeeklyRepeatDays(repeatValue) {
       .map(v => v === 7 ? 0 : v)
       .filter(v => v >= 0 && v <= 6)
   )].sort((a, b) => a - b);
+}
+
+function normalizeTaskTimeSemantics(task) {
+  if (!task) {
+    return task;
+  }
+
+  return {
+    ...task,
+    hasDueTime: task.hasDueTime === true,
+    reminderValue: task.reminderValue || 0
+  };
 }
 
 function collectAttachmentFileIds(tasks) {
@@ -2572,6 +2753,7 @@ async function createRepeatTask(openid, originalTask, nextDueDate) {
       categoryId: originalTask.categoryId || '',
       creatorId: userId,
       dueDate: nextDueDate,
+      hasDueTime: originalTask.hasDueTime === true,
       repeatType: originalTask.repeatType || 0,
       repeatValue: originalTask.repeatValue || '',
       reminderAt: reminderAt,

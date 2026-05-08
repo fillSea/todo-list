@@ -3,14 +3,11 @@
   <view class="header-fixed" style="padding-top: {{statusBarHeight}}px;">
     <view class="header" style="height: {{navBarHeight}}px;">
       <view class="header-side header-side-left" style="min-width: {{headerSideWidth}}px;">
-        <view class="header-left" bindtap="onBack">
-          <van-icon name="arrow-left" size="20px" color="#333" />
-          <text class="back-text">返回</text>
-        </view>
-      </view>
-      <text class="header-title">{{listInfo.name || '清单详情'}}</text>
-      <view class="header-side header-side-right" style="min-width: {{headerSideWidth}}px;">
-        <view class="header-right">
+        <view class="header-left">
+          <view class="back-btn" bindtap="onBack">
+            <van-icon name="arrow-left" size="20px" color="#333" />
+            <text class="back-text">返回</text>
+          </view>
           <view class="action-btn" bindtap="onEditList" wx:if="{{canEdit}}">
             <van-icon name="edit" size="20px" color="#333" />
           </view>
@@ -18,6 +15,10 @@
             <van-icon name="ellipsis" size="20px" color="#333" />
           </view>
         </view>
+      </view>
+      <text class="header-title"></text>
+      <view class="header-side header-side-right" style="min-width: {{capsuleSafeWidth}}px; padding-right: {{capsuleSafeWidth}}px;">
+        <view class="header-right"></view>
       </view>
     </view>
   </view>

@@ -3,9 +3,6 @@
   <view class="header-shell" style="padding-top: {{statusBarHeight}}px;">
     <view class="header" style="height: {{navBarHeight}}px;">
       <view class="header-side header-side-left" style="min-width: {{headerSideWidth}}px;">
-        <view class="header-left" bindtap="onCancel">
-          <van-icon name="cross" size="20px" color="#333" />
-        </view>
       </view>
       <text class="header-title">{{isEditing ? '编辑任务' : '添加任务'}}</text>
       <view class="header-side header-side-right" style="min-width: {{headerSideWidth}}px;">
@@ -59,12 +56,13 @@
     <view class="form-section" wx:if="{{task.dueDate}}">
       <view class="form-item">
         <text class="form-label">截止时间</text>
-        <picker mode="time" value="{{task.dueTime || '23:59'}}" bindchange="onDueTimeChange">
+        <picker mode="time" value="{{task.hasDueTime ? task.dueTime : '23:59'}}" bindchange="onDueTimeChange">
           <view class="form-picker">
-            <text class="picker-value">{{task.dueTime || '23:59'}}</text>
+            <text class="picker-value {{task.hasDueTime ? '' : 'placeholder'}}">{{task.hasDueTime ? (task.dueTime || '请选择截止时间') : '全天截止'}}</text>
             <van-icon name="arrow" size="16px" color="#999" />
           </view>
         </picker>
+        <view class="form-helper-action" wx:if="{{task.hasDueTime}}" bindtap="clearDueTime">清除时间</view>
       </view>
     </view>
     <!-- 优先级 -->
@@ -88,7 +86,7 @@
       </view>
     </view>
     <!-- 分类 -->
-    <view class="form-section">
+    <view class="form-section" wx:if="{{canUseCategory}}">
       <view class="form-item" bindtap="onSelectCategory">
         <text class="form-label">分类</text>
         <view class="form-picker">
@@ -106,7 +104,7 @@
     <view class="form-section">
       <view class="form-item">
         <text class="form-label">提醒时间</text>
-        <picker mode="multiSelector" range="{{reminderRanges}}" value="{{reminderIndex}}" bindchange="onReminderChange" bindcolumnchange="onReminderColumnChange">
+        <picker mode="multiSelector" range="{{reminderRanges}}" value="{{reminderIndex}}" bindchange="onReminderChange">
           <view class="form-picker">
             <text class="picker-value {{task.reminderText ? '' : 'placeholder'}}">
               {{task.reminderText || '不提醒'}}
@@ -191,8 +189,13 @@
       <text>删除任务</text>
     </view>
   </view>
-  <view class="bottom-action-bar">
-    <view class="bottom-save-btn" bindtap="onSave">保存</view>
+  <view class="bottom-actions">
+    <view class="action-btn cancel-btn" bindtap="onCancel">
+      <text>取消</text>
+    </view>
+    <view class="action-btn save-btn action-save-btn" bindtap="onSave">
+      <text>保存</text>
+    </view>
   </view>
   <!-- 删除确认弹窗 -->
   <van-dialog id="delete-dialog" show="{{showDeleteDialog}}" title="{{deleteDialogTitle}}" message="{{deleteDialogMessage}}" show-cancel-button confirm-button-text="删除" confirm-button-color="#ee0a24" bind:close="onDeleteDialogClose" bind:confirm="onDeleteConfirm" />
@@ -220,7 +223,7 @@
     </scroll-view>
   </van-popup>
   <!-- 分类选择弹窗 -->
-  <van-popup show="{{showCategoryPopup}}" position="bottom" bind:close="onCategoryPopupClose">
+  <van-popup wx:if="{{canUseCategory}}" show="{{showCategoryPopup}}" position="bottom" bind:close="onCategoryPopupClose">
     <view class="popup-header">
       <text class="popup-title">选择分类</text>
       <van-icon name="cross" size="20px" color="#999" bindtap="onCategoryPopupClose" />

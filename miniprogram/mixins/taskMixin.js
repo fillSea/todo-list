@@ -12,13 +12,13 @@ module.exports = {
 
     // 星期选项
     weekdays: [
-      { label: '日', value: 0, selected: false },
       { label: '一', value: 1, selected: false },
       { label: '二', value: 2, selected: false },
       { label: '三', value: 3, selected: false },
       { label: '四', value: 4, selected: false },
       { label: '五', value: 5, selected: false },
-      { label: '六', value: 6, selected: false }
+      { label: '六', value: 6, selected: false },
+      { label: '日', value: 7, selected: false }
     ],
 
     // 日期选项
@@ -35,6 +35,7 @@ module.exports = {
 
     // 可选分类列表
     availableCategories: [],
+    canUseCategory: true,
 
     // 弹窗显示状态
     showListPopup: false,
@@ -76,6 +77,11 @@ module.exports = {
 
   // 加载可选分类
   async loadAvailableCategories() {
+    if (!this.data.canUseCategory) {
+      this.setData({ availableCategories: [] });
+      return;
+    }
+
     try {
       const result = await wx.cloud.callFunction({
         name: 'categoryFunctions',
@@ -117,7 +123,17 @@ module.exports = {
 
   // 截止时间选择
   onDueTimeChange(e) {
-    this.setData({ 'task.dueTime': e.detail.value });
+    this.setData({
+      'task.dueTime': e.detail.value,
+      'task.hasDueTime': true
+    });
+  },
+
+  clearDueTime() {
+    this.setData({
+      'task.dueTime': '',
+      'task.hasDueTime': false
+    });
   },
 
   // 优先级选择
@@ -150,7 +166,11 @@ module.exports = {
     const weekdays = [...this.data.weekdays];
     weekdays[index].selected = !weekdays[index].selected;
 
-    const selectedValues = weekdays.filter(d => d.selected).map(d => d.value).join(',');
+    const selectedValues = weekdays
+      .filter(d => d.selected)
+      .map(d => d.value)
+      .sort((a, b) => a - b)
+      .join(',');
 
     this.setData({
       weekdays,
@@ -204,10 +224,12 @@ module.exports = {
     const listId = e.currentTarget.dataset.id;
 
     if (!listId) {
-      this.setData({
-        'task.listId': '',
-        'task.listName': '',
-        showListPopup: false
+      this.applyListContext(null, {
+        taskUpdates: {
+          listId: '',
+          listName: ''
+        },
+        closePopup: true
       });
       return;
     }
@@ -215,10 +237,12 @@ module.exports = {
     const list = this.data.availableLists.find(item => item._id === listId);
 
     if (list) {
-      this.setData({
-        'task.listId': list._id,
-        'task.listName': list.name,
-        showListPopup: false
+      this.applyListContext(list, {
+        taskUpdates: {
+          listId: list._id,
+          listName: list.name
+        },
+        closePopup: true
       });
     }
   },
@@ -227,6 +251,10 @@ module.exports = {
 
   // 显示分类选择弹窗
   onSelectCategory() {
+    if (!this.data.canUseCategory) {
+      return;
+    }
+
     this.setData({ showCategoryPopup: true });
   },
 
@@ -237,6 +265,11 @@ module.exports = {
 
   // 选择分类
   onCategorySelect(e) {
+    if (!this.data.canUseCategory) {
+      this.setData({ showCategoryPopup: false });
+      return;
+    }
+
     const id = e.currentTarget.dataset.id;
 
     if (!id) {
@@ -594,10 +627,14 @@ module.exports = {
 
     if (task.repeatType === 2 && task.repeatValue) {
       // 每周重复
-      const days = task.repeatValue.split(',').map(v => parseInt(v));
+      const days = String(task.repeatValue)
+        .split(',')
+        .map(v => parseInt(v, 10))
+        .filter(v => !Number.isNaN(v))
+        .map(v => v === 0 ? 7 : v);
       newWeekdays = newWeekdays.map((d) => ({
         ...d,
-        selected: days.includes(d.value) || (d.value === 0 && days.includes(7))
+        selected: days.includes(d.value)
       }));
     } else if (task.repeatType === 3 && task.repeatValue) {
       // 每月重复
@@ -651,18 +688,181 @@ module.exports = {
     return true;
   },
 
+  isPeriodicTask(task) {
+    if (!task) {
+      return false;
+    }
+
+    return Number(task.repeatType) > 0 || Boolean(task.isPeriodicInstance) || Boolean(task.parentTaskId);
+  },
+
+  buildDeleteDialogConfig(task, deleteScope) {
+    const isSeries = deleteScope === 'series';
+    const isPeriodic = this.isPeriodicTask(task);
+
+    return {
+      deleteDialogTitle: isSeries ? '确认删除整个周期' : '确认删除',
+      deleteDialogMessage: isSeries
+        ? '确定删除整个周期任务吗？该周期下所有任务实例将一并删除。'
+        : (isPeriodic
+          ? '确定删除本次任务吗？后续周期任务将保留。'
+          : '删除后无法恢复，确定要删除此任务吗？')
+    };
+  },
+
+  buildTaskFormData(task) {
+    let dueDate = '';
+    let dueTime = '';
+    const hasDueTime = task.hasDueTime === true;
+
+    if (task.dueDate) {
+      const date = new Date(task.dueDate);
+      dueDate = this.formatDate(date);
+      if (hasDueTime) {
+        dueTime = this.formatTime(date);
+      }
+    }
+
+    const { weekdays, monthdays } = this.parseRepeat(task, this.data.weekdays, this.data.monthdays);
+    const { reminderText, reminderValue, reminderIndex } = this.parseReminder(task);
+
+    const categoryInfo = task.categoryInfo || null;
+
+    return {
+      task: {
+        title: task.title,
+        description: task.description || '',
+        listId: task.listId || '',
+        listName: task.listInfo ? task.listInfo.name : (task.listName || ''),
+        dueDate,
+        dueTime,
+        hasDueTime,
+        priority: task.priority || 1,
+        categoryId: categoryInfo ? (task.categoryId || '') : '',
+        categoryName: categoryInfo ? categoryInfo.name : '',
+        categoryColor: categoryInfo ? categoryInfo.color : '',
+        reminderText,
+        reminderValue,
+        repeatType: task.repeatType || 0,
+        repeatValue: task.repeatValue || '',
+        status: task.status || 0,
+        _id: task._id || ''
+      },
+      weekdays,
+      monthdays,
+      reminderIndex
+    };
+  },
+
+  getDueTimeDisplayText(task) {
+    if (!task || !task.dueDate) {
+      return '请先选择截止日期';
+    }
+
+    if (!task.hasDueTime) {
+      return '全天截止';
+    }
+
+    return task.dueTime || '请选择截止时间';
+  },
+
+  showConfirmModal(title, content, confirmText) {
+    return new Promise((resolve) => {
+      wx.showModal({
+        title,
+        content,
+        confirmText,
+        cancelText: '取消',
+        success: (res) => resolve(!!res.confirm),
+        fail: () => resolve(false)
+      });
+    });
+  },
+
+  async handleTaskSaveResponse(resultData, action, params, successTitle, loadingTitle) {
+    if (!resultData || resultData.code !== 0) {
+      return resultData;
+    }
+
+    const payload = resultData.data || {};
+    if (payload.needConfirmComplete) {
+      wx.hideLoading();
+      const confirmed = await this.showConfirmModal('提示', '任务已过期，是否确认完成？', '确定');
+      if (!confirmed) {
+        return { code: -2, message: '已取消' };
+      }
+      wx.showLoading({ title: loadingTitle });
+      const confirmResult = await wx.cloud.callFunction({
+        name: 'taskFunctions',
+        data: { action, data: { ...params, confirmCompleteOverdue: true } }
+      });
+      return this.handleTaskSaveResponse(
+        confirmResult.result,
+        action,
+        { ...params, confirmCompleteOverdue: true },
+        successTitle,
+        loadingTitle
+      );
+    }
+
+    if (payload.needConfirmCompleteNotToday) {
+      wx.hideLoading();
+      const confirmed = await this.showConfirmModal('提示', payload.confirmMessage || '只能完成当天的周期任务', '去查看');
+      if (confirmed && payload.dueDate) {
+        wx.setStorageSync('jumpToDate', payload.dueDate);
+        wx.switchTab({ url: '/pages/calendar/calendar' });
+      }
+      return { code: -2, message: '已取消' };
+    }
+
+    if (payload.needConfirmUncheck) {
+      wx.hideLoading();
+      const confirmed = await this.showConfirmModal('提示', payload.confirmMessage || '确定要取消完成此任务吗？', '确认');
+      if (!confirmed) {
+        return { code: -2, message: '已取消' };
+      }
+      wx.showLoading({ title: loadingTitle });
+      const confirmResult = await wx.cloud.callFunction({
+        name: 'taskFunctions',
+        data: { action, data: { ...params, confirmUncheck: true } }
+      });
+      return this.handleTaskSaveResponse(
+        confirmResult.result,
+        action,
+        { ...params, confirmUncheck: true },
+        successTitle,
+        loadingTitle
+      );
+    }
+
+    await this.cleanupRemovedSessionAttachmentsAfterSave();
+    this.setData({ hasSavedSuccessfully: true });
+    const app = getApp();
+    app.clearTaskCaches();
+    wx.showToast({
+      title: successTitle,
+      icon: 'success'
+    });
+    setTimeout(() => {
+      wx.navigateBack();
+    }, 1500);
+    return resultData;
+  },
+
   // 构建保存参数
   buildSaveParams(task, taskId, isEditing) {
+    const categoryId = this.data.canUseCategory ? (task.categoryId || '') : '';
     const params = {
       title: task.title.trim(),
       description: (task.description || '').trim(),
       priority: task.priority,
-      categoryId: task.categoryId || '',
+      categoryId,
       listId: task.listId || '',
       repeatType: task.repeatType || 0,
       repeatValue: task.repeatValue || '',
       dueDate: task.dueDate || null,
-      dueTime: task.dueTime || null,
+      dueTime: task.hasDueTime ? (task.dueTime || null) : null,
+      hasDueTime: !!task.hasDueTime,
       reminderValue: task.reminderValue || 0,
       pendingDeleteAttachmentFileIds: this.data.pendingDeleteAttachmentFileIds || [],
       attachments: (this.data.attachments || []).map(a => ({
@@ -688,5 +888,40 @@ module.exports = {
     }
 
     return params;
+  },
+
+  isSharedListContext(list) {
+    return !!(list && list.isShared);
+  },
+
+  applyListContext(list, options = {}) {
+    const { taskUpdates = {}, closePopup = false } = options;
+    const canUseCategory = !this.isSharedListContext(list);
+    const nextData = {
+      currentListContext: list || null,
+      canUseCategory,
+      ...Object.keys(taskUpdates).reduce((acc, key) => {
+        acc[`task.${key}`] = taskUpdates[key];
+        return acc;
+      }, {})
+    };
+
+    if (closePopup) {
+      nextData.showListPopup = false;
+    }
+
+    if (!canUseCategory) {
+      nextData.availableCategories = [];
+      nextData.showCategoryPopup = false;
+      nextData['task.categoryId'] = '';
+      nextData['task.categoryName'] = '';
+      nextData['task.categoryColor'] = '';
+    }
+
+    this.setData(nextData);
+
+    if (canUseCategory) {
+      this.loadAvailableCategories();
+    }
   }
 };

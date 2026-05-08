@@ -19,6 +19,7 @@ Page({
       listName: '',
       dueDate: '',
       dueTime: '',
+      hasDueTime: false,
       priority: 1,
       categoryId: '',
       categoryName: '',
@@ -41,18 +42,20 @@ Page({
 
     this.setData({
       isNewTask: !id,
-      taskId: id || null
+      taskId: id || null,
+      canUseCategory: true
     });
 
     this.resetAttachmentSessionState([]);
 
-    // 加载可选清单和分类
+    // 加载可选清单。分类是否需要加载取决于任务实际所属上下文。
     this.loadAvailableLists();
-    this.loadAvailableCategories();
 
     // 如果是编辑模式，加载任务数据
     if (id) {
       this.loadTask(id);
+    } else {
+      this.loadAvailableCategories();
     }
   },
 
@@ -87,44 +90,35 @@ Page({
 
   // 设置任务数据到页面
   setTaskData(task) {
-    // 解析截止日期和时间
-    let dueDate = '';
-    let dueTime = '';
-    if (task.dueDate) {
-      const date = new Date(task.dueDate);
-      dueDate = this.formatDate(date);
-      dueTime = this.formatTime(date);
-    }
-
-    // 解析重复设置
-    const { weekdays, monthdays } = this.parseRepeat(task, this.data.weekdays, this.data.monthdays);
-
-    // 解析提醒设置
-    const { reminderText, reminderValue, reminderIndex } = this.parseReminder(task);
+    const formData = this.buildTaskFormData(task);
+    const currentListContext = task.listInfo
+      ? {
+        _id: task.listInfo._id,
+        name: task.listInfo.name,
+        isShared: !!task.listInfo.isShared
+      }
+      : null;
+    const canUseCategory = !(currentListContext && currentListContext.isShared);
 
     this.setData({
+      currentListContext,
+      canUseCategory,
+      availableCategories: canUseCategory ? this.data.availableCategories : [],
+      showCategoryPopup: false,
       task: {
-        _id: task._id,
-        title: task.title,
-        description: task.description || '',
-        listId: task.listId || '',
-        listName: task.listInfo ? task.listInfo.name : '',
-        dueDate: dueDate,
-        dueTime: dueTime,
-        priority: task.priority || 1,
-        categoryId: task.categoryId || '',
-        categoryName: task.categoryInfo ? task.categoryInfo.name : '',
-        categoryColor: task.categoryInfo ? task.categoryInfo.color : '',
-        reminderText: reminderText,
-        reminderValue: reminderValue,
-        repeatType: task.repeatType || 0,
-        repeatValue: task.repeatValue || '',
-        status: task.status || 0
+        ...formData.task,
+        categoryId: canUseCategory ? formData.task.categoryId : '',
+        categoryName: canUseCategory ? formData.task.categoryName : '',
+        categoryColor: canUseCategory ? formData.task.categoryColor : ''
       },
-      weekdays,
-      monthdays,
-      reminderIndex
+      weekdays: formData.weekdays,
+      monthdays: formData.monthdays,
+      reminderIndex: formData.reminderIndex
     });
+
+    if (canUseCategory) {
+      this.loadAvailableCategories();
+    }
 
     // 加载附件
     this.loadAttachments(task.attachments || []);
@@ -164,10 +158,17 @@ Page({
   parseRepeat: taskMixin.parseRepeat,
   validateForm: taskMixin.validateForm,
   buildSaveParams: taskMixin.buildSaveParams,
+  buildTaskFormData: taskMixin.buildTaskFormData,
+  buildDeleteDialogConfig: taskMixin.buildDeleteDialogConfig,
+  isPeriodicTask: taskMixin.isPeriodicTask,
+  getDueTimeDisplayText: taskMixin.getDueTimeDisplayText,
+  handleTaskSaveResponse: taskMixin.handleTaskSaveResponse,
+  showConfirmModal: taskMixin.showConfirmModal,
   loadAttachments: taskMixin.loadAttachments,
   resetAttachmentSessionState: taskMixin.resetAttachmentSessionState,
   cleanupUncommittedAttachments: taskMixin.cleanupUncommittedAttachments,
   cleanupRemovedSessionAttachmentsAfterSave: taskMixin.cleanupRemovedSessionAttachmentsAfterSave,
+  clearDueTime: taskMixin.clearDueTime,
 
   // 附件方法
   onAddAttachment: taskMixin.onAddAttachment,
@@ -225,7 +226,13 @@ Page({
         data: { action, data: params }
       });
 
-      const resultData = await this.handleSaveResponse(result.result, action, params, isNewTask ? '创建成功' : '保存成功');
+      const resultData = await this.handleTaskSaveResponse(
+        result.result,
+        action,
+        params,
+        isNewTask ? '创建成功' : '保存成功',
+        isNewTask ? '创建中...' : '保存中...'
+      );
       if (resultData && resultData.code === -2) {
         return;
       }
@@ -248,7 +255,7 @@ Page({
 
   // 删除任务
   onDelete() {
-    if (this.data.task.repeatType > 0) {
+    if (this.isPeriodicTask(this.data.task)) {
       wx.showActionSheet({
         itemList: ['删除本次', '删除整个周期'],
         success: (res) => {
@@ -263,16 +270,11 @@ Page({
   },
 
   openDeleteDialog(deleteScope) {
-    const isSeries = deleteScope === 'series';
+    const dialogConfig = this.buildDeleteDialogConfig(this.data.task, deleteScope);
     this.setData({
       deleteScope,
       showDeleteDialog: true,
-      deleteDialogTitle: isSeries ? '确认删除整个周期' : '确认删除',
-      deleteDialogMessage: isSeries
-        ? '确定删除整个周期任务吗？该周期下所有任务实例将一并删除。'
-        : (this.data.task.repeatType > 0
-          ? '确定删除本次任务吗？后续周期任务将保留。'
-          : '删除后无法恢复，确定要删除此任务吗？')
+      ...dialogConfig
     });
   },
 
@@ -322,76 +324,6 @@ Page({
     } finally {
       wx.hideLoading();
     }
-  },
-
-  async handleSaveResponse(resultData, action, params, successTitle) {
-    if (!resultData || resultData.code !== 0) {
-      return resultData;
-    }
-
-    const payload = resultData.data || {};
-    if (payload.needConfirmComplete) {
-      wx.hideLoading();
-      const confirmed = await this.showConfirmModal('提示', '任务已过期，是否确认完成？', '确定');
-      if (!confirmed) {
-        return { code: -2, message: '已取消' };
-      }
-      wx.showLoading({ title: this.data.isNewTask ? '创建中...' : '保存中...' });
-      const confirmResult = await wx.cloud.callFunction({
-        name: 'taskFunctions',
-        data: { action, data: { ...params, confirmCompleteOverdue: true } }
-      });
-      return this.handleSaveResponse(confirmResult.result, action, { ...params, confirmCompleteOverdue: true }, successTitle);
-    }
-
-    if (payload.needConfirmCompleteNotToday) {
-      wx.hideLoading();
-      const confirmed = await this.showConfirmModal('提示', payload.confirmMessage || '只能完成当天的周期任务', '去查看');
-      if (confirmed && payload.dueDate) {
-        wx.setStorageSync('jumpToDate', payload.dueDate);
-        wx.switchTab({ url: '/pages/calendar/calendar' });
-      }
-      return { code: -2, message: '已取消' };
-    }
-
-    if (payload.needConfirmUncheck) {
-      wx.hideLoading();
-      const confirmed = await this.showConfirmModal('提示', payload.confirmMessage || '确定要取消完成此任务吗？', '确认');
-      if (!confirmed) {
-        return { code: -2, message: '已取消' };
-      }
-      wx.showLoading({ title: this.data.isNewTask ? '创建中...' : '保存中...' });
-      const confirmResult = await wx.cloud.callFunction({
-        name: 'taskFunctions',
-        data: { action, data: { ...params, confirmUncheck: true } }
-      });
-      return this.handleSaveResponse(confirmResult.result, action, { ...params, confirmUncheck: true }, successTitle);
-    }
-
-    await this.cleanupRemovedSessionAttachmentsAfterSave();
-    this.setData({ hasSavedSuccessfully: true });
-    app.clearTaskCaches();
-    wx.showToast({
-      title: successTitle,
-      icon: 'success'
-    });
-    setTimeout(() => {
-      wx.navigateBack();
-    }, 1500);
-    return resultData;
-  },
-
-  showConfirmModal(title, content, confirmText) {
-    return new Promise((resolve) => {
-      wx.showModal({
-        title,
-        content,
-        confirmText,
-        cancelText: '取消',
-        success: (res) => resolve(!!res.confirm),
-        fail: () => resolve(false)
-      });
-    });
   },
 
   onUnload() {

@@ -127,5 +127,9 @@ App({
     storageInfo.keys
       .filter(key => key.startsWith('calendarTasks_'))
       .forEach(key => wx.removeStorageSync(key));
+  },
+
+  clearCategoryCaches: function () {
+    wx.removeStorageSync('cachedCategories');
   }
 });

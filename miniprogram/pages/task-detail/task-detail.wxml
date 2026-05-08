@@ -47,12 +47,13 @@
     <view class="form-section" wx:if="{{task.dueDate}}">
       <view class="form-item">
         <text class="form-label">截止时间</text>
-        <picker mode="time" value="{{task.dueTime || '23:59'}}" bindchange="onDueTimeChange">
+        <picker mode="time" value="{{task.hasDueTime ? task.dueTime : '23:59'}}" bindchange="onDueTimeChange">
           <view class="form-picker">
-            <text class="picker-value">{{task.dueTime || '23:59'}}</text>
+            <text class="picker-value {{task.hasDueTime ? '' : 'placeholder'}}">{{task.hasDueTime ? (task.dueTime || '请选择截止时间') : '全天截止'}}</text>
             <van-icon name="arrow" size="16px" color="#999" />
           </view>
         </picker>
+        <view class="form-helper-action" wx:if="{{task.hasDueTime}}" bindtap="clearDueTime">清除时间</view>
       </view>
     </view>
     <!-- 优先级 -->
@@ -76,7 +77,7 @@
       </view>
     </view>
     <!-- 分类 -->
-    <view class="form-section">
+    <view class="form-section" wx:if="{{canUseCategory}}">
       <view class="form-item" bindtap="onSelectCategory">
         <text class="form-label">分类</text>
         <view class="form-picker">
@@ -211,7 +212,7 @@
     </scroll-view>
   </van-popup>
   <!-- 分类选择弹窗 -->
-  <van-popup show="{{showCategoryPopup}}" position="bottom" bind:close="onCategoryPopupClose">
+  <van-popup wx:if="{{canUseCategory}}" show="{{showCategoryPopup}}" position="bottom" bind:close="onCategoryPopupClose">
     <view class="popup-header">
       <text class="popup-title">选择分类</text>
       <van-icon name="cross" size="20px" color="#999" bindtap="onCategoryPopupClose" />

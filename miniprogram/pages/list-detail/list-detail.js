@@ -190,6 +190,7 @@ Page({
         // 自定义导航高度
         navBarHeight: 44,
         headerSideWidth: 88,
+        capsuleSafeWidth: 0,
 
         // 头部高度
         headerHeight: 44,
@@ -208,7 +209,7 @@ Page({
     },
 
     onLoad: function (options) {
-        const { statusBarHeight, navBarHeight, headerSideWidth } = this.getCustomNavMetrics();
+        const { statusBarHeight, navBarHeight, headerSideWidth, capsuleSafeWidth } = this.getCustomNavMetrics();
         const { id } = options;
         if (!id) {
             wx.showToast({
@@ -223,6 +224,7 @@ Page({
             statusBarHeight,
             navBarHeight,
             headerSideWidth,
+            capsuleSafeWidth,
             headerHeight: statusBarHeight + navBarHeight,
             listId: id,
             userInfo: wx.getStorageSync('userInfo')
@@ -244,12 +246,14 @@ Page({
         const capsuleWidth = menuButton && systemInfo.windowWidth
             ? Math.max(systemInfo.windowWidth - menuButton.left, 0)
             : 0;
-        const actionAreaWidth = 88;
+        const capsuleSafeWidth = capsuleWidth > 0 ? capsuleWidth + 8 : 0;
+        const backAreaWidth = 164;
 
         return {
             statusBarHeight,
             navBarHeight,
-            headerSideWidth: Math.max(80, actionAreaWidth, capsuleWidth + 8)
+            capsuleSafeWidth,
+            headerSideWidth: Math.max(backAreaWidth, capsuleSafeWidth)
         };
     },
 

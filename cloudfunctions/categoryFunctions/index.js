@@ -372,6 +372,8 @@ async function deleteCategory(openid, data) {
       .update({
         data: {
           categoryId: '',
+          categoryName: '',
+          categoryColor: '',
           updatedAt: db.serverDate()
         }
       });

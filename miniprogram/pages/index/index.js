@@ -250,6 +250,9 @@ Page({
 
   // 根据ID获取分类
   getCategoryById: function (categoryId) {
+    if (!categoryId) {
+      return null;
+    }
     return this.data.categories.find(cat => cat._id === categoryId);
   },
 
@@ -394,8 +397,9 @@ Page({
             isOverdue,
             priorityColor,
             time,
-            categoryName: category ? category.name : (task.categoryName || ''),
-            categoryColor: category ? category.color : (task.categoryColor || '#999')
+            categoryId: category ? task.categoryId : '',
+            categoryName: category ? category.name : '未分类',
+            categoryColor: category ? category.color : '#999'
           };
         });
         this.setData({ searchResults: tasks });

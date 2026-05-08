@@ -872,6 +872,15 @@ async function getListDetail(openid, data) {
 
     const enrichedTasks = tasks.map(task => {
       const cat = task.categoryId ? categoriesMap[task.categoryId] : null;
+      if (list.isShared) {
+        return {
+          ...task,
+          categoryId: '',
+          categoryName: '',
+          categoryColor: ''
+        };
+      }
+
       return {
         ...task,
         categoryName: cat ? cat.name : '',
