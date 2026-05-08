@@ -773,7 +773,7 @@ async function deleteTask(openid, data) {
           .remove();
       }
 
-      await recordOperation('task_delete', parentTaskId, userId, {
+      await recordOperation('task_delete_repeat', parentTaskId, userId, {
         taskTitle: oldTask.title,
         deleteScope: 'series',
         parentTaskId,

@@ -1,13 +1,4 @@
 <view class="operations-container">
-  <!-- 顶部导航栏 -->
-  <view class="header">
-    <view class="header-left" bindtap="onBack">
-      <van-icon name="arrow-left" size="20px" color="#333" />
-    </view>
-    <text class="header-title">操作记录</text>
-    <view class="header-right"></view>
-  </view>
-
   <!-- 操作记录列表 -->
   <scroll-view class="operations-scroll" scroll-y refresher-enabled refresher-triggered="{{isRefreshing}}" bindrefresherrefresh="onRefresh" bindscrolltolower="onLoadMore">
     <!-- 操作记录项 -->

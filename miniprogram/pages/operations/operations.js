@@ -177,11 +177,6 @@ Page({
     return `${year}-${month}-${day}`;
   },
 
-  // 返回
-  onBack() {
-    wx.navigateBack();
-  },
-
   // 下拉刷新
   onRefresh() {
     this.setData({

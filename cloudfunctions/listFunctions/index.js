@@ -1695,7 +1695,7 @@ function getOperationText(op, usersMap = {}) {
     case 'task_delete':
       return `删除了任务"${taskTitle}"`;
     case 'task_delete_repeat':
-      return `删除了周期任务"${taskTitle}"`;
+      return `删除了周期任务系列"${taskTitle}"`;
     case 'member_add':
       return targetName
         ? `添加“${targetName}”为成员（${getRoleName(content.role)}）`
