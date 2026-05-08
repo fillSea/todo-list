@@ -1,4 +1,5 @@
 const app = getApp();
+const PENDING_INVITE_CONTEXT_KEY = 'pendingInviteContext';
 
 Page({
   data: {
@@ -14,16 +15,24 @@ Page({
     pageTitle: '完善个人资料',
     pageSubtitle: '完成后即可使用任务、清单和通知等功能',
     submitButtonText: '保存并开始使用',
-    statusText: ''
+    statusText: '',
+    pendingInviteContext: null
   },
 
   onLoad: function () {
+    this.loadPendingInviteContext();
     this.checkLoginStatus();
   },
 
   onShow: function () {
+    this.loadPendingInviteContext();
     // 每次显示页面时检查登录状态
     this.checkLoginStatus();
+  },
+
+  loadPendingInviteContext: function () {
+    const pendingInviteContext = wx.getStorageSync(PENDING_INVITE_CONTEXT_KEY) || null;
+    this.setData({ pendingInviteContext });
   },
 
   // 检查登录状态
@@ -32,15 +41,19 @@ Page({
     const isLoggedIn = wx.getStorageSync('isLoggedIn');
 
     if (userInfo && isLoggedIn) {
+      const hasPendingInvite = !!this.data.pendingInviteContext;
+
       this.setData({
         avatarUrl: userInfo.avatarUrl || '',
         nickname: userInfo.nickname || '',
         enableNotifications: userInfo.enableNotifications !== false,
         isLoggedIn: true,
         pageTitle: '个人资料',
-        pageSubtitle: '可随时修改头像、昵称和通知偏好',
-        submitButtonText: '保存修改',
-        statusText: '个人资料已完善'
+        pageSubtitle: hasPendingInvite
+          ? '完善后将自动返回邀请页继续处理'
+          : '可随时修改头像、昵称和通知偏好',
+        submitButtonText: hasPendingInvite ? '保存并返回邀请页' : '保存修改',
+        statusText: hasPendingInvite ? '资料已完善，保存后将返回邀请页' : '个人资料已完善'
       });
       this.checkCanSubmit();
       return;
@@ -53,10 +66,54 @@ Page({
       canSubmit: false,
       isLoggedIn: false,
       pageTitle: '完善个人资料',
-      pageSubtitle: '完成后即可使用任务、清单和通知等功能',
-      submitButtonText: '保存并开始使用',
-      statusText: ''
+      pageSubtitle: this.data.pendingInviteContext
+        ? '完成后即可查看并处理该清单邀请'
+        : '完成后即可使用任务、清单和通知等功能',
+      submitButtonText: this.data.pendingInviteContext ? '保存并返回邀请页' : '保存并开始使用',
+      statusText: this.data.pendingInviteContext ? '请先完善资料' : ''
     });
+  },
+
+  handlePostSubmitNavigation: function (successToastTitle) {
+    const pendingInviteContext = wx.getStorageSync(PENDING_INVITE_CONTEXT_KEY);
+
+    if (pendingInviteContext && pendingInviteContext.type === 'listInvite' && pendingInviteContext.redirectUrl) {
+      wx.showToast({
+        title: successToastTitle,
+        icon: 'success',
+        duration: 1500
+      });
+
+      setTimeout(() => {
+        wx.redirectTo({
+          url: pendingInviteContext.redirectUrl,
+          success: () => {
+            wx.removeStorageSync(PENDING_INVITE_CONTEXT_KEY);
+            this.setData({ pendingInviteContext: null });
+          },
+          fail: () => {
+            wx.navigateBack();
+          }
+        });
+      }, 1500);
+
+      return;
+    }
+
+    wx.showToast({
+      title: successToastTitle,
+      icon: 'success',
+      duration: 1500
+    });
+
+    setTimeout(() => {
+      const pages = getCurrentPages();
+      const prevPage = pages[pages.length - 2];
+      if (prevPage && prevPage.checkLoginStatus) {
+        prevPage.checkLoginStatus();
+      }
+      wx.navigateBack();
+    }, 1500);
   },
 
   // 选择头像
@@ -175,21 +232,7 @@ Page({
         app.globalData.userInfo = userInfo;
         app.globalData.isLoggedIn = true;
 
-        wx.showToast({
-          title: '保存成功',
-          icon: 'success',
-          duration: 1500
-        });
-
-        setTimeout(() => {
-          // 返回上一页并触发刷新
-          const pages = getCurrentPages();
-          const prevPage = pages[pages.length - 2];
-          if (prevPage && prevPage.checkLoginStatus) {
-            prevPage.checkLoginStatus();
-          }
-          wx.navigateBack();
-        }, 1500);
+        this.handlePostSubmitNavigation(this.data.pendingInviteContext ? '资料已完善' : '保存成功');
       } else {
         wx.showToast({
           title: res.result?.message || '保存失败',
@@ -214,21 +257,7 @@ Page({
       app.globalData.userInfo = userInfo;
       app.globalData.isLoggedIn = true;
 
-      wx.showToast({
-        title: '已本地保存',
-        icon: 'success',
-        duration: 1500
-      });
-
-      setTimeout(() => {
-        // 返回上一页并触发刷新
-        const pages = getCurrentPages();
-        const prevPage = pages[pages.length - 2];
-        if (prevPage && prevPage.checkLoginStatus) {
-          prevPage.checkLoginStatus();
-        }
-        wx.navigateBack();
-      }, 1500);
+      this.handlePostSubmitNavigation(this.data.pendingInviteContext ? '资料已完善' : '已本地保存');
     }
   },
 

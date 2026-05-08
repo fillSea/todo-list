@@ -33,6 +33,13 @@ Page({
     // 成员上限提示
     showLimitDialog: false,
 
+    // 微信邀请
+    wechatInviteCode: '',
+    wechatInviteRole: 3,
+    wechatInviteReady: false,
+    wechatInviteStatusText: '',
+    wechatInviteHelpText: '',
+
     // 用户信息
     userInfo: null
   },
@@ -73,13 +80,25 @@ Page({
   },
 
   onShareAppMessage: function () {
-    const inviteCode = this._pendingInviteCode || '';
+    const inviteCode = this.data.wechatInviteCode || '';
     const listName = this.data.listInfo?.name || '共享清单';
-    const role = this._pendingRole || 3;
+
+    if (!inviteCode) {
+      return {
+        title: `邀请你加入"${listName}"`,
+        path: '/pages/index/index',
+        imageUrl: '/images/share-invite.png'
+      };
+    }
+
+    this.setData({
+      wechatInviteStatusText: '分享面板已打开，请发送给微信好友',
+      wechatInviteHelpText: '好友打开后需先完善资料，再确认是否加入清单'
+    });
 
     return {
       title: `邀请你加入"${listName}"`,
-      path: `/pages/list-invite-accept/list-invite-accept?code=${inviteCode}&role=${role}`,
+      path: `/pages/list-invite-accept/list-invite-accept?code=${inviteCode}`,
       imageUrl: '/images/share-invite.png'
     };
   },
@@ -319,22 +338,19 @@ Page({
     this.showRolePopup('wechat');
   },
 
-  // 创建邀请并触发分享
-  async createInviteAndShare(role) {
+  // 创建邀请并准备分享
+  async createInviteAndPrepare(role) {
     wx.showLoading({ title: '准备中...' });
 
     try {
       if (DEBUG_MODE) {
         await this.simulateDelay(500);
 
-        // 调试模式下模拟生成邀请码
-        this._pendingInviteCode = 'debug_invite_' + Date.now();
-        this._pendingRole = role;
-
-        wx.hideLoading();
-
-        // 触发分享
-        this.triggerShare();
+        this.setWechatInviteState(
+          'debug_invite_' + Date.now(),
+          'debug_activity_' + Date.now(),
+          role
+        );
       } else {
         const { listId } = this.data;
 
@@ -352,15 +368,7 @@ Page({
 
         if (result.result && result.result.success) {
           const { inviteCode } = result.result;
-
-          wx.hideLoading();
-
-          // 保存邀请信息，供 onShareAppMessage 使用
-          this._pendingInviteCode = inviteCode;
-          this._pendingRole = role;
-
-          // 触发分享
-          this.triggerShare();
+          this.setWechatInviteState(inviteCode, role);
         } else if (result.result && result.result.code === -1) {
           throw new Error(result.result.message || '生成邀请失败');
         } else {
@@ -369,24 +377,32 @@ Page({
       }
     } catch (error) {
       console.error('微信邀请失败:', error);
-      wx.hideLoading();
       wx.showToast({
         title: error.message || '邀请失败',
         icon: 'none'
       });
+    } finally {
+      wx.hideLoading();
     }
   },
 
-  // 触发分享
-  triggerShare() {
-    // 提示用户使用右上角菜单分享
-    // 注意：微信小程序无法通过代码自动触发分享，必须由用户点击右上角菜单
-    wx.showModal({
-      title: '邀请已生成',
-      content: '请点击右上角"..."按钮，选择"转发"来分享邀请给好友',
-      showCancel: false,
-      confirmText: '我知道了'
+  setWechatInviteState(inviteCode, role) {
+    this.setData({
+      wechatInviteCode: inviteCode,
+      wechatInviteRole: role || 3,
+      wechatInviteReady: true,
+      wechatInviteStatusText: '邀请已准备好',
+      wechatInviteHelpText: '点击下方按钮后会拉起微信分享面板，好友打开后可查看并处理邀请'
     });
+  },
+
+  onWechatShareReady() {
+    if (!this.data.wechatInviteReady) {
+      wx.showToast({
+        title: '请先确认邀请配置',
+        icon: 'none'
+      });
+    }
   },
 
   // ==================== 邀请链接 ====================
@@ -540,7 +556,7 @@ Page({
 
     // 微信邀请特殊处理 - 创建邀请并显示分享菜单
     if (inviteType === 'wechat') {
-      this.createInviteAndShare(selectedRole);
+      this.createInviteAndPrepare(selectedRole);
       return;
     }
 

@@ -6,7 +6,8 @@ App({
     // 此处请填入环境 ID, 环境 ID 可在微信开发者工具右上顶部工具栏点击云开发按钮打开获取
     env: "cloud1-0g144inb6530ffb6",
     userInfo: null,
-    isLoggedIn: false
+    isLoggedIn: false,
+    shareEntryInfo: null
   },
 
   userCacheKeys: [
@@ -32,6 +33,24 @@ App({
 
     // 检查登录状态
     this.checkLoginStatus();
+
+    this.captureShareEntryInfo(wx.getLaunchOptionsSync());
+  },
+
+  onShow: function (options) {
+    this.captureShareEntryInfo(options);
+  },
+
+  captureShareEntryInfo: function (options = {}) {
+    const referrerInfo = options.referrerInfo || {};
+
+    this.globalData.shareEntryInfo = {
+      scene: options.scene,
+      query: options.query || {},
+      shareTicket: options.shareTicket || '',
+      referrerAppId: referrerInfo.appId || '',
+      privateExtraData: referrerInfo.extraData || {}
+    };
   },
 
   // 检查登录状态
@@ -116,6 +135,10 @@ App({
       isLoggedIn: wx.getStorageSync('isLoggedIn') || false,
       loginTime: wx.getStorageSync('loginTime') || null
     };
+  },
+
+  getShareEntryInfo: function () {
+    return this.globalData.shareEntryInfo || null;
   },
 
   clearTaskCaches: function () {

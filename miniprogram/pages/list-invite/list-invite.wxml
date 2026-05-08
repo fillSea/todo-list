@@ -51,6 +51,15 @@
       </view>
     </view>
   </view>
+  <view class="wechat-share-panel" wx:if="{{wechatInviteReady}}">
+    <view class="wechat-share-header">
+      <text class="wechat-share-title">微信邀请已准备</text>
+      <text class="wechat-share-role">角色：{{wechatInviteRole === 2 ? '编辑者' : '查看者'}}</text>
+    </view>
+    <text class="wechat-share-status">{{wechatInviteStatusText}}</text>
+    <text class="wechat-share-help">{{wechatInviteHelpText}}</text>
+    <button class="wechat-share-btn" open-type="share" bindtap="onWechatShareReady">发送给微信好友</button>
+  </view>
   <!-- 待处理邀请 -->
   <view class="pending-section" wx:if="{{pendingInvites.length > 0}}">
     <view class="section-header">

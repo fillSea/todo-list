@@ -1,5 +1,7 @@
 // 调试模式开关
 const DEBUG_MODE = false;
+const PENDING_INVITE_CONTEXT_KEY = 'pendingInviteContext';
+const app = getApp();
 
 Page({
   data: {
@@ -29,7 +31,11 @@ Page({
     userInfo: null,
 
     // 邀请角色
-    pendingRole: 3
+    pendingRole: 3,
+
+    hasRedirectedToRegister: false,
+    isRegisterNavigationPending: false,
+    missingUserRetryCount: 0
   },
 
   onLoad: function (options) {
@@ -46,15 +52,32 @@ Page({
       return;
     }
 
-    const userInfo = wx.getStorageSync('userInfo');
-
     this.setData({
       inviteCode,
-      userInfo,
       pendingRole: parseInt(role) || 3
     });
 
-    // 加载邀请信息
+    this.checkLoginStatus();
+  },
+
+  onShow: function () {
+    if (!this.data.inviteCode || this.data.isLoading || this.data.isRegisterNavigationPending) {
+      return;
+    }
+
+    const loginState = this.getLoginState();
+    const userInfo = loginState.userInfo;
+
+    this.setData({
+      userInfo,
+      hasRedirectedToRegister: false
+    });
+
+    if (!loginState.isLoggedIn) {
+      this.redirectToRegister();
+      return;
+    }
+
     this.loadInviteInfo();
   },
 
@@ -66,9 +89,85 @@ Page({
     return decodeURIComponent(scene);
   },
 
+  getLoginState() {
+    const loginState = app && typeof app.getLoginState === 'function'
+      ? app.getLoginState()
+      : {
+        userInfo: wx.getStorageSync('userInfo') || null,
+        isLoggedIn: wx.getStorageSync('isLoggedIn') || false
+      };
+
+    return {
+      userInfo: loginState.userInfo || null,
+      isLoggedIn: !!(loginState.isLoggedIn && loginState.userInfo)
+    };
+  },
+
+  checkLoginStatus() {
+    const loginState = this.getLoginState();
+
+    this.setData({ userInfo: loginState.userInfo });
+
+    if (!loginState.isLoggedIn) {
+      this.redirectToRegister();
+      return;
+    }
+
+    this.loadInviteInfo();
+  },
+
+  savePendingInviteContext() {
+    const { inviteCode } = this.data;
+    const pendingInviteContext = {
+      type: 'listInvite',
+      inviteCode,
+      redirectUrl: `/pages/list-invite-accept/list-invite-accept?code=${encodeURIComponent(inviteCode)}`,
+      createdAt: Date.now()
+    };
+
+    wx.setStorageSync(PENDING_INVITE_CONTEXT_KEY, pendingInviteContext);
+  },
+
+  redirectToRegister() {
+    if (this.data.hasRedirectedToRegister || !this.data.inviteCode) {
+      return;
+    }
+
+    this.savePendingInviteContext();
+    this.setData({
+      hasRedirectedToRegister: true,
+      isRegisterNavigationPending: true,
+      isLoading: false,
+      errorMsg: '',
+      errorDesc: ''
+    });
+
+    wx.showToast({
+      title: '请先完善资料',
+      icon: 'none'
+    });
+
+    setTimeout(() => {
+      wx.navigateTo({
+        url: '/pages/register/register',
+        complete: () => {
+          this.setData({
+            isRegisterNavigationPending: false
+          });
+        }
+      });
+    }, 300);
+  },
+
   // 加载邀请信息
   async loadInviteInfo() {
     try {
+      this.setData({
+        isLoading: true,
+        errorMsg: '',
+        errorDesc: ''
+      });
+
       if (DEBUG_MODE) {
         await this.simulateDelay(800);
 
@@ -105,7 +204,9 @@ Page({
           name: 'listFunctions',
           data: {
             action: 'getInviteInfo',
-            data: { inviteCode: this.data.inviteCode }
+            data: {
+              inviteCode: this.data.inviteCode
+            }
           }
         });
 
@@ -117,7 +218,8 @@ Page({
             isMember,
             isProcessed,
             processStatus,
-            isLoading: false
+            isLoading: false,
+            missingUserRetryCount: 0
           });
         } else {
           throw new Error(result.result?.message || '加载失败');
@@ -125,10 +227,44 @@ Page({
       }
     } catch (error) {
       console.error('加载邀请信息失败:', error);
+      const message = error.message || '邀请链接无效或已过期';
+
+      if (message.includes('用户不存在')) {
+        const retryCount = this.data.missingUserRetryCount || 0;
+
+        if (retryCount < 1) {
+          this.setData({
+            missingUserRetryCount: retryCount + 1
+          });
+
+          setTimeout(() => {
+            this.loadInviteInfo();
+          }, 800);
+
+          return;
+        }
+
+        this.setData({
+          isLoading: false,
+          errorMsg: '资料已保存，用户信息同步中',
+          errorDesc: '请稍候重新进入邀请页，或稍后重试',
+          missingUserRetryCount: retryCount + 1
+        });
+
+        wx.showToast({
+          title: '用户信息同步中',
+          icon: 'none'
+        });
+
+        return;
+      }
+
       this.setData({
         isLoading: false,
-        errorMsg: '邀请链接无效或已过期',
-        errorDesc: '请联系邀请人重新发送邀请'
+        errorMsg: message.includes('已过期') ? message : '邀请链接无效或已过期',
+        errorDesc: message.includes('已过期')
+          ? '请联系邀请人重新发送邀请'
+          : (message.includes('仅限指定用户') ? message : '请联系邀请人重新发送邀请')
       });
     }
   },
