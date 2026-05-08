@@ -1,12 +1,4 @@
 <view class="list-invite-container">
-  <!-- 顶部导航栏 -->
-  <view class="header">
-    <view class="header-left" bindtap="onBack">
-      <van-icon name="arrow-left" size="20px" color="#333" />
-    </view>
-    <text class="header-title">邀请成员</text>
-    <view class="header-right"></view>
-  </view>
   <!-- 清单信息 -->
   <view class="list-info">
     <view class="list-icon" style="background-color: {{listInfo.color ? listInfo.color + '20' : '#E3F2FD'}}; border-color: {{listInfo.color || '#1976D2'}}">
