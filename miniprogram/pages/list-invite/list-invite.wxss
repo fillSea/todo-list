@@ -105,7 +105,7 @@
   opacity: 0.8;
 }
 
-.wechat-share-panel {
+.share-panel {
   margin: 0 16px 12px;
   padding: 16px;
   background: linear-gradient(135deg, #e8f8ef 0%, #ffffff 100%);
@@ -113,7 +113,12 @@
   border: 1rpx solid #ccebd8;
 }
 
-.wechat-share-header {
+.share-panel.link-mode {
+  background: linear-gradient(135deg, #eef5ff 0%, #ffffff 100%);
+  border-color: #d7e6ff;
+}
+
+.share-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -121,13 +126,24 @@
   margin-bottom: 8px;
 }
 
-.wechat-share-title {
+.share-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.share-title {
   font-size: 16px;
   color: #1f6f43;
   font-weight: 600;
 }
 
-.wechat-share-role {
+.share-panel.link-mode .share-title {
+  color: #1a4f9c;
+}
+
+.share-role {
   font-size: 12px;
   color: #07c160;
   background-color: #e7f9ef;
@@ -135,14 +151,19 @@
   border-radius: 999px;
 }
 
-.wechat-share-status {
+.share-panel.link-mode .share-role {
+  color: #1976D2;
+  background-color: #e8f1ff;
+}
+
+.share-status {
   display: block;
   font-size: 14px;
   color: #333;
   margin-bottom: 6px;
 }
 
-.wechat-share-help {
+.share-help {
   display: block;
   font-size: 12px;
   line-height: 1.6;
@@ -150,24 +171,144 @@
   margin-bottom: 14px;
 }
 
-.wechat-share-btn {
+.share-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.share-tag {
+  padding: 4px 10px;
+  background-color: #f3f6fb;
+  color: #4a5a70;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.share-btn {
   width: 100%;
   height: 44px;
   line-height: 44px;
   border-radius: 22px;
-  background-color: #07c160;
   color: #fff;
   font-size: 16px;
   font-weight: 600;
   border: none;
 }
 
-.wechat-share-btn::after {
+.share-btn.primary {
+  background-color: #07c160;
+}
+
+.share-panel.link-mode .share-btn.primary {
+  background-color: #1976D2;
+}
+
+.share-btn.secondary {
+  margin-top: 10px;
+  background-color: #fff;
+  color: #1976D2;
+  border: 1rpx solid #c6dafb;
+}
+
+.share-btn::after {
   border: none;
 }
 
-.wechat-share-btn:active {
+.share-btn:active {
   opacity: 0.9;
+}
+
+.share-regenerate {
+  margin-top: 12px;
+  text-align: center;
+  color: #1976D2;
+  font-size: 13px;
+}
+
+.link-settings-inline {
+  margin-top: 16px;
+  border-top: 1rpx solid #e8edf5;
+  padding-top: 12px;
+}
+
+.settings-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-toggle-text {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+}
+
+.settings-toggle-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-summary {
+  font-size: 12px;
+  color: #999;
+}
+
+.settings-body {
+  margin-top: 12px;
+  background-color: rgba(255, 255, 255, 0.72);
+  border-radius: 12px;
+  padding: 0 12px;
+}
+
+.setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.setting-item:last-child {
+  border-bottom: none;
+}
+
+.setting-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.setting-name {
+  font-size: 15px;
+  color: #333;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.setting-desc {
+  font-size: 12px;
+  color: #999;
+  line-height: 1.5;
+}
+
+.setting-value {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #666;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.setting-item.inline {
+  padding: 14px 0;
+}
+
+.setting-item.inline.no-border {
+  border-bottom: none;
 }
 
 .method-icon {
@@ -357,6 +498,32 @@
   padding: 16px;
   max-height: 60vh;
   overflow-y: auto;
+}
+
+.expire-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.expire-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background-color: #f5f5f5;
+  border-radius: 12px;
+  border: 2px solid transparent;
+}
+
+.expire-option.active {
+  background-color: #E3F2FD;
+  border-color: #1976D2;
+}
+
+.expire-name {
+  font-size: 15px;
+  color: #333;
 }
 
 /* 权限选项 */

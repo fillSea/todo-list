@@ -51,14 +51,51 @@
       </view>
     </view>
   </view>
-  <view class="wechat-share-panel" wx:if="{{wechatInviteReady}}">
-    <view class="wechat-share-header">
-      <text class="wechat-share-title">微信邀请已准备</text>
-      <text class="wechat-share-role">角色：{{wechatInviteRole === 2 ? '编辑者' : '查看者'}}</text>
+  <view class="share-panel {{shareMode === 'link' ? 'link-mode' : ''}}" wx:if="{{shareReady}}">
+    <view class="share-header">
+      <text class="share-title">{{shareMode === 'link' ? '邀请链接已准备' : '微信好友邀请已准备'}}</text>
+      <view class="share-header-right">
+        <text class="share-role">角色：{{shareInviteRole === 2 ? '编辑者' : '查看者'}}</text>
+        <van-icon name="cross" size="18px" color="#999" bindtap="onCloseSharePanel" />
+      </view>
     </view>
-    <text class="wechat-share-status">{{wechatInviteStatusText}}</text>
-    <text class="wechat-share-help">{{wechatInviteHelpText}}</text>
-    <button class="wechat-share-btn" open-type="share" bindtap="onWechatShareReady">发送给微信好友</button>
+    <text class="share-status">{{shareStatusText}}</text>
+    <text class="share-help">{{shareHelpText}}</text>
+    <view class="share-tags" wx:if="{{shareMode === 'link'}}">
+      <view class="share-tag">有效期：{{shareExpireText}}</view>
+      <view class="share-tag">{{shareNeedApproval ? '需要审核' : '直接加入'}}</view>
+    </view>
+    <button class="share-btn primary" open-type="share" bindtap="onWechatShareReady">发送给微信好友</button>
+    <button class="share-btn secondary" wx:if="{{shareMode === 'link'}}" bindtap="onCopyInviteLink">复制邀请链接</button>
+    <view class="share-regenerate" wx:if="{{shareMode === 'link'}}" bindtap="onRegenerateLinkInvite">重新生成链接</view>
+    <view class="link-settings-inline" wx:if="{{shareMode === 'link'}}">
+      <view class="settings-toggle" bindtap="onToggleLinkAdvancedSettings">
+        <text class="settings-toggle-text">高级设置</text>
+        <view class="settings-toggle-right">
+          <text class="settings-summary">{{linkDraftExpireText}} · {{linkDraftNeedApproval ? '需要审核' : '无需审核'}}</text>
+          <van-icon name="{{showLinkAdvancedSettings ? 'arrow-up' : 'arrow-down'}}" size="16px" color="#999" />
+        </view>
+      </view>
+      <view class="settings-body" wx:if="{{showLinkAdvancedSettings}}">
+        <view class="setting-item inline">
+          <view class="setting-info">
+            <text class="setting-name">有效期</text>
+            <text class="setting-desc">仅在重新生成后应用到新链接</text>
+          </view>
+          <view class="setting-value" bindtap="onChangeLinkExpire">
+            <text>{{linkDraftExpireText}}</text>
+            <van-icon name="arrow" size="16px" color="#999" />
+          </view>
+        </view>
+        <view class="setting-item inline no-border">
+          <view class="setting-info">
+            <text class="setting-name">需要审核</text>
+            <text class="setting-desc">开启后，成员申请加入需由创建者审批</text>
+          </view>
+          <van-switch checked="{{linkDraftNeedApproval}}" bind:change="onApprovalChange" size="20px" />
+        </view>
+      </view>
+    </view>
   </view>
   <!-- 待处理邀请 -->
   <view class="pending-section" wx:if="{{pendingInvites.length > 0}}">
@@ -124,6 +161,32 @@
         </view>
       </view>
       <view class="submit-btn" bindtap="onConfirmRole">确认邀请</view>
+    </view>
+  </van-popup>
+  <van-popup show="{{showExpirePopup}}" position="bottom" bind:close="onExpirePopupClose">
+    <view class="popup-header">
+      <text class="popup-title">选择有效期</text>
+      <van-icon name="cross" size="20px" color="#999" bindtap="onExpirePopupClose" />
+    </view>
+    <view class="popup-content">
+      <view class="expire-options">
+        <view class="expire-option {{linkDraftExpireDays === 1 ? 'active' : ''}}" data-days="1" bindtap="onExpireSelect">
+          <text class="expire-name">1天</text>
+          <van-icon name="success" size="18px" color="#1976D2" wx:if="{{linkDraftExpireDays === 1}}" />
+        </view>
+        <view class="expire-option {{linkDraftExpireDays === 7 ? 'active' : ''}}" data-days="7" bindtap="onExpireSelect">
+          <text class="expire-name">7天</text>
+          <van-icon name="success" size="18px" color="#1976D2" wx:if="{{linkDraftExpireDays === 7}}" />
+        </view>
+        <view class="expire-option {{linkDraftExpireDays === 30 ? 'active' : ''}}" data-days="30" bindtap="onExpireSelect">
+          <text class="expire-name">30天</text>
+          <van-icon name="success" size="18px" color="#1976D2" wx:if="{{linkDraftExpireDays === 30}}" />
+        </view>
+        <view class="expire-option {{linkDraftExpireDays === 0 ? 'active' : ''}}" data-days="0" bindtap="onExpireSelect">
+          <text class="expire-name">永久有效</text>
+          <van-icon name="success" size="18px" color="#1976D2" wx:if="{{linkDraftExpireDays === 0}}" />
+        </view>
+      </view>
     </view>
   </van-popup>
   <!-- 搜索用户弹窗 -->

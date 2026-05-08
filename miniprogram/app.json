@@ -12,7 +12,6 @@
     "pages/operations/operations",
     "pages/list-edit/list-edit",
     "pages/list-invite/list-invite",
-    "pages/list-invite-link/list-invite-link",
     "pages/list-invite-accept/list-invite-accept",
     "pages/list-invite-manage/list-invite-manage",
     "pages/profile/my-lists/my-lists",

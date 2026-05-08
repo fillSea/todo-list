@@ -33,12 +33,24 @@ Page({
     // 成员上限提示
     showLimitDialog: false,
 
-    // 微信邀请
-    wechatInviteCode: '',
-    wechatInviteRole: 3,
-    wechatInviteReady: false,
-    wechatInviteStatusText: '',
-    wechatInviteHelpText: '',
+    // 统一分享状态
+    shareMode: '',
+    shareInviteCode: '',
+    shareInviteRole: 3,
+    shareInviteLink: '',
+    shareNeedApproval: false,
+    shareExpireDays: 7,
+    shareExpireText: '7天',
+    shareReady: false,
+    shareStatusText: '',
+    shareHelpText: '',
+
+    // 邀请链接轻量设置
+    showLinkAdvancedSettings: false,
+    showExpirePopup: false,
+    linkDraftExpireDays: 7,
+    linkDraftExpireText: '7天',
+    linkDraftNeedApproval: false,
 
     // 用户信息
     userInfo: null
@@ -80,8 +92,9 @@ Page({
   },
 
   onShareAppMessage: function () {
-    const inviteCode = this.data.wechatInviteCode || '';
+    const inviteCode = this.data.shareInviteCode || '';
     const listName = this.data.listInfo?.name || '共享清单';
+    const isLinkInvite = this.data.shareMode === 'link';
 
     if (!inviteCode) {
       return {
@@ -92,8 +105,10 @@ Page({
     }
 
     this.setData({
-      wechatInviteStatusText: '分享面板已打开，请发送给微信好友',
-      wechatInviteHelpText: '好友打开后需先完善资料，再确认是否加入清单'
+      shareStatusText: '分享面板已打开，请发送给微信好友',
+      shareHelpText: isLinkInvite
+        ? '好友打开后会进入统一的邀请接受页；如已调整高级设置，请先重新生成后再分享'
+        : '好友打开后需先完善资料，再确认是否加入清单'
     });
 
     return {
@@ -346,11 +361,11 @@ Page({
       if (DEBUG_MODE) {
         await this.simulateDelay(500);
 
-        this.setWechatInviteState(
-          'debug_invite_' + Date.now(),
-          'debug_activity_' + Date.now(),
+        this.setShareState({
+          mode: 'wechat',
+          inviteCode: 'debug_invite_' + Date.now(),
           role
-        );
+        });
       } else {
         const { listId } = this.data;
 
@@ -368,7 +383,11 @@ Page({
 
         if (result.result && result.result.success) {
           const { inviteCode } = result.result;
-          this.setWechatInviteState(inviteCode, role);
+          this.setShareState({
+            mode: 'wechat',
+            inviteCode,
+            role
+          });
         } else if (result.result && result.result.code === -1) {
           throw new Error(result.result.message || '生成邀请失败');
         } else {
@@ -386,18 +405,32 @@ Page({
     }
   },
 
-  setWechatInviteState(inviteCode, role) {
+  getExpireText(days) {
+    return days === 0 ? '永久有效' : `${days}天`;
+  },
+
+  setShareState({ mode, inviteCode, role, inviteLink = '', needApproval = false, expireDays = 7 }) {
+    const expireText = this.getExpireText(expireDays);
+
     this.setData({
-      wechatInviteCode: inviteCode,
-      wechatInviteRole: role || 3,
-      wechatInviteReady: true,
-      wechatInviteStatusText: '邀请已准备好',
-      wechatInviteHelpText: '点击下方按钮后会拉起微信分享面板，好友打开后可查看并处理邀请'
+      shareMode: mode,
+      shareInviteCode: inviteCode,
+      shareInviteRole: role || 3,
+      shareInviteLink: inviteLink,
+      shareNeedApproval: !!needApproval,
+      shareExpireDays: expireDays,
+      shareExpireText: expireText,
+      shareReady: true,
+      shareStatusText: '邀请已准备好',
+      shareHelpText: mode === 'link'
+        ? '可直接分享给微信好友，或复制链接发送给其他成员；修改高级设置后需重新生成才会生效'
+        : '点击下方按钮后会拉起微信分享面板，好友打开后可查看并处理邀请',
+      showLinkAdvancedSettings: false
     });
   },
 
   onWechatShareReady() {
-    if (!this.data.wechatInviteReady) {
+    if (!this.data.shareReady) {
       wx.showToast({
         title: '请先确认邀请配置',
         icon: 'none'
@@ -405,14 +438,150 @@ Page({
     }
   },
 
+  onCloseSharePanel() {
+    this.setData({
+      shareReady: false,
+      shareMode: '',
+      shareInviteCode: '',
+      shareInviteLink: '',
+      shareStatusText: '',
+      shareHelpText: ''
+    });
+  },
+
   // ==================== 邀请链接 ====================
 
   onLinkInvite() {
     if (!this.checkMemberLimit()) return;
 
-    wx.navigateTo({
-      url: `/pages/list-invite-link/list-invite-link?listId=${this.data.listId}`
+    this.showRolePopup('link');
+  },
+
+  async generateLinkInviteAndPrepare(role, showSuccessToast = false) {
+    wx.showLoading({ title: '准备中...' });
+
+    try {
+      const { listId, linkDraftExpireDays, linkDraftNeedApproval } = this.data;
+
+      if (DEBUG_MODE) {
+        await this.simulateDelay(500);
+
+        const inviteCode = 'debug_link_' + Date.now();
+        this.setShareState({
+          mode: 'link',
+          inviteCode,
+          role,
+          inviteLink: `https://todo.app/invite/${inviteCode}`,
+          needApproval: linkDraftNeedApproval,
+          expireDays: linkDraftExpireDays
+        });
+      } else {
+        const result = await wx.cloud.callFunction({
+          name: 'listFunctions',
+          data: {
+            action: 'generateInviteLink',
+            data: {
+              listId,
+              role: role || 3,
+              expireDays: linkDraftExpireDays,
+              needApproval: linkDraftNeedApproval
+            }
+          }
+        });
+
+        if (result.result && result.result.success) {
+          const { inviteCode, inviteLink } = result.result;
+          this.setShareState({
+            mode: 'link',
+            inviteCode,
+            role,
+            inviteLink,
+            needApproval: linkDraftNeedApproval,
+            expireDays: linkDraftExpireDays
+          });
+        } else {
+          throw new Error(result.result?.message || '生成邀请链接失败');
+        }
+      }
+
+      if (showSuccessToast) {
+        wx.showToast({
+          title: '链接已重新生成',
+          icon: 'success'
+        });
+      }
+    } catch (error) {
+      console.error('生成邀请链接失败:', error);
+      wx.showToast({
+        title: error.message || '生成邀请链接失败',
+        icon: 'none'
+      });
+    } finally {
+      wx.hideLoading();
+    }
+  },
+
+  onToggleLinkAdvancedSettings() {
+    this.setData({
+      showLinkAdvancedSettings: !this.data.showLinkAdvancedSettings
     });
+  },
+
+  onChangeLinkExpire() {
+    this.setData({ showExpirePopup: true });
+  },
+
+  onExpirePopupClose() {
+    this.setData({ showExpirePopup: false });
+  },
+
+  onExpireSelect(e) {
+    const days = parseInt(e.currentTarget.dataset.days, 10);
+    this.setData({
+      showExpirePopup: false,
+      linkDraftExpireDays: days,
+      linkDraftExpireText: this.getExpireText(days)
+    });
+  },
+
+  onApprovalChange(e) {
+    this.setData({
+      linkDraftNeedApproval: !!e.detail
+    });
+  },
+
+  onCopyInviteLink() {
+    const { shareInviteLink, shareMode } = this.data;
+
+    if (shareMode !== 'link' || !shareInviteLink) {
+      wx.showToast({
+        title: '请先生成邀请链接',
+        icon: 'none'
+      });
+      return;
+    }
+
+    wx.setClipboardData({
+      data: shareInviteLink,
+      success: () => {
+        wx.showToast({
+          title: '链接已复制',
+          icon: 'success'
+        });
+      }
+    });
+  },
+
+  onRegenerateLinkInvite() {
+    if (this.data.shareMode !== 'link') {
+      wx.showToast({
+        title: '请先生成邀请链接',
+        icon: 'none'
+      });
+      return;
+    }
+
+    this.generateLinkInviteAndPrepare(this.data.shareInviteRole, true);
   },
 
   // ==================== 搜索用户 ====================
@@ -557,6 +726,11 @@ Page({
     // 微信邀请特殊处理 - 创建邀请并显示分享菜单
     if (inviteType === 'wechat') {
       this.createInviteAndPrepare(selectedRole);
+      return;
+    }
+
+    if (inviteType === 'link') {
+      this.generateLinkInviteAndPrepare(selectedRole);
       return;
     }
 
