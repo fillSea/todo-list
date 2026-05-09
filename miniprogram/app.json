@@ -19,6 +19,8 @@
     "pages/profile/notifications/notifications",
     "pages/profile/notification-settings/notification-settings",
     "pages/profile/help/help",
+    "pages/profile/help/agreement/agreement",
+    "pages/profile/help/privacy/privacy",
     "pages/profile/about/about",
     "pages/periodic-stats/periodic-stats"
   ],

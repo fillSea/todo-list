@@ -1,0 +1,46 @@
+.document-page {
+  min-height: 100vh;
+  background: #F5F5F5;
+  padding: 24rpx;
+  box-sizing: border-box;
+}
+
+.document-card {
+  background: #fff;
+  border-radius: 18rpx;
+  padding: 36rpx 30rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+}
+
+.document-title {
+  font-size: 38rpx;
+  font-weight: 700;
+  color: #222;
+  line-height: 1.4;
+  margin-bottom: 18rpx;
+}
+
+.document-meta {
+  font-size: 24rpx;
+  color: #999;
+  line-height: 1.7;
+}
+
+.section {
+  margin-top: 34rpx;
+}
+
+.section-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 16rpx;
+}
+
+.paragraph {
+  display: block;
+  font-size: 28rpx;
+  color: #555;
+  line-height: 1.8;
+  margin-bottom: 14rpx;
+}

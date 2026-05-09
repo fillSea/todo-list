@@ -1,5 +1,8 @@
 {
   "navigationBarTitleText": "关于我们",
   "backgroundColor": "#F5F5F5",
-  "enablePullDownRefresh": false
+  "enablePullDownRefresh": false,
+  "usingComponents": {
+    "van-icon": "@vant/weapp/icon/index"
+  }
 }

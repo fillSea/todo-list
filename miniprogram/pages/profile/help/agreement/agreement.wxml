@@ -1,0 +1,52 @@
+<view class="document-page">
+  <view class="document-card">
+    <view class="document-title">协同待办清单用户协议</view>
+    <view class="document-meta">生效日期：2026年5月9日</view>
+    <view class="document-meta">更新日期：2026年5月9日</view>
+
+    <view class="section">
+      <view class="section-title">一、协议范围</view>
+      <text class="paragraph">本协议适用于您使用协同待办清单小程序提供的任务记录、清单管理、协作共享、提醒通知、分类标签和数据统计等服务。</text>
+      <text class="paragraph">您使用本服务即表示已阅读、理解并同意本协议。若您不同意本协议，请停止使用本服务。</text>
+    </view>
+
+    <view class="section">
+      <view class="section-title">二、账号与使用</view>
+      <text class="paragraph">您应通过微信授权或小程序提供的方式使用本服务，并确保提交的信息真实、准确、完整。</text>
+      <text class="paragraph">您应妥善保管自己的账号和设备，不得将账号用于违法违规、侵犯他人权益或破坏服务正常运行的行为。</text>
+    </view>
+
+    <view class="section">
+      <view class="section-title">三、服务内容</view>
+      <text class="paragraph">本服务支持创建和管理个人任务、共享清单、成员协作、任务提醒、分类标签和相关统计展示。</text>
+      <text class="paragraph">因产品迭代、系统维护、微信平台规则或云服务能力变化，部分功能可能调整、暂停或终止，我们将尽量通过页面提示或版本更新说明告知。</text>
+    </view>
+
+    <view class="section">
+      <view class="section-title">四、用户行为规范</view>
+      <text class="paragraph">您不得发布、存储或传播违反法律法规、公序良俗、侵犯他人知识产权、隐私权或其他合法权益的内容。</text>
+      <text class="paragraph">您不得通过爬取、攻击、批量注册、恶意调用接口等方式干扰服务稳定性或获取非授权数据。</text>
+    </view>
+
+    <view class="section">
+      <view class="section-title">五、数据与内容</view>
+      <text class="paragraph">您在本服务中创建的任务、清单、成员协作记录等内容由您自行负责。共享清单中的成员可按权限查看或编辑相关内容。</text>
+      <text class="paragraph">我们会按照隐私政策处理您的个人信息和使用数据，并采取合理措施保护数据安全。</text>
+    </view>
+
+    <view class="section">
+      <view class="section-title">六、免责声明</view>
+      <text class="paragraph">本服务按现状提供。因网络故障、微信平台限制、云服务异常、不可抗力或用户自身操作导致的服务中断、数据异常或损失，我们将在合理范围内协助处理。</text>
+    </view>
+
+    <view class="section">
+      <view class="section-title">七、协议变更</view>
+      <text class="paragraph">我们可能根据法律法规、平台规则或产品功能变化更新本协议。更新后的协议将在本页面公布，并自公布或说明的生效日期起生效。</text>
+    </view>
+
+    <view class="section">
+      <view class="section-title">八、联系我们</view>
+      <text class="paragraph">如您对本协议或服务使用有疑问，可通过客服邮箱 support@todo-list.app 联系我们。</text>
+    </view>
+  </view>
+</view>

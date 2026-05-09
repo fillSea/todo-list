@@ -1,11 +1,14 @@
+const SUPPORT_EMAIL = 'support@todo-list.app';
+
 Page({
   data: {
+    currentYear: new Date().getFullYear(),
     // 应用信息
     appInfo: {
       name: '协同待办清单',
       version: '1.0.0',
-      slogan: '高效协作，轻松管理',
-      description: '一款简洁高效的协同待办清单小程序，支持个人任务管理和团队清单共享，帮助您更好地规划时间和任务。'
+      slogan: '个人待办与共享清单管理',
+      description: '协同待办清单支持任务记录、清单共享、分类标签、提醒和统计，帮助个人与小团队清晰管理日常事项。'
     },
     // 功能特点
     features: [
@@ -42,16 +45,14 @@ Page({
     ],
     // 开发团队
     team: [
-      { role: '产品设计', name: '产品团队' },
-      { role: '前端开发', name: '前端团队' },
-      { role: '后端开发', name: '后端团队' },
-      { role: 'UI设计', name: '设计团队' }
+      { role: '开发与维护', name: '协同待办清单团队' },
+      { role: '客服支持', name: SUPPORT_EMAIL }
     ],
     // 更新日志
     changelog: [
       {
         version: 'v1.0.0',
-        date: '2024-03-17',
+        date: '2026-05-09',
         changes: [
           '初始版本发布',
           '支持任务创建、编辑、删除',
@@ -72,14 +73,24 @@ Page({
         'appInfo.version': accountInfo.miniProgram.version || '1.0.0'
       });
     }
+
+    this.initUpdateManager();
   },
 
-  // 检查更新
-  onCheckUpdate: function () {
-    const updateManager = wx.getUpdateManager();
+  initUpdateManager: function () {
+    if (!wx.getUpdateManager) {
+      return;
+    }
 
-    updateManager.onCheckForUpdate((res) => {
+    this.updateManager = wx.getUpdateManager();
+    this.hasPendingUpdate = false;
+    this.lastUpdateStatus = null;
+
+    this.updateManager.onCheckForUpdate((res) => {
+      this.isCheckingUpdate = false;
+      this.lastUpdateStatus = res.hasUpdate ? 'available' : 'latest';
       if (res.hasUpdate) {
+        this.hasPendingUpdate = true;
         wx.showLoading({
           title: '更新下载中...'
         });
@@ -91,21 +102,28 @@ Page({
       }
     });
 
-    updateManager.onUpdateReady(() => {
+    this.updateManager.onUpdateReady(() => {
       wx.hideLoading();
+      if (!this.hasPendingUpdate) {
+        return;
+      }
+      this.hasPendingUpdate = false;
       wx.showModal({
         title: '更新提示',
         content: '新版本已准备好，是否重启应用？',
         success: (res) => {
           if (res.confirm) {
-            updateManager.applyUpdate();
+            this.updateManager.applyUpdate();
           }
         }
       });
     });
 
-    updateManager.onUpdateFailed(() => {
+    this.updateManager.onUpdateFailed(() => {
       wx.hideLoading();
+      this.isCheckingUpdate = false;
+      this.hasPendingUpdate = false;
+      this.lastUpdateStatus = 'failed';
       wx.showModal({
         title: '更新失败',
         content: '新版本下载失败，请检查网络后重试',
@@ -114,10 +132,62 @@ Page({
     });
   },
 
+  // 检查更新
+  onCheckUpdate: function () {
+    if (!this.updateManager) {
+      wx.showToast({
+        title: '当前环境不支持更新检查',
+        icon: 'none'
+      });
+      return;
+    }
+
+    if (this.isCheckingUpdate) {
+      wx.showToast({
+        title: '正在检查更新',
+        icon: 'none'
+      });
+      return;
+    }
+
+    if (this.lastUpdateStatus === 'latest') {
+      wx.showToast({
+        title: '已是最新版本',
+        icon: 'success'
+      });
+      return;
+    }
+
+    if (this.lastUpdateStatus === 'available' || this.hasPendingUpdate) {
+      wx.showLoading({
+        title: '更新下载中...'
+      });
+      return;
+    }
+
+    if (this.lastUpdateStatus === 'failed') {
+      wx.showToast({
+        title: '更新检查失败',
+        icon: 'none'
+      });
+      return;
+    }
+
+    this.isCheckingUpdate = true;
+    wx.showToast({
+      title: '正在检查更新',
+      icon: 'none'
+    });
+
+    setTimeout(() => {
+      this.isCheckingUpdate = false;
+    }, 1500);
+  },
+
   // 复制邮箱
   onCopyEmail: function () {
     wx.setClipboardData({
-      data: 'support@example.com',
+      data: SUPPORT_EMAIL,
       success: () => {
         wx.showToast({
           title: '邮箱已复制',
@@ -145,8 +215,7 @@ Page({
   onShareAppMessage: function () {
     return {
       title: '协同待办清单 - 高效协作，轻松管理',
-      path: '/pages/index/index',
-      imageUrl: '/images/share-cover.png'
+      path: '/pages/index/index'
     };
   }
 });

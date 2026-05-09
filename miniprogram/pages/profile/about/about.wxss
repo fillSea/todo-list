@@ -25,6 +25,12 @@
   box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.1);
 }
 
+.app-logo text {
+  font-size: 38rpx;
+  font-weight: 700;
+  color: #07C160;
+}
+
 .app-logo image {
   width: 100rpx;
   height: 100rpx;

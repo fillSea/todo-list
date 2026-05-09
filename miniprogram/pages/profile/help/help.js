@@ -1,3 +1,5 @@
+const SUPPORT_EMAIL = 'support@todo-list.app';
+
 Page({
   data: {
     // 帮助分类
@@ -158,7 +160,7 @@ Page({
   onContactSupport: function () {
     wx.showModal({
       title: '联系客服',
-      content: '客服邮箱：support@example.com\n工作时间：周一至周五 9:00-18:00',
+      content: `客服邮箱：${SUPPORT_EMAIL}\n工作时间：周一至周五 9:00-18:00`,
       showCancel: false
     });
   },
