@@ -9,93 +9,53 @@ skinparam activity {
   DiamondBorderColor #F57F17
 }
 
+skinparam defaultFontSize 14
+skinparam activityFontSize 13
+skinparam dpi 150
+
 start
 
 :用户点击任务复选框;
-:前端获取 taskId 和目标 status;
+:前端发送状态切换请求;
 
-' ===== 前端预检查 =====
-if (目标状态 = 完成?) then (是)
-  :查找本地任务信息;
-  if (任务已逾期?) then (是)
-    :弹出确认框\n"该任务已过期，确认完成？";
-    if (用户确认?) then (是)
-      :标记 confirmCompleteOverdue = true;
+partition "云函数处理" {
+  :查询任务与当前用户信息;
+
+  if (有修改权限?) then (是)
+  else (否)
+    :返回“无权限修改”;
+    stop
+  endif
+
+  if (周期任务且目标为完成?) then (是)
+    if (符合完成规则?) then (是)
     else (否)
-      :取消操作;
+      :返回确认或日期限制提示;
       stop
     endif
   else (否)
   endif
-else (否)
-endif
 
-' ===== 调用云函数 =====
-:调用云函数\ntaskFunctions.toggleTaskStatus;
-
-' ===== 云函数处理 =====
-partition "云函数 toggleTaskStatus" {
-  :获取用户ID\n查询任务详情;
-  
-  if (任务创建者 ≠ 当前用户?) then (是)
-    if (任务属于清单?) then (是)
-      :调用 verifyListPermission\n验证编辑者权限;
-      if (权限不足?) then (是)
-        :返回错误\n"无权限修改";
-        stop
-      else (否)
-      endif
-    else (否)
-      :返回错误\n"无权限修改";
-      stop
-    endif
-  else (否)
-  endif
-  
-  ' ===== 完成操作的特殊逻辑 =====
-  if (目标状态 = 完成 且 是周期任务?) then (是)
-    :解析截止日期 dueDate;
-    if (截止日期 < 今天 (已逾期)?) then (是)
-      if (前端已确认过期完成?) then (是)
-        :跳过日期检查\n允许完成;
-      else (否)
-        :返回需确认提示;
-        stop
-      endif
-    else (否)
-      if (截止日期 ≠ 今天?) then (是)
-        :返回提示\n"周期任务只能在当天完成"\n附带 dueDate 供前端跳转;
-        stop
-      else (否)
-        :当天任务，允许完成;
-      endif
-    endif
-  else (否)
-  endif
-  
-  ' ===== 取消完成的确认逻辑 =====
-  if (目标状态 = 未完成 且 未确认?) then (是)
-    :返回确认提示\n"确定要取消完成吗？";
+  if (目标为未完成且需确认?) then (是)
+    :返回取消完成确认提示;
     stop
   else (否)
   endif
-  
-  ' ===== 执行状态更新 =====
-  :更新数据库\ntasks.status = 目标状态\ntasks.updatedAt = 当前时间;
-  :记录操作日志\nrecordOperation();
+
+  :更新任务状态;
+  :记录操作日志;
 }
 
-' ===== 云函数返回后的前端处理 =====
-:云函数返回成功;
-
-if (是周期任务 且 刚完成?) then (是)
-  :调用 ensurePeriodicTasks()\n检查并补充生成未来周期实例;
-  :刷新任务列表\n显示下一个周期实例;
+if (状态切换成功?) then (是)
+  if (周期任务刚完成?) then (是)
+    :生成后续周期实例\n并刷新任务列表;
+  else (否)
+    :更新本地状态\n并重新分组展示;
+  endif
+  :提示操作成功;
 else (否)
-  :更新本地任务状态\n调用 processTasks() 重新分组;
+  :提示失败原因;
 endif
-
-:显示操作结果提示;
 
 stop
 

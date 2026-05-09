@@ -9,59 +9,38 @@ skinparam activity {
   DiamondBorderColor #F57F17
 }
 
+skinparam defaultFontSize 14
+skinparam activityFontSize 13
+skinparam dpi 150
+
 start
 
-:云函数接收到操作请求\n（如创建任务、编辑任务、删除清单等）;
+:接收清单操作请求;
+:获取当前用户和目标清单;
 
-:通过 cloud.getWXContext()\n获取调用者 OpenID;
+partition "权限验证" {
+  :查询用户的清单成员记录;
 
-:通过 OpenID 查询 users 集合\n获取用户 userId;
-
-if (用户存在?) then (是)
-else (否)
-  :返回错误\n"用户不存在";
-  stop
-endif
-
-:获取操作目标的 listId;
-
-:调用 verifyListPermission\n(userId, listId, requiredRole);
-
-note right
-  requiredRole 含义：
-  · 1 = 需要创建者权限
-      （删除清单、邀请成员、移除成员）
-  · 2 = 需要编辑者权限
-      （创建任务、编辑任务、删除任务）
-  · 3 = 需要查看者权限
-      （查看清单、查看任务列表）
-end note
-
-partition "verifyListPermission 函数" {
-  
-  :查询 list_members 集合\nWHERE listId=目标清单\nAND userId=当前用户;
-  
   if (找到成员记录?) then (是)
-    :获取成员角色 role\n（1=创建者 / 2=编辑者 / 3=查看者）;
+    :读取当前角色;
   else (否)
-    :查询 lists 集合\nWHERE _id=目标清单\nAND creatorId=当前用户;
     if (是清单创建者?) then (是)
-      :role = 1（创建者）;
+      :视为创建者角色;
     else (否)
-      :返回\nhasPermission = false\n"您不是该清单的成员";
+      :返回“不是清单成员”;
       stop
     endif
   endif
-  
-  if (role <= requiredRole ?) then (是)
-    :返回\nhasPermission = true\nrole = 当前角色;
+
+  if (角色满足操作要求?) then (是)
+    :返回允许操作;
   else (否)
-    :返回\nhasPermission = false\n"权限不足";
+    :返回“权限不足”;
     stop
   endif
 }
 
-:权限验证通过\n继续执行业务逻辑;
+:继续执行业务逻辑;
 
 stop
 
