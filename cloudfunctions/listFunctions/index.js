@@ -169,6 +169,41 @@ async function createNotificationIfEnabled(userId, notificationData) {
   return true;
 }
 
+async function notifyInviterInviteHandled(invite, inviteeUserId, type) {
+  try {
+    if (!invite?.inviterId || invite.inviterId === inviteeUserId) {
+      return false;
+    }
+
+    const { data: lists } = await db.collection('lists')
+      .where({ _id: invite.listId })
+      .field({ name: true })
+      .limit(1)
+      .get();
+    const listName = lists.length > 0 ? lists[0].name : '未知清单';
+
+    const userInfo = await getUserBasicInfo(inviteeUserId);
+    const userName = userInfo?.nickname || invite.inviteeInfo?.nickname || '未知用户';
+
+    const notificationData = type === 'accepted'
+      ? {
+        type: 'invite_accepted',
+        relatedId: invite.listId,
+        content: `${userName} 已接受邀请并加入清单"${listName}"`
+      }
+      : {
+        type: 'invite_rejected',
+        relatedId: invite.listId,
+        content: `${userName} 已拒绝加入清单"${listName}"的邀请`
+      };
+
+    return await createNotificationIfEnabled(invite.inviterId, notificationData);
+  } catch (error) {
+    console.error('创建邀请处理通知失败:', error);
+    return false;
+  }
+}
+
 function generateInviteCode(length = 16) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let inviteCode = '';
@@ -1837,17 +1872,19 @@ async function getInviteList(openid, data) {
       userMap[user._id] = user;
     });
 
-    const enriched = filteredInvites.map(invite => {
+    const enriched = await Promise.all(filteredInvites.map(async invite => {
       const user = invite.inviteeId ? userMap[invite.inviteeId] : null;
+      const rawAvatarUrl = user?.avatarUrl || invite.inviteeInfo?.avatarUrl || '';
+
       return {
         ...invite,
         inviteeInfo: {
           ...(invite.inviteeInfo || {}),
-          nickname: invite.inviteeInfo?.nickname || user?.nickname || '',
-          avatarUrl: invite.inviteeInfo?.avatarUrl || user?.avatarUrl || ''
+          nickname: user?.nickname || invite.inviteeInfo?.nickname || '',
+          avatarUrl: await resolveAvatarUrl(rawAvatarUrl)
         }
       };
-    });
+    }));
 
     return { code: 0, success: true, invites: enriched };
   } catch (error) {
@@ -2382,6 +2419,8 @@ async function acceptInvite(openid, data) {
         targetUserName: targetUserInfo?.nickname || invite.inviteeInfo?.nickname || '',
         role: invite.role
       }, invite.listId);
+
+      await notifyInviterInviteHandled(acceptedInvite, userId, 'accepted');
     }
 
     return {
@@ -2542,6 +2581,8 @@ async function rejectInvite(openid, data) {
       role: invite.role,
       inviteType: invite.inviteType
     }, invite.listId);
+
+    await notifyInviterInviteHandled(rejectedInvite, userId, 'rejected');
 
     return { code: 0, success: true, message: '已拒绝邀请' };
   } catch (error) {

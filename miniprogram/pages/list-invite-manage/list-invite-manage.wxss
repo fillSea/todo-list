@@ -17,18 +17,8 @@
   border-bottom: 1rpx solid #eee;
 }
 
-.header-left {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.header-title {
-  font-size: 17px;
-  font-weight: 600;
-  color: #333;
+.header-title-placeholder {
+  flex: 1;
 }
 
 .header-right {

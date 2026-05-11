@@ -13,6 +13,14 @@ const NOTIFICATION_TYPE_CONFIG = {
     text: '加入申请',
     icon: 'user-o'
   },
+  invite_accepted: {
+    text: '邀请已接受',
+    icon: 'success'
+  },
+  invite_rejected: {
+    text: '邀请被拒绝',
+    icon: 'close'
+  },
   application_approved: {
     text: '申请通过',
     icon: 'success'
@@ -48,6 +56,8 @@ Page({
       { value: 'list_invite', label: '清单邀请' },
       { value: 'invite_remind', label: '邀请提醒' },
       { value: 'join_request', label: '加入申请' },
+      { value: 'invite_accepted', label: '邀请接受' },
+      { value: 'invite_rejected', label: '邀请拒绝' },
       { value: 'application_approved', label: '申请通过' },
       { value: 'application_rejected', label: '申请被拒' },
       { value: 'task_reminder', label: '任务提醒' }
@@ -217,12 +227,14 @@ Page({
         }
         break;
       case 'join_request':
+      case 'invite_rejected':
         if (notification.relatedId) {
           wx.navigateTo({
             url: `/pages/list-invite-manage/list-invite-manage?listId=${notification.relatedId}`
           });
         }
         break;
+      case 'invite_accepted':
       case 'application_approved':
         if (notification.relatedId) {
           wx.navigateTo({

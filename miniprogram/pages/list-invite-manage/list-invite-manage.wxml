@@ -1,10 +1,7 @@
 <view class="list-invite-manage-container">
   <!-- 顶部导航栏 -->
   <view class="header">
-    <view class="header-left" bindtap="onBack">
-      <van-icon name="arrow-left" size="20px" color="#333" />
-    </view>
-    <text class="header-title">邀请管理</text>
+    <view class="header-title-placeholder"></view>
     <view class="header-right" bindtap="onClearAll" wx:if="{{canClearCurrentTab}}">
       <text class="clear-text">清空</text>
     </view>
@@ -162,7 +159,7 @@
     </view>
   </view>
   <!-- 取消确认弹窗 -->
-  <van-dialog id="cancel-dialog" show="{{showCancelDialog}}" title="取消邀请" message="确定要取消对 {{cancelUserName}} 的邀请吗？" show-cancel-button confirm-button-text="取消邀请" confirm-button-color="#ee0a24" bind:close="onCancelDialogClose" bind:confirm="onConfirmCancel" />
+  <van-dialog id="cancel-dialog" show="{{showCancelDialog}}" title="取消邀请" message="确定要取消对 {{cancelUserName}} 的邀请吗？" show-cancel-button cancel-button-text="返回" confirm-button-text="取消邀请" confirm-button-color="#ee0a24" bind:close="onCancelDialogClose" bind:confirm="onConfirmCancel" />
   <!-- 清空确认弹窗 -->
   <van-dialog id="clear-dialog" show="{{showClearDialog}}" title="清空邀请记录" message="确定要清空所有{{currentTab === 'expired' ? '已过期' : '已处理'}}的邀请记录吗？此操作不可恢复。" show-cancel-button confirm-button-text="清空" confirm-button-color="#ee0a24" bind:close="onClearDialogClose" bind:confirm="onConfirmClear" />
   <!-- 提示弹窗 -->

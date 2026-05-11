@@ -11,6 +11,8 @@ const SUPPORTED_NOTIFICATION_TYPES = [
   'list_invite',
   'invite_remind',
   'join_request',
+  'invite_accepted',
+  'invite_rejected',
   'application_approved',
   'application_rejected',
   'task_reminder'
