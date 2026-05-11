@@ -65,7 +65,7 @@
           <text class="member-role" wx:if="{{item.role === 1}}">创建者</text>
           <text class="member-role" wx:if="{{item.role === 2}}">编辑者</text>
         </view>
-        <view class="add-member-btn" wx:if="{{canManageMembers}}" bindtap="onAddMember">
+        <view class="add-member-btn" wx:if="{{canInviteMembers}}" bindtap="onAddMember">
           <van-icon name="plus" size="20px" color="#999" />
         </view>
       </view>

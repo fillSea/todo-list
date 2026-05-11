@@ -305,10 +305,14 @@ Page({
   // ==================== 申请加入 ====================
 
   onApplyJoin() {
+    const approvalTargetText = this.data.inviteInfo.inviterRole === 2
+      ? '清单创建者'
+      : '创建者';
+
     this.setData({
       showConfirmDialog: true,
       dialogTitle: '确认申请',
-      dialogMessage: `申请加入"${this.data.inviteInfo.listName}"，等待邀请人审核，是否继续？`,
+      dialogMessage: `申请加入"${this.data.inviteInfo.listName}"，等待${approvalTargetText}审核，是否继续？`,
       confirmText: '申请',
       confirmColor: '#1976D2',
       pendingAction: 'apply'

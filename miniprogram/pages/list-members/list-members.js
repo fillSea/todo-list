@@ -17,6 +17,7 @@ Page({
 
     // 权限
     canManageMembers: false,
+    canInviteMembers: false,
     myRole: null,
 
     // 加载状态
@@ -136,6 +137,7 @@ Page({
           viewers,
           myRole,
           canManageMembers: myRole === 1,
+          canInviteMembers: myRole === 1 || myRole === 2,
           pendingInviteCount: 2, // 伪造待处理邀请数量
           isLoading: false,
           isRefreshing: false
@@ -165,6 +167,7 @@ Page({
             viewers,
             myRole,
             canManageMembers: myRole === 1,
+            canInviteMembers: myRole === 1 || myRole === 2,
             isLoading: false,
             isRefreshing: false
           });

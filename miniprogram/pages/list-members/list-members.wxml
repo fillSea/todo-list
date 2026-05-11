@@ -88,9 +88,9 @@
       <text class="empty-desc">点击底部按钮添加成员</text>
     </view>
   </scroll-view>
-  <view class="floating-add-btn" bindtap="onInviteMember" wx:if="{{canManageMembers}}">
+  <view class="floating-add-btn" bindtap="onInviteMember" wx:if="{{canInviteMembers}}">
     <van-icon name="plus" size="20px" color="#fff" />
-    <text>添加成员</text>
+    <text>{{canManageMembers ? '添加成员' : '邀请成员'}}</text>
   </view>
   <!-- 添加成员弹窗 -->
   <van-popup show="{{showAddPopup}}" position="bottom" bind:close="onAddPopupClose">

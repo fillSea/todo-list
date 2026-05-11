@@ -165,6 +165,7 @@ Page({
         canEdit: false,
         canDelete: false,
         canManageMembers: false,
+        canInviteMembers: false,
         canAddTask: false,
         myRole: null,
 
@@ -303,6 +304,7 @@ Page({
                     canEdit: myRole === 1 || myRole === 2,
                     canDelete: myRole === 1,
                     canManageMembers: myRole === 1,
+                    canInviteMembers: myRole === 1 || myRole === 2,
                     canAddTask: myRole === 1 || myRole === 2,
                     completedCount,
                     progressPercent,
@@ -345,6 +347,7 @@ Page({
                         canEdit: myRole === 1 || myRole === 2,
                         canDelete: myRole === 1,
                         canManageMembers: myRole === 1,
+                        canInviteMembers: myRole === 1 || myRole === 2,
                         canAddTask: myRole === 1 || myRole === 2,
                         completedCount,
                         progressPercent,
@@ -540,7 +543,7 @@ Page({
 
     // 更多操作
     onMoreActions() {
-        const { canDelete, canManageMembers, listInfo } = this.data;
+        const { canDelete, canManageMembers, canInviteMembers, listInfo } = this.data;
 
         let actions = [
             { name: '查看操作记录', type: 'operations' }
@@ -548,6 +551,8 @@ Page({
 
         if (canManageMembers && listInfo.isShared) {
             actions.push({ name: '管理成员', type: 'members' });
+        } else if (canInviteMembers && listInfo.isShared) {
+            actions.push({ name: '邀请成员', type: 'invite' });
         }
 
         if (canDelete) {
@@ -579,6 +584,12 @@ Page({
             case '管理成员':
                 wx.navigateTo({
                     url: `/pages/list-members/list-members?listId=${listId}`
+                });
+                break;
+            case 'invite':
+            case '邀请成员':
+                wx.navigateTo({
+                    url: `/pages/list-invite/list-invite?listId=${listId}`
                 });
                 break;
             case 'delete':

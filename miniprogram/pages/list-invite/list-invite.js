@@ -52,6 +52,10 @@ Page({
     linkDraftExpireText: '7天',
     linkDraftNeedApproval: false,
 
+    myRole: null,
+    canChooseApproval: false,
+    forceApproval: false,
+
     // 用户信息
     userInfo: null
   },
@@ -86,7 +90,7 @@ Page({
   },
 
   onShow: function () {
-    if (this.data.listId) {
+    if (this.data.listId && this.data.myRole === 1) {
       this.loadPendingInvites();
     }
   },
@@ -120,9 +124,14 @@ Page({
 
   // 加载数据
   async loadData() {
+    await this.loadListInfo();
+
+    if (!this.data.myRole) {
+      return;
+    }
+
     await Promise.all([
-      this.loadListInfo(),
-      this.loadPendingInvites(),
+      this.data.myRole === 1 ? this.loadPendingInvites() : Promise.resolve(),
       this.loadRecentMembers()
     ]);
   },
@@ -157,16 +166,23 @@ Page({
             memberCount: (detail.members || []).length
           };
 
-          if (detail.myRole !== 1) {
+          if (![1, 2].includes(detail.myRole)) {
             wx.showToast({
-              title: '仅创建者可管理邀请',
+              title: '仅创建者和编辑者可邀请成员',
               icon: 'none'
             });
             setTimeout(() => wx.navigateBack(), 1200);
             return;
           }
 
-          this.setData({ listInfo });
+          const forceApproval = detail.myRole === 2;
+          this.setData({
+            listInfo,
+            myRole: detail.myRole,
+            canChooseApproval: detail.myRole === 1,
+            forceApproval,
+            linkDraftNeedApproval: forceApproval ? true : this.data.linkDraftNeedApproval
+          });
         } else {
           console.error('获取清单信息失败:', result.result?.message);
           wx.showToast({
@@ -369,7 +385,7 @@ Page({
           role
         });
       } else {
-        const { listId } = this.data;
+        const { listId, forceApproval } = this.data;
 
         // 调用云函数生成邀请信息
         const result = await wx.cloud.callFunction({
@@ -378,7 +394,8 @@ Page({
             action: 'createWechatInvite',
             data: {
               listId,
-              role: role || 3
+              role: role || 3,
+              needApproval: forceApproval
             }
           }
         });
@@ -413,13 +430,14 @@ Page({
 
   setShareState({ mode, inviteCode, role, inviteLink = '', needApproval = false, expireDays = 7 }) {
     const expireText = this.getExpireText(expireDays);
+    const finalNeedApproval = this.data.forceApproval ? true : !!needApproval;
 
     this.setData({
       shareMode: mode,
       shareInviteCode: inviteCode,
       shareInviteRole: role || 3,
       shareInviteLink: inviteLink,
-      shareNeedApproval: !!needApproval,
+      shareNeedApproval: finalNeedApproval,
       shareExpireDays: expireDays,
       shareExpireText: expireText,
       shareReady: true,
@@ -463,7 +481,8 @@ Page({
     wx.showLoading({ title: '准备中...' });
 
     try {
-      const { listId, linkDraftExpireDays, linkDraftNeedApproval } = this.data;
+      const { listId, linkDraftExpireDays, linkDraftNeedApproval, forceApproval } = this.data;
+      const finalNeedApproval = forceApproval ? true : linkDraftNeedApproval;
 
       if (DEBUG_MODE) {
         await this.simulateDelay(500);
@@ -474,7 +493,7 @@ Page({
           inviteCode,
           role,
           inviteLink: `https://todo.app/invite/${inviteCode}`,
-          needApproval: linkDraftNeedApproval,
+          needApproval: finalNeedApproval,
           expireDays: linkDraftExpireDays
         });
       } else {
@@ -486,7 +505,7 @@ Page({
               listId,
               role: role || 3,
               expireDays: linkDraftExpireDays,
-              needApproval: linkDraftNeedApproval
+              needApproval: finalNeedApproval
             }
           }
         });
@@ -498,7 +517,7 @@ Page({
             inviteCode,
             role,
             inviteLink,
-            needApproval: linkDraftNeedApproval,
+            needApproval: finalNeedApproval,
             expireDays: linkDraftExpireDays
           });
         } else {
@@ -547,6 +566,11 @@ Page({
   },
 
   onApprovalChange(e) {
+    if (this.data.forceApproval) {
+      this.setData({ linkDraftNeedApproval: true });
+      return;
+    }
+
     this.setData({
       linkDraftNeedApproval: !!e.detail
     });
@@ -764,12 +788,14 @@ Page({
         await this.simulateDelay(800);
 
         wx.showToast({
-          title: '邀请已发送',
+          title: this.data.forceApproval ? '邀请已发送，需创建者审核' : '邀请已发送',
           icon: 'success'
         });
 
         // 刷新待处理邀请列表和最近协作者
-        this.loadPendingInvites();
+        if (this.data.myRole === 1) {
+          this.loadPendingInvites();
+        }
         this.loadRecentMembers();
       } else {
         // 调用云函数邀请成员
@@ -788,12 +814,14 @@ Page({
 
         if (result && result.result && result.result.code === 0) {
           wx.showToast({
-            title: '邀请已发送',
+            title: this.data.forceApproval ? '邀请已发送，需创建者审核' : '邀请已发送',
             icon: 'success'
           });
           // 刷新清单信息、待处理邀请列表和最近协作者
           this.loadListInfo();
-          this.loadPendingInvites();
+          if (this.data.myRole === 1) {
+            this.loadPendingInvites();
+          }
           this.loadRecentMembers();
         } else {
           throw new Error(result.result?.message || '邀请失败');

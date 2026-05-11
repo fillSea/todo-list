@@ -320,6 +320,46 @@ async function verifyListPermission(userId, listId, allowedRoles = [1]) {
   return access;
 }
 
+function getInviteApprovalMeta(permission, needApproval = false, inviteType = 'search') {
+  const inviterRole = permission.role;
+  const forceApproval = inviterRole === 2;
+  const finalNeedApproval = forceApproval ? true : !!needApproval;
+  let approvalSource = '';
+
+  if (finalNeedApproval) {
+    if (inviterRole === 2) {
+      approvalSource = 'editor_invite';
+    } else if (inviteType === 'link') {
+      approvalSource = 'public_link';
+    } else {
+      approvalSource = 'direct_invite';
+    }
+  }
+
+  return {
+    inviterRole,
+    needApproval: finalNeedApproval,
+    approvalTargetId: permission.list.creatorId,
+    approvalSource
+  };
+}
+
+function getInviteApprovalSource(invite, fallbackSource = '') {
+  if (invite.approvalSource) {
+    return invite.approvalSource;
+  }
+
+  if (invite.inviterRole === 2) {
+    return 'editor_invite';
+  }
+
+  return fallbackSource;
+}
+
+function isEditorInvite(invite) {
+  return invite.inviterRole === 2 || invite.approvalSource === 'editor_invite';
+}
+
 async function markInviteExpiredIfNeeded(invite) {
   if (!invite || invite.status !== 0) {
     return invite;
@@ -516,6 +556,9 @@ async function createInviteRecordFromTemplate(invite, userId, status, extraData 
       inviteType: invite.inviteType,
       inviteCode: invite.inviteCode,
       needApproval: !!invite.needApproval,
+      inviterRole: invite.inviterRole || 1,
+      approvalTargetId: invite.approvalTargetId || '',
+      approvalSource: invite.approvalSource || '',
       status,
       expireAt: invite.expireAt || null,
       ...extraData,
@@ -537,9 +580,10 @@ async function createInviteRecordFromTemplate(invite, userId, status, extraData 
   };
 }
 
-async function expireActiveLinkTemplates(listId) {
+async function expireActiveLinkTemplatesForInviter(listId, inviterId) {
   const activeLinkTemplates = await fetchAllByWhere('list_invites', {
     listId,
+    inviterId,
     inviteType: 'link',
     status: 0,
     inviteeId: _.in(['', null])
@@ -1454,6 +1498,7 @@ async function inviteMember(openid, data) {
     }
 
     const inviteCode = await generateUniqueInviteCode();
+    const approvalMeta = getInviteApprovalMeta(permission, false, inviteType);
 
     await db.collection('list_invites').add({
       data: {
@@ -1467,6 +1512,10 @@ async function inviteMember(openid, data) {
         role,
         inviteType,
         inviteCode,
+        needApproval: approvalMeta.needApproval,
+        inviterRole: approvalMeta.inviterRole,
+        approvalTargetId: approvalMeta.approvalTargetId,
+        approvalSource: approvalMeta.approvalSource,
         status: 0,
         expireAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         createdAt: db.serverDate(),
@@ -1485,7 +1534,11 @@ async function inviteMember(openid, data) {
       targetUserId,
       targetUserName: targetUsers[0].nickname || '',
       role,
-      inviteType
+      inviteType,
+      inviterRole: approvalMeta.inviterRole,
+      needApproval: approvalMeta.needApproval,
+      approvalTargetId: approvalMeta.approvalTargetId,
+      approvalSource: approvalMeta.approvalSource
     }, listId);
 
     return { code: 0, success: true, message: '邀请已发送' };
@@ -1862,9 +1915,11 @@ async function getInviteList(openid, data) {
     // 邀请管理页只展示用户级记录，公开模板邀请由链接页单独承载。
     const filteredInvites = normalizedInvites.filter(invite => shouldIncludeInviteInList(invite, status));
 
-    const inviteeIds = [...new Set(filteredInvites.map(invite => invite.inviteeId).filter(Boolean))];
-    const { data: users } = inviteeIds.length > 0
-      ? await db.collection('users').where({ _id: _.in(inviteeIds) }).field({ nickname: true, avatarUrl: true }).get()
+    const relatedUserIds = [...new Set(filteredInvites
+      .flatMap(invite => [invite.inviteeId, invite.inviterId])
+      .filter(Boolean))];
+    const { data: users } = relatedUserIds.length > 0
+      ? await db.collection('users').where({ _id: _.in(relatedUserIds) }).field({ nickname: true, avatarUrl: true }).get()
       : { data: [] };
 
     const userMap = {};
@@ -1874,7 +1929,9 @@ async function getInviteList(openid, data) {
 
     const enriched = await Promise.all(filteredInvites.map(async invite => {
       const user = invite.inviteeId ? userMap[invite.inviteeId] : null;
+      const inviter = invite.inviterId ? userMap[invite.inviterId] : null;
       const rawAvatarUrl = user?.avatarUrl || invite.inviteeInfo?.avatarUrl || '';
+      const rawInviterAvatarUrl = inviter?.avatarUrl || '';
 
       return {
         ...invite,
@@ -1882,6 +1939,12 @@ async function getInviteList(openid, data) {
           ...(invite.inviteeInfo || {}),
           nickname: user?.nickname || invite.inviteeInfo?.nickname || '',
           avatarUrl: await resolveAvatarUrl(rawAvatarUrl)
+        },
+        inviterRole: invite.inviterRole || 1,
+        approvalSource: getInviteApprovalSource(invite, ''),
+        inviterInfo: {
+          nickname: inviter?.nickname || '',
+          avatarUrl: await resolveAvatarUrl(rawInviterAvatarUrl)
         }
       };
     }));
@@ -2015,12 +2078,13 @@ async function generateInviteLink(openid, data) {
     }
 
     const userId = await getUserId(openid);
-    const permission = await verifyListPermission(userId, listId, [1]);
+    const permission = await verifyListPermission(userId, listId, [1, 2]);
     if (!permission.allowed) {
       return { code: -1, message: permission.message || '无权限生成邀请链接' };
     }
 
     const inviteCode = await generateUniqueInviteCode();
+    const approvalMeta = getInviteApprovalMeta(permission, needApproval, 'link');
 
     // 计算过期时间
     let expireAt = null;
@@ -2028,8 +2092,8 @@ async function generateInviteLink(openid, data) {
       expireAt = new Date(Date.now() + expireDays * 24 * 60 * 60 * 1000);
     }
 
-    // 重新生成链接时，仅保留一个有效的公开 link 模板邀请。
-    await expireActiveLinkTemplates(listId);
+    // 重新生成链接时，仅过期同一邀请人的公开 link 模板，避免覆盖其他成员链接。
+    await expireActiveLinkTemplatesForInviter(listId, userId);
 
     // 创建邀请记录
     await db.collection('list_invites').add({
@@ -2041,7 +2105,10 @@ async function generateInviteLink(openid, data) {
         role,
         inviteType: 'link',
         inviteCode,
-        needApproval,
+        needApproval: approvalMeta.needApproval,
+        inviterRole: approvalMeta.inviterRole,
+        approvalTargetId: approvalMeta.approvalTargetId,
+        approvalSource: approvalMeta.approvalSource,
         status: 0,
         expireAt,
         createdAt: db.serverDate(),
@@ -2113,19 +2180,20 @@ async function generateMiniProgramCode(openid, data) {
 // 创建微信邀请
 async function createWechatInvite(openid, data) {
   try {
-    const { listId, role = 3 } = data || {};
+    const { listId, role = 3, needApproval = false } = data || {};
 
     if (!listId) {
       return { code: -1, message: '清单ID不能为空' };
     }
 
     const userId = await getUserId(openid);
-    const permission = await verifyListPermission(userId, listId, [1]);
+    const permission = await verifyListPermission(userId, listId, [1, 2]);
     if (!permission.allowed) {
       return { code: -1, message: permission.message || '无权限邀请成员' };
     }
 
     const inviteCode = await generateUniqueInviteCode();
+    const approvalMeta = getInviteApprovalMeta(permission, needApproval, 'wechat');
 
     // 创建邀请记录
     await db.collection('list_invites').add({
@@ -2137,6 +2205,10 @@ async function createWechatInvite(openid, data) {
         role,
         inviteType: 'wechat',
         inviteCode,
+        needApproval: approvalMeta.needApproval,
+        inviterRole: approvalMeta.inviterRole,
+        approvalTargetId: approvalMeta.approvalTargetId,
+        approvalSource: approvalMeta.approvalSource,
         status: 0,
         expireAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         createdAt: db.serverDate(),
@@ -2177,7 +2249,7 @@ async function searchUser(openid, data) {
     }
 
     const userId = await getUserId(openid);
-    const permission = await verifyListPermission(userId, listId, [1]);
+    const permission = await verifyListPermission(userId, listId, [1, 2]);
     if (!permission.allowed) {
       return { code: -1, message: permission.message || '无权限搜索用户' };
     }
@@ -2305,6 +2377,11 @@ async function getInviteInfo(openid, data) {
       .get();
 
     const inviterAvatar = await resolveAvatarUrl(inviter?.avatarUrl || '');
+    const { data: creators } = await db.collection('users')
+      .where({ _id: list.creatorId })
+      .field({ nickname: true })
+      .get();
+    const creator = creators.length > 0 ? creators[0] : null;
     const resolvedMemberAvatars = await Promise.all(
       memberUsers.map(user => resolveAvatarUrl(user.avatarUrl || ''))
     );
@@ -2318,6 +2395,10 @@ async function getInviteInfo(openid, data) {
       inviterId: invite.inviterId,
       inviterName: inviter ? inviter.nickname : '未知用户',
       inviterAvatar,
+      inviterRole: invite.inviterRole || 1,
+      approvalTargetId: invite.approvalTargetId || list.creatorId,
+      approvalTargetName: creator?.nickname || '创建者',
+      approvalSource: getInviteApprovalSource(invite, invite.inviteType === 'link' ? 'public_link' : 'direct_invite'),
       role: invite.role || 3,
       inviteType: invite.inviteType || 'link',
       needApproval: invite.needApproval || false,
@@ -2481,15 +2562,20 @@ async function applyJoinList(openid, data) {
       return { code: -1, message: '您已是该清单成员' };
     }
 
+    const approvalSource = pendingInvite
+      ? getInviteApprovalSource(invite, 'direct_invite')
+      : getInviteApprovalSource(invite, 'public_link');
     const applicationInvite = pendingInvite
-      ? { ...invite, approvalSource: 'direct_invite' }
-      : await createInviteRecordFromTemplate(invite, userId, 4, { approvalSource: 'public_link' });
+      ? { ...invite, approvalSource }
+      : await createInviteRecordFromTemplate(invite, userId, 4, { approvalSource });
 
     if (pendingInvite) {
       await db.collection('list_invites').doc(applicationInvite._id).update({
         data: {
           status: 4,
-          approvalSource: 'direct_invite',
+          approvalSource,
+          approvalTargetId: invite.approvalTargetId || '',
+          inviterRole: invite.inviterRole || 1,
           updatedAt: db.serverDate()
         }
       });
@@ -2499,19 +2585,26 @@ async function applyJoinList(openid, data) {
     const { data: lists } = await db.collection('lists')
       .where({ _id: invite.listId })
       .get();
-    const listName = lists.length > 0 ? lists[0].name : '未知清单';
+    const list = lists.length > 0 ? lists[0] : null;
+    const listName = list ? list.name : '未知清单';
 
     const { data: users } = await db.collection('users')
       .where({ _id: userId })
       .get();
     const userName = users.length > 0 ? users[0].nickname : '未知用户';
 
-    await createNotificationIfEnabled(invite.inviterId, {
+    const inviterInfo = await getUserBasicInfo(invite.inviterId);
+    const approvalTargetId = invite.approvalTargetId || list?.creatorId || invite.inviterId;
+    const notificationContent = isEditorInvite(applicationInvite)
+      ? `${userName} 通过编辑者${inviterInfo?.nickname || '成员'}的邀请申请加入清单"${listName}"`
+      : (pendingInvite
+        ? `${userName} 确认加入清单"${listName}"，等待您审核`
+        : `${userName} 申请加入清单"${listName}"`);
+
+    await createNotificationIfEnabled(approvalTargetId, {
       type: 'join_request',
       relatedId: invite.listId,
-      content: pendingInvite
-        ? `${userName} 确认加入清单"${listName}"，等待您审核`
-        : `${userName} 申请加入清单"${listName}"`
+      content: notificationContent
     });
 
     await logOperation('join_apply', invite.listId, userId, {
@@ -2519,6 +2612,8 @@ async function applyJoinList(openid, data) {
       targetUserName: userName,
       role: invite.role,
       inviteType: invite.inviteType,
+      inviterId: invite.inviterId,
+      inviterRole: applicationInvite.inviterRole || invite.inviterRole || 1,
       approvalSource: applicationInvite.approvalSource || ''
     }, invite.listId);
 
@@ -2690,13 +2785,13 @@ async function cancelInvite(openid, data) {
 
     const invite = invites[0];
 
-    const permission = await verifyListPermission(userId, invite.listId, [1]);
-    if (!permission.allowed) {
-      return { code: -1, message: permission.message || '无权限取消邀请' };
+    const access = await verifyListAccess(userId, invite.listId);
+    if (!access.allowed) {
+      return { code: -1, message: access.message || '无权限取消邀请' };
     }
 
-    // 检查权限（只有邀请人可以取消）
-    if (invite.inviterId !== userId) {
+    const canCancel = access.role === 1 || invite.inviterId === userId;
+    if (!canCancel) {
       return { code: -1, message: '无权限取消邀请' };
     }
 
@@ -2763,6 +2858,13 @@ async function approveApplication(openid, data) {
       return { code: -1, message: '该申请已处理' };
     }
 
+    if (isEditorInvite(invite)) {
+      const inviterAccess = await verifyListAccess(invite.inviterId, invite.listId);
+      if (!inviterAccess.allowed || ![1, 2].includes(inviterAccess.role)) {
+        return { code: -1, message: '邀请人已无邀请权限' };
+      }
+    }
+
     const joinResult = await ensureMemberJoinedFromInvite(
       invite,
       invite.inviteeId,
@@ -2779,7 +2881,10 @@ async function approveApplication(openid, data) {
       targetUserId: invite.inviteeId,
       targetUserName: invite.inviteeInfo?.nickname || '',
       role: invite.role,
-      inviteType: invite.inviteType
+      inviteType: invite.inviteType,
+      inviterId: invite.inviterId,
+      inviterRole: invite.inviterRole || 1,
+      approvalSource: invite.approvalSource || ''
     }, invite.listId);
 
     // 记录操作日志
@@ -2861,7 +2966,10 @@ async function rejectApplication(openid, data) {
       targetUserId: invite.inviteeId,
       targetUserName: invite.inviteeInfo?.nickname || '',
       role: invite.role,
-      inviteType: invite.inviteType
+      inviteType: invite.inviteType,
+      inviterId: invite.inviterId,
+      inviterRole: invite.inviterRole || 1,
+      approvalSource: invite.approvalSource || ''
     }, invite.listId);
 
     return { code: 0, success: true, message: '已拒绝加入申请' };

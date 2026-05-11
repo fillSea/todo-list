@@ -287,14 +287,52 @@ Page({
     return invites.map(invite => ({
       ...invite,
       applicantInfo: invite.inviteeInfo || {},
-      sourceLabel: invite.approvalSource === 'direct_invite' ? '受邀后待审核' : '主动申请加入',
-      timeSuffix: invite.approvalSource === 'direct_invite' ? '确认' : '申请',
+      sourceLabel: this.getApplicationSourceLabel(invite),
+      sourceDetail: this.getApplicationSourceDetail(invite),
+      timeSuffix: invite.approvalSource === 'public_link' ? '申请' : '确认',
       timeText: this.formatTime(
-        invite.approvalSource === 'direct_invite'
+        invite.approvalSource !== 'public_link'
           ? (invite.updatedAt || invite.createdAt)
           : (invite.createdAt || invite.updatedAt)
       )
     }));
+  },
+
+  getInviteTypeText(inviteType) {
+    const typeMap = {
+      wechat: '微信邀请',
+      link: '链接邀请',
+      search: '搜索邀请',
+      recent: '最近协作者邀请'
+    };
+    return typeMap[inviteType] || '邀请';
+  },
+
+  getApplicationSourceLabel(invite) {
+    if (invite.approvalSource === 'editor_invite' || invite.inviterRole === 2) {
+      return '编辑者邀请';
+    }
+    if (invite.approvalSource === 'direct_invite') {
+      return '受邀后待审核';
+    }
+    return '主动申请加入';
+  },
+
+  getApplicationSourceDetail(invite) {
+    const inviterName = invite.inviterInfo?.nickname || '';
+    const inviteTypeText = this.getInviteTypeText(invite.inviteType);
+
+    if (invite.approvalSource === 'editor_invite' || invite.inviterRole === 2) {
+      return inviterName
+        ? `来源：${inviterName}（编辑者） · ${inviteTypeText}`
+        : `来源：编辑者 · ${inviteTypeText}`;
+    }
+
+    if (inviterName) {
+      return `来源：${inviterName} · ${inviteTypeText}`;
+    }
+
+    return `来源：${inviteTypeText}`;
   },
 
   computeCanClear(source = this.data) {

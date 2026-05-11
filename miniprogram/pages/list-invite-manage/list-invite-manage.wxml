@@ -65,6 +65,7 @@
             <text class="invite-status pending">{{item.sourceLabel}}</text>
           </view>
           <text class="invite-time">{{item.timeText}}{{item.timeSuffix}}</text>
+          <text class="invite-type" wx:if="{{item.sourceDetail}}">{{item.sourceDetail}}</text>
           <text class="apply-message" wx:if="{{item.message}}">"{{item.message}}"</text>
         </view>
         <view class="invite-actions application-actions">

@@ -55,7 +55,7 @@
     <text class="share-help">{{shareHelpText}}</text>
     <view class="share-tags" wx:if="{{shareMode === 'link'}}">
       <view class="share-tag">有效期：{{shareExpireText}}</view>
-      <view class="share-tag">{{shareNeedApproval ? '需要审核' : '直接加入'}}</view>
+      <view class="share-tag">{{shareNeedApproval ? '需要创建者审核' : '直接加入'}}</view>
     </view>
     <button class="share-btn primary" open-type="share" bindtap="onWechatShareReady">发送给微信好友</button>
     <button class="share-btn secondary" wx:if="{{shareMode === 'link'}}" bindtap="onCopyInviteLink">复制邀请链接</button>
@@ -64,7 +64,7 @@
       <view class="settings-toggle" bindtap="onToggleLinkAdvancedSettings">
         <text class="settings-toggle-text">高级设置</text>
         <view class="settings-toggle-right">
-          <text class="settings-summary">{{linkDraftExpireText}} · {{linkDraftNeedApproval ? '需要审核' : '无需审核'}}</text>
+          <text class="settings-summary">{{linkDraftExpireText}} · {{forceApproval ? '需要创建者审核' : (linkDraftNeedApproval ? '需要审核' : '无需审核')}}</text>
           <van-icon name="{{showLinkAdvancedSettings ? 'arrow-up' : 'arrow-down'}}" size="16px" color="#999" />
         </view>
       </view>
@@ -79,12 +79,18 @@
             <van-icon name="arrow" size="16px" color="#999" />
           </view>
         </view>
-        <view class="setting-item inline no-border">
+        <view class="setting-item inline no-border" wx:if="{{canChooseApproval}}">
           <view class="setting-info">
             <text class="setting-name">需要审核</text>
             <text class="setting-desc">开启后，成员申请加入需由创建者审批</text>
           </view>
           <van-switch checked="{{linkDraftNeedApproval}}" bind:change="onApprovalChange" size="20px" />
+        </view>
+        <view class="setting-item inline no-border" wx:else>
+          <view class="setting-info">
+            <text class="setting-name">需要创建者审核</text>
+            <text class="setting-desc">编辑者邀请需由创建者审核，通过后成员才能加入</text>
+          </view>
         </view>
       </view>
     </view>
@@ -93,7 +99,7 @@
   <view class="pending-section" wx:if="{{pendingInvites.length > 0}}">
     <view class="section-header">
       <text class="section-title">待处理邀请 ({{pendingInvites.length}})</text>
-      <text class="view-all" bindtap="onViewAllInvites">查看全部</text>
+      <text class="view-all" bindtap="onViewAllInvites" wx:if="{{myRole === 1}}">查看全部</text>
     </view>
     <view class="pending-list">
       <view class="pending-item" wx:for="{{pendingInvites}}" wx:key="_id">
