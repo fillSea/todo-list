@@ -702,6 +702,15 @@ Page({
     this.showRolePopup('recent');
   },
 
+  onRecentAvatarError(e) {
+    const index = e.currentTarget.dataset.index;
+    if (index === undefined || index === null) return;
+
+    this.setData({
+      [`recentMembers[${index}].avatarUrl`]: '/images/default-avatar.png'
+    });
+  },
+
   // ==================== 权限设置 ====================
 
   showRolePopup(inviteType) {

@@ -115,7 +115,7 @@
     </view>
     <view class="recent-list">
       <view class="recent-item" wx:for="{{recentMembers}}" wx:key="userId" bindtap="onInviteRecent" data-user="{{item}}">
-        <image class="recent-avatar" src="{{item.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" />
+        <image class="recent-avatar" src="{{item.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill" binderror="onRecentAvatarError" data-index="{{index}}" />
         <text class="recent-name">{{item.nickname || '未知用户'}}</text>
         <view class="invite-btn">
           <van-icon name="plus" size="14px" color="#1976D2" />

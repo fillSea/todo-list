@@ -6,38 +6,6 @@
   background-color: #F5F5F5;
 }
 
-/* 顶部导航栏 */
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  background-color: #fff;
-  border-bottom: 1rpx solid #eee;
-}
-
-.header-left {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.header-title {
-  font-size: 17px;
-  font-weight: 600;
-  color: #333;
-}
-
-.header-right {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 /* 清单信息 */
 .list-info {
   display: flex;
@@ -112,7 +80,36 @@
 /* 成员列表滚动区域 */
 .members-scroll {
   flex: 1;
-  padding: 0 16px;
+  padding: 0 16px 96px;
+}
+
+/* 底部悬浮添加按钮 */
+.floating-add-btn {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 136px;
+  height: 48px;
+  padding: 0 24px;
+  background-color: #1976D2;
+  color: #fff;
+  border-radius: 24px;
+  box-shadow: 0 8px 20px rgba(25, 118, 210, 0.28);
+}
+
+.floating-add-btn text {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.floating-add-btn:active {
+  background-color: #1565C0;
 }
 
 /* 成员分组 */

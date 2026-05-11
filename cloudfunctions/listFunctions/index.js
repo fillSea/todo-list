@@ -117,6 +117,31 @@ async function getUserBasicInfo(userId) {
   return users.length > 0 ? users[0] : null;
 }
 
+async function resolveAvatarUrl(avatarUrl) {
+  if (!avatarUrl || typeof avatarUrl !== 'string') {
+    return '';
+  }
+
+  if (/^https?:\/\//i.test(avatarUrl)) {
+    return avatarUrl;
+  }
+
+  if (!avatarUrl.startsWith('cloud://')) {
+    return '';
+  }
+
+  try {
+    const result = await cloud.getTempFileURL({
+      fileList: [avatarUrl]
+    });
+
+    return result.fileList?.[0]?.tempFileURL || '';
+  } catch (error) {
+    console.error('转换头像临时链接失败:', error);
+    return '';
+  }
+}
+
 async function createNotificationIfEnabled(userId, notificationData) {
   if (!userId) {
     return false;
@@ -660,13 +685,13 @@ async function getListMemberSummary(listId) {
     .field({ avatarUrl: true, nickname: true })
     .get();
 
-  const memberAvatars = members.slice(0, 3).map(m => {
+  const memberAvatars = await Promise.all(members.slice(0, 3).map(async m => {
     const user = memberUsers.find(u => u._id === m.userId);
     return {
-      avatarUrl: user ? user.avatarUrl : '',
+      avatarUrl: user ? await resolveAvatarUrl(user.avatarUrl) : '',
       nickname: user ? user.nickname : ''
     };
-  });
+  }));
 
   return { members: memberAvatars, memberCount };
 }
@@ -927,16 +952,16 @@ async function getListDetail(openid, data) {
         .where({ _id: _.in(memberUserIds) })
         .get();
 
-      members = memberRecords.map(m => {
+      members = await Promise.all(memberRecords.map(async m => {
         const user = memberUsers.find(u => u._id === m.userId);
         return {
           _id: m._id,
           userId: m.userId,
           role: m.role,
           nickname: user ? user.nickname : '未知用户',
-          avatarUrl: user ? user.avatarUrl : ''
+          avatarUrl: user ? await resolveAvatarUrl(user.avatarUrl) : ''
         };
-      });
+      }));
     }
 
     // 获取当前用户角色
@@ -1318,14 +1343,14 @@ async function getListMembers(openid, data) {
       userMap[user._id] = user;
     });
 
-    const membersWithInfo = members.map((member) => {
+    const membersWithInfo = await Promise.all(members.map(async (member) => {
       const user = userMap[member.userId] || {};
       return {
         ...member,
         nickname: user.nickname || '未知用户',
-        avatarUrl: user.avatarUrl || ''
+        avatarUrl: await resolveAvatarUrl(user.avatarUrl || '')
       };
-    });
+    }));
 
     const myRole = access.role;
 
@@ -1926,13 +1951,15 @@ async function getRecentCollaborators(openid, data) {
     const userMap = {};
     users.forEach(u => { userMap[u._id] = u; });
 
-    const members = uniqueUserIds
-      .filter(id => userMap[id])
-      .map(id => ({
-        userId: id,
-        nickname: userMap[id].nickname,
-        avatarUrl: userMap[id].avatarUrl
-      }));
+    const members = await Promise.all(
+      uniqueUserIds
+        .filter(id => userMap[id])
+        .map(async id => ({
+          userId: id,
+          nickname: userMap[id].nickname || '未知用户',
+          avatarUrl: await resolveAvatarUrl(userMap[id].avatarUrl || '')
+        }))
+    );
 
     return { success: true, members };
   } catch (error) {
@@ -2143,13 +2170,13 @@ async function searchUser(openid, data) {
         break;
       }
 
-      const validUsers = users
+      const validUsers = await Promise.all(users
         .filter(u => u._id !== userId && !memberUserIds.has(u._id))
-        .map(u => ({
+        .map(async u => ({
           userId: u._id,
-          nickname: u.nickname,
-          avatarUrl: u.avatarUrl
-        }));
+          nickname: u.nickname || '未知用户',
+          avatarUrl: await resolveAvatarUrl(u.avatarUrl || '')
+        })));
 
       filteredUsers.push(...validUsers);
 
@@ -2240,6 +2267,11 @@ async function getInviteInfo(openid, data) {
       .field({ avatarUrl: true })
       .get();
 
+    const inviterAvatar = await resolveAvatarUrl(inviter?.avatarUrl || '');
+    const resolvedMemberAvatars = await Promise.all(
+      memberUsers.map(user => resolveAvatarUrl(user.avatarUrl || ''))
+    );
+
     const inviteInfo = {
       listId: list._id,
       listName: list.name,
@@ -2248,12 +2280,12 @@ async function getInviteInfo(openid, data) {
       isShared: list.isShared,
       inviterId: invite.inviterId,
       inviterName: inviter ? inviter.nickname : '未知用户',
-      inviterAvatar: inviter ? inviter.avatarUrl : '',
+      inviterAvatar,
       role: invite.role || 3,
       inviteType: invite.inviteType || 'link',
       needApproval: invite.needApproval || false,
       memberCount: members.length,
-      members: memberUsers.map(u => ({ avatarUrl: u.avatarUrl })),
+      members: resolvedMemberAvatars.map(avatarUrl => ({ avatarUrl })),
       status: invite.status,
       expireAt: invite.expireAt
     };

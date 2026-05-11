@@ -1,14 +1,4 @@
 <view class="list-members-container">
-  <!-- 顶部导航栏 -->
-  <view class="header">
-    <view class="header-left" bindtap="onBack">
-      <van-icon name="arrow-left" size="20px" color="#333" />
-    </view>
-    <text class="header-title">成员管理</text>
-    <view class="header-right" bindtap="onInviteMember" wx:if="{{canManageMembers}}">
-      <van-icon name="plus" size="20px" color="#1976D2" />
-    </view>
-  </view>
   <!-- 清单信息 -->
   <view class="list-info">
     <view class="list-icon" style="background-color: {{listInfo.isShared ? '#E8F5E9' : '#E3F2FD'}}">
@@ -95,9 +85,13 @@
     <view class="empty-state" wx:if="{{members.length === 0 && !isLoading}}">
       <van-icon name="friends-o" size="60px" color="#ddd" />
       <text class="empty-title">暂无成员</text>
-      <text class="empty-desc">点击右上角添加成员</text>
+      <text class="empty-desc">点击底部按钮添加成员</text>
     </view>
   </scroll-view>
+  <view class="floating-add-btn" bindtap="onInviteMember" wx:if="{{canManageMembers}}">
+    <van-icon name="plus" size="20px" color="#fff" />
+    <text>添加成员</text>
+  </view>
   <!-- 添加成员弹窗 -->
   <van-popup show="{{showAddPopup}}" position="bottom" bind:close="onAddPopupClose">
     <view class="popup-header">

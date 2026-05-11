@@ -36,11 +36,7 @@
     <view class="pie-chart-container">
       <view class="pie-chart">
         <!-- 使用CSS实现的简易环形图 -->
-        <view class="pie-ring" style="background: conic-gradient(
-          #07C160 0deg {{(dashboardData.pieChart.completed / dashboardData.pieChart.total) * 360 || 0}}deg,
-          #FAAD14 {{(dashboardData.pieChart.completed / dashboardData.pieChart.total) * 360 || 0}}deg {{((dashboardData.pieChart.completed + dashboardData.pieChart.uncompleted) / dashboardData.pieChart.total) * 360 || 0}}deg,
-          #FF4D4F {{((dashboardData.pieChart.completed + dashboardData.pieChart.uncompleted) / dashboardData.pieChart.total) * 360 || 0}}deg 360deg
-        );">
+        <view class="pie-ring" style="{{pieChartStyle}}">
           <view class="pie-center">
             <text class="pie-total">{{dashboardData.pieChart.total}}</text>
             <text class="pie-label">总任务</text>

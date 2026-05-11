@@ -24,6 +24,7 @@ Page({
       },
       barChart: []
     },
+    pieChartStyle: 'background: conic-gradient(#07C160 0deg 0deg, #FAAD14 0deg 0deg, #FF4D4F 0deg 360deg);',
 
     // 未读通知数量
     unreadCount: 0,
@@ -128,6 +129,7 @@ Page({
         },
         barChart: []
       },
+      pieChartStyle: this.buildPieChartStyle(),
       unreadCount: 0,
       maxBarValue: 1,
       featureList,
@@ -155,6 +157,16 @@ Page({
       unreadCount: safeCount,
       featureList
     });
+  },
+
+  buildPieChartStyle: function (pieChart = {}) {
+    const total = Number(pieChart.total) || 0;
+    const completed = Number(pieChart.completed) || 0;
+    const uncompleted = Number(pieChart.uncompleted) || 0;
+    const completedDeg = total > 0 ? (completed / total) * 360 : 0;
+    const uncompletedDeg = total > 0 ? ((completed + uncompleted) / total) * 360 : 0;
+
+    return `background: conic-gradient(#07C160 0deg ${completedDeg}deg, #FAAD14 ${completedDeg}deg ${uncompletedDeg}deg, #FF4D4F ${uncompletedDeg}deg 360deg);`;
   },
 
   // 加载所有数据
@@ -252,7 +264,8 @@ Page({
 
         this.setData({
           dashboardData: dashboardData,
-          maxBarValue: maxBarValue
+          maxBarValue: maxBarValue,
+          pieChartStyle: this.buildPieChartStyle(dashboardData.pieChart)
         });
       }
     } catch (error) {
