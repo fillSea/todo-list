@@ -210,6 +210,10 @@ Page({
     },
 
     onLoad: function (options) {
+        this.realtimeWatcher = null;
+        this.realtimeRefreshTimer = null;
+        this.realtimeReady = false;
+
         const { statusBarHeight, navBarHeight, headerSideWidth, capsuleSafeWidth } = this.getCustomNavMetrics();
         const { id } = options;
         if (!id) {
@@ -262,7 +266,76 @@ Page({
         // 页面显示时刷新数据
         if (this.data.listId) {
             this.loadListDetail(false);
+            this.startRealtimeWatcher();
         }
+    },
+
+    onHide: function () {
+        this.stopRealtimeWatcher();
+    },
+
+    onUnload: function () {
+        this.stopRealtimeWatcher();
+    },
+
+    startRealtimeWatcher() {
+        if (DEBUG_MODE) return;
+
+        const { listId } = this.data;
+        if (!listId) return;
+
+        this.stopRealtimeWatcher();
+
+        const db = wx.cloud.database();
+        this.realtimeReady = false;
+
+        this.realtimeWatcher = db.collection('list_versions')
+            .where({ listId })
+            .watch({
+                onChange: snapshot => {
+                    if (snapshot.type === 'init') {
+                        this.realtimeReady = true;
+                        return;
+                    }
+
+                    if (!this.realtimeReady) {
+                        this.realtimeReady = true;
+                        return;
+                    }
+
+                    this.scheduleRealtimeRefresh();
+                },
+                onError: err => {
+                    console.error('共享清单实时监听失败:', err);
+                    this.stopRealtimeWatcher();
+                }
+            });
+    },
+
+    scheduleRealtimeRefresh() {
+        if (this.realtimeRefreshTimer) {
+            clearTimeout(this.realtimeRefreshTimer);
+        }
+
+        this.realtimeRefreshTimer = setTimeout(() => {
+            this.realtimeRefreshTimer = null;
+            app.clearTaskCaches();
+            this.loadListDetail(false);
+        }, 300);
+    },
+
+    stopRealtimeWatcher() {
+        if (this.realtimeWatcher) {
+            this.realtimeWatcher.close();
+            this.realtimeWatcher = null;
+        }
+
+        if (this.realtimeRefreshTimer) {
+            clearTimeout(this.realtimeRefreshTimer);
+            this.realtimeRefreshTimer = null;
+        }
+
+        this.realtimeReady = false;
     },
 
     // 加载清单详情

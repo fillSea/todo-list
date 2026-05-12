@@ -384,6 +384,8 @@ async function createTask(openid, data) {
       periodicTasks = await generatePeriodicTasks(openid, taskData, result._id);
     }
 
+    await touchListVersion(taskData.listId, userId, 'task_create');
+
     return {
       code: 0,
       message: '创建成功',
@@ -673,6 +675,11 @@ async function updateTask(openid, data) {
       attachmentCleanupFailed
     }, nextListIdForLog);
 
+    const affectedListIds = [...new Set([oldTask.listId || '', nextListId || ''].filter(Boolean))];
+    for (const affectedListId of affectedListIds) {
+      await touchListVersion(affectedListId, userId, 'task_update');
+    }
+
     return {
       code: 0,
       message: '更新成功',
@@ -782,6 +789,8 @@ async function deleteTask(openid, data) {
         task: oldTask
       }, oldTask.listId);
 
+      await touchListVersion(oldTask.listId, userId, 'task_delete_repeat');
+
       return {
         code: 0,
         message: '删除成功',
@@ -814,6 +823,8 @@ async function deleteTask(openid, data) {
       parentTaskId: oldTask.parentTaskId || oldTask._id,
       task: oldTask
     }, oldTask.listId);
+
+    await touchListVersion(oldTask.listId, userId, 'task_delete');
 
     return {
       code: 0,
@@ -1184,6 +1195,8 @@ async function toggleTaskStatus(openid, data) {
       // 检查是否还有足够的预生成任务（保持未来30天都有任务）
       newPeriodicTasks = await ensurePeriodicTasks(openid, oldTask);
     }
+
+    await touchListVersion(oldTask.listId, userId, 'task_status_change');
 
     // 方案A：取消完成时只恢复当前任务状态，不删除后续周期任务
     // 后续周期任务保持原状态，用户可以独立管理每一天的任务
@@ -1559,10 +1572,17 @@ async function batchUpdateTasks(openid, data) {
         data: normalizedUpdateFields
       });
 
-      return { taskId, success: true };
+      return { taskId, success: true, listId: task.listId || '' };
     });
 
     const results = await Promise.all(updatePromises);
+
+    const affectedListIds = [...new Set(results
+      .filter(result => result.success && result.listId)
+      .map(result => result.listId))];
+    for (const listId of affectedListIds) {
+      await touchListVersion(listId, userId, 'task_batch_update');
+    }
 
     return {
       code: 0,
@@ -1623,10 +1643,17 @@ async function batchDeleteTasks(openid, data) {
         .where({ relatedId: taskId })
         .remove();
 
-      return { taskId, success: true };
+      return { taskId, success: true, listId: task.listId || '' };
     });
 
     const results = await Promise.all(deletePromises);
+
+    const affectedListIds = [...new Set(results
+      .filter(result => result.success && result.listId)
+      .map(result => result.listId))];
+    for (const listId of affectedListIds) {
+      await touchListVersion(listId, userId, 'task_batch_delete');
+    }
 
     return {
       code: 0,
@@ -1762,6 +1789,43 @@ async function recordOperation(type, targetId, userId, content, listId) {
     });
   } catch (error) {
     console.error('记录操作日志失败:', error);
+  }
+}
+
+async function touchListVersion(listId, userId, eventType) {
+  if (!listId) return;
+
+  try {
+    const { data } = await db.collection('list_versions')
+      .where({ listId })
+      .limit(1)
+      .get();
+
+    const payload = {
+      listId,
+      updatedAt: db.serverDate(),
+      updatedBy: userId,
+      eventType
+    };
+
+    if (data.length > 0) {
+      await db.collection('list_versions').doc(data[0]._id).update({
+        data: {
+          ...payload,
+          version: _.inc(1)
+        }
+      });
+      return;
+    }
+
+    await db.collection('list_versions').add({
+      data: {
+        ...payload,
+        version: 1
+      }
+    });
+  } catch (error) {
+    console.error('更新清单实时版本失败:', error);
   }
 }
 
