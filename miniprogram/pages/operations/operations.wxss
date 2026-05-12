@@ -38,9 +38,14 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  background-color: #909399;
 }
 
 .icon-task_create {
+  background-color: #4CAF50;
+}
+
+.icon-task_create_repeat {
   background-color: #4CAF50;
 }
 
@@ -49,6 +54,10 @@
 }
 
 .icon-task_delete {
+  background-color: #F44336;
+}
+
+.icon-task_delete_repeat {
   background-color: #F44336;
 }
 
@@ -64,8 +73,48 @@
   background-color: #FF9800;
 }
 
+.icon-list_delete {
+  background-color: #F44336;
+}
+
+.icon-invite_send {
+  background-color: #1989FA;
+}
+
+.icon-invite_reject {
+  background-color: #EE0A24;
+}
+
+.icon-invite_remind {
+  background-color: #FF9800;
+}
+
+.icon-invite_cancel {
+  background-color: #999;
+}
+
+.icon-invite_clear {
+  background-color: #795548;
+}
+
+.icon-join_apply {
+  background-color: #673AB7;
+}
+
+.icon-application_approve {
+  background-color: #4CAF50;
+}
+
+.icon-application_reject {
+  background-color: #F44336;
+}
+
 .icon-member_add {
   background-color: #00BCD4;
+}
+
+.icon-member_update {
+  background-color: #607D8B;
 }
 
 .icon-member_remove {

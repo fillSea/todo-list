@@ -1723,7 +1723,7 @@ function getOperationIcon(type) {
     'list_create': 'plus',
     'list_update': 'edit',
     'list_delete': 'delete-o',
-    'invite_send': 'envelope-o',
+    'invite_send': 'invitation',
     'invite_reject': 'close',
     'invite_remind': 'bell',
     'invite_cancel': 'close',
