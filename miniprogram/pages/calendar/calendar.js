@@ -11,6 +11,9 @@ const {
   handleTaskStatusToggle
 } = require('../../utils/taskToggle');
 
+const CALENDAR_TASK_CACHE_TTL = 3 * 60 * 1000;
+const CATEGORY_CACHE_TTL = 10 * 60 * 1000;
+
 function isPersonalStandaloneTask(task) {
   return Number(task.ownershipType) === 1 || (!task.listId && task.creatorId);
 }
@@ -24,8 +27,6 @@ Page({
     selectedDate: null,
     calendarDays: [],
     weekDays: ['日', '一', '二', '三', '四', '五', '六'],
-    // 任务数据 - 从云数据库加载
-    tasks: [],
     // 分类数据 - 从云数据库加载
     categories: [
       { _id: 'all', name: '全部', color: '#999' }
@@ -39,6 +40,14 @@ Page({
   },
 
   onLoad: function (options) {
+    this._loadedOnce = false;
+    this._isLoadingTasks = false;
+    this._isLoadingCategories = false;
+    this._rawTasks = [];
+    this._calendarTaskIndex = {};
+    this._taskLoadToken = 0;
+    this._loadingTaskScope = '';
+
     const { isLoggedIn, userInfo } = app.getLoginState();
     const userId = userInfo ? userInfo._id : null;
 
@@ -68,8 +77,6 @@ Page({
 
     this.loadCategories();
     this.loadTasks();
-    this.generateCalendar();
-    this.loadTasksForSelectedDate();
   },
 
   onShow: function () {
@@ -95,8 +102,10 @@ Page({
       return;
     }
 
-    this.loadCategories();
-    this.loadTasks();
+    if (this._loadedOnce || jumpToDate) {
+      this.loadCategories();
+      this.loadTasks();
+    }
   },
 
   resetGuestData: function () {
@@ -108,12 +117,17 @@ Page({
       ],
       currentCategory: 'all',
       selectedDateMode: getSelectedDateMode(this.data.selectedDate || getUTC8DateString(new Date())),
-      tasks: [],
       selectedDateTasks: [],
       inProgressTasks: [],
       overdueTasks: [],
       completedTasks: []
     });
+
+    this._loadedOnce = false;
+    this._isLoadingTasks = false;
+    this._rawTasks = [];
+    this._calendarTaskIndex = {};
+    this._loadingTaskScope = '';
 
     this.generateCalendar();
   },
@@ -124,8 +138,17 @@ Page({
       return;
     }
 
+    if (this._isLoadingCategories) {
+      return;
+    }
+
+    const userId = app.getCurrentUserId();
+    const cacheKey = app.getUserScopedCacheKey(app.categoryCachePrefix, userId);
+    const cacheTimeKey = app.getUserScopedCacheKey(app.categoryCacheTimePrefix, userId);
+
     // 先展示缓存
-    const cachedCategories = wx.getStorageSync('cachedCategories');
+    const cachedCategories = app.getTimedCache(cacheKey, cacheTimeKey, CATEGORY_CACHE_TTL)
+      || app.getTimedCache('cachedCategories', 'cachedCategoriesTime', CATEGORY_CACHE_TTL);
     if (cachedCategories && cachedCategories.length > 0) {
       this.setData({
         categories: [
@@ -134,6 +157,12 @@ Page({
         ]
       });
     }
+
+    if (cachedCategories) {
+      return;
+    }
+
+    this._isLoadingCategories = true;
 
     try {
       const result = await wx.cloud.callFunction({
@@ -151,17 +180,23 @@ Page({
           ...categoryList
         ];
         this.setData({ categories });
-        wx.setStorageSync('cachedCategories', categoryList);
+        if ((this._rawTasks || []).length > 0) {
+          this.loadTasksForSelectedDate();
+        }
+        app.setTimedCache(cacheKey, cacheTimeKey, categoryList);
+        app.setTimedCache('cachedCategories', 'cachedCategoriesTime', categoryList);
       } else {
         console.error('加载分类失败:', result.result?.message);
       }
     } catch (error) {
       console.error('调用云函数失败:', error);
+    } finally {
+      this._isLoadingCategories = false;
     }
   },
 
   // 从数据库加载任务数据
-  loadTasks: async function () {
+  loadTasks: async function (options = {}) {
     if (!this.data.isRegistered) {
       this.generateCalendar();
       this.loadTasksForSelectedDate();
@@ -171,15 +206,33 @@ Page({
     try {
       // 按当前月份范围查询，前后各扩展7天覆盖跨月显示
       const { currentYear, currentMonth } = this.data;
+      const forceRefresh = Boolean(options.forceRefresh);
+      const userId = app.getCurrentUserId();
+      const loadScope = `${userId || 'guest'}_${currentYear}_${currentMonth}`;
+
+      if (this._isLoadingTasks && this._loadingTaskScope === loadScope) {
+        return;
+      }
 
       // 先展示缓存数据
-      const cacheKey = `calendarTasks_${currentYear}_${currentMonth}`;
-      const cachedTasks = wx.getStorageSync(cacheKey);
-      if (cachedTasks && cachedTasks.length > 0) {
-        this.setData({ tasks: cachedTasks });
-        this.generateCalendar();
-        this.loadTasksForSelectedDate();
+      const cacheKey = `${app.calendarCachePrefix}${userId || 'guest'}_${currentYear}_${currentMonth}`;
+      const legacyCacheKey = `${app.calendarCachePrefix}${currentYear}_${currentMonth}`;
+      const cacheTimeKey = `${cacheKey}_time`;
+      const legacyCacheTimeKey = `${legacyCacheKey}_time`;
+      const cachedTasks = !forceRefresh
+        ? (app.getTimedCache(cacheKey, cacheTimeKey, CALENDAR_TASK_CACHE_TTL)
+          || app.getTimedCache(legacyCacheKey, legacyCacheTimeKey, CALENDAR_TASK_CACHE_TTL))
+        : null;
+      if (Array.isArray(cachedTasks)) {
+        this.applyLoadedTasks(cachedTasks);
+        this._loadedOnce = true;
+        return;
       }
+
+      this._isLoadingTasks = true;
+      this._loadingTaskScope = loadScope;
+      const loadToken = (this._taskLoadToken || 0) + 1;
+      this._taskLoadToken = loadToken;
 
       const startDate = new Date(currentYear, currentMonth - 2, 24); // 上月末
       const endDate = new Date(currentYear, currentMonth, 7); // 下月初
@@ -198,14 +251,15 @@ Page({
       });
 
       if (result.result && result.result.code === 0) {
+        if (loadToken !== this._taskLoadToken) {
+          return;
+        }
         // 云函数返回的数据结构: { list: [...], total, page, pageSize }
         const tasks = result.result.data?.list || [];
-        this.setData({ tasks });
-        this.generateCalendar();
-        this.loadTasksForSelectedDate();
+        this.applyLoadedTasks(tasks);
+        this._loadedOnce = true;
         // 更新缓存
-        const cacheKey = `calendarTasks_${currentYear}_${currentMonth}`;
-        wx.setStorageSync(cacheKey, tasks);
+        app.setTimedCache(cacheKey, cacheTimeKey, tasks);
       } else {
         console.error('加载任务失败:', result.result?.message);
         // 使用本地数据
@@ -217,7 +271,19 @@ Page({
       // 使用本地数据
       this.generateCalendar();
       this.loadTasksForSelectedDate();
+    } finally {
+      if (this._loadingTaskScope === loadScope) {
+        this._isLoadingTasks = false;
+        this._loadingTaskScope = '';
+      }
     }
+  },
+
+  applyLoadedTasks: function (tasks) {
+    this._rawTasks = tasks || [];
+    this.rebuildCalendarTaskIndex();
+    this.generateCalendar();
+    this.loadTasksForSelectedDate();
   },
 
   // 格式化日期为 YYYY-MM-DD
@@ -264,7 +330,7 @@ Page({
     // 当前月的日期
     for (let i = 1; i <= daysInMonth; i++) {
       const dateStr = this.formatDate(currentYear, currentMonth, i);
-      const periodicCount = this.calculatePeriodicCount(dateStr);
+      const periodicCount = this.getPeriodicCountFromIndex(dateStr);
       calendarDays.push({
         day: i,
         date: dateStr,
@@ -288,6 +354,53 @@ Page({
     }
 
     this.setData({ calendarDays });
+  },
+
+  rebuildCalendarTaskIndex: function () {
+    const { selectedDate, currentCategory } = this.data;
+    const tasks = this._rawTasks || [];
+    const index = {};
+
+    if (!selectedDate || tasks.length === 0) {
+      this._calendarTaskIndex = index;
+      return;
+    }
+
+    const seriesIds = this.getSelectedDateDisplayPeriodicSeriesIds(selectedDate, tasks, currentCategory);
+    if (seriesIds.size === 0) {
+      this._calendarTaskIndex = index;
+      return;
+    }
+
+    const { currentYear, currentMonth } = this.data;
+    const firstDay = new Date(currentYear, currentMonth - 1, 1);
+    const lastDay = new Date(currentYear, currentMonth, 0);
+
+    for (let day = 1; day <= lastDay.getDate(); day++) {
+      const dateStr = this.formatDate(firstDay.getFullYear(), firstDay.getMonth() + 1, day);
+      if (compareUTC8DateStrings(dateStr, selectedDate) < 0) {
+        index[dateStr] = 0;
+        continue;
+      }
+
+      let count = 0;
+      seriesIds.forEach(seriesId => {
+        const hasSeriesTask = tasks.some(task => {
+          const belongsToSeries = (task.parentTaskId === seriesId || task._id === seriesId);
+          if (!belongsToSeries) return false;
+          return this.isTaskRepeatingOnDate(task, dateStr);
+        });
+        if (hasSeriesTask) count++;
+      });
+
+      index[dateStr] = count;
+    }
+
+    this._calendarTaskIndex = index;
+  },
+
+  getPeriodicCountFromIndex: function (dateStr) {
+    return Number((this._calendarTaskIndex || {})[dateStr]) || 0;
   },
 
   // 检查任务是否在指定日期有重复实例
@@ -345,7 +458,8 @@ Page({
   // 选中日期显示当天的进行中周期任务数量
   // 选中日期之后的日期显示：选中日期的进行中周期任务系列在该日期的未完成实例数
   calculatePeriodicCount: function (dateStr) {
-    const { tasks, selectedDate, currentCategory } = this.data;
+    const { selectedDate, currentCategory } = this.data;
+    const tasks = this._rawTasks || [];
     if (!selectedDate || !tasks || tasks.length === 0) return 0;
 
     if (compareUTC8DateStrings(dateStr, selectedDate) < 0) {
@@ -500,14 +614,15 @@ Page({
   },
 
   updateLocalTaskStatus: function (taskId, newStatus) {
-    const tasks = this.data.tasks.map(task => {
+    const tasks = (this._rawTasks || []).map(task => {
       if (task._id === taskId) {
         return { ...task, status: newStatus };
       }
       return task;
     });
 
-    this.setData({ tasks });
+    this._rawTasks = tasks;
+    this.rebuildCalendarTaskIndex();
     this.generateCalendar();
     this.loadTasksForSelectedDate();
   },
@@ -559,6 +674,7 @@ Page({
     const date = e.currentTarget.dataset.date;
     // 先设置 selectedDate，然后在回调中重新生成日历
     this.setData({ selectedDate: date }, () => {
+      this.rebuildCalendarTaskIndex();
       this.generateCalendar();
       this.loadTasksForSelectedDate();
     });
@@ -566,7 +682,8 @@ Page({
 
   // 加载选中日期的任务
   loadTasksForSelectedDate: function () {
-    const { selectedDate, tasks, currentCategory } = this.data;
+    const { selectedDate, currentCategory } = this.data;
+    const tasks = this._rawTasks || [];
     if (!selectedDate) return;
 
     const selectedDateMode = getSelectedDateMode(selectedDate);
@@ -644,8 +761,11 @@ Page({
   // 分类切换
   onCategoryChange: function (e) {
     const categoryId = e.currentTarget.dataset.id;
-    this.setData({ currentCategory: categoryId });
-    this.loadTasksForSelectedDate();
+    this.setData({ currentCategory: categoryId }, () => {
+      this.rebuildCalendarTaskIndex();
+      this.generateCalendar();
+      this.loadTasksForSelectedDate();
+    });
   },
 
   // 任务完成状态切换
@@ -653,7 +773,8 @@ Page({
   onTaskComplete: async function (e) {
     const taskId = e.currentTarget.dataset.id;
     const newStatus = normalizeCheckboxValue(e.detail) ? 1 : 0;
-    const task = this.data.selectedDateTasks.find(t => t._id === taskId) || this.data.tasks.find(t => t._id === taskId);
+    const task = this.data.selectedDateTasks.find(t => t._id === taskId)
+      || (this._rawTasks || []).find(t => t._id === taskId);
 
     await handleTaskStatusToggle({
       taskId,
@@ -713,6 +834,7 @@ Page({
         return;
       }
 
+      this.rebuildCalendarTaskIndex();
       this.generateCalendar();
       this.loadTasksForSelectedDate();
     });

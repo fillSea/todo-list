@@ -537,6 +537,52 @@ async function addMemberFromInvite(invite, userId, joinType) {
       joinedAt: db.serverDate()
     }
   });
+
+  await recalculateListMemberSummary(invite.listId);
+}
+
+async function recalculateListMemberSummary(listId) {
+  if (!listId) return;
+
+  try {
+    const members = await fetchAllByWhere('list_members', { listId }, {
+      field: { listId: true, userId: true, joinedAt: true }
+    });
+
+    const previewMembers = members.slice(0, 3);
+    const previewUserIds = [...new Set(previewMembers.map(member => member.userId).filter(Boolean))];
+    let usersById = {};
+
+    if (previewUserIds.length > 0) {
+      const { data: users } = await db.collection('users')
+        .where({ _id: _.in(previewUserIds) })
+        .field({ avatarUrl: true, nickname: true })
+        .get();
+
+      usersById = users.reduce((map, user) => {
+        map[user._id] = user;
+        return map;
+      }, {});
+    }
+
+    const memberPreview = await Promise.all(previewMembers.map(async member => {
+      const user = usersById[member.userId];
+      return {
+        avatarUrl: user ? await resolveAvatarUrl(user.avatarUrl) : '',
+        nickname: user ? user.nickname : ''
+      };
+    }));
+
+    await db.collection('lists').doc(listId).update({
+      data: {
+        memberCount: members.length,
+        memberPreview,
+        memberSummaryUpdatedAt: db.serverDate()
+      }
+    });
+  } catch (error) {
+    console.error('重算清单成员摘要失败:', { listId, error });
+  }
 }
 
 async function createInviteRecordFromTemplate(invite, userId, status, extraData = {}) {
@@ -625,7 +671,7 @@ async function ensureMemberJoinedFromInvite(invite, userId, joinType) {
   };
 
   if (typeof db.runTransaction === 'function') {
-    return db.runTransaction(async transaction => {
+    const result = await db.runTransaction(async transaction => {
       const { data: existingMembers } = await transaction.collection('list_members')
         .where({
           listId: invite.listId,
@@ -672,6 +718,12 @@ async function ensureMemberJoinedFromInvite(invite, userId, joinType) {
         memberCreated: true
       };
     });
+
+    if (result.memberCreated) {
+      await recalculateListMemberSummary(invite.listId);
+    }
+
+    return result;
   }
 
   const { data: existingMembers } = await db.collection('list_members')
@@ -702,6 +754,10 @@ async function ensureMemberJoinedFromInvite(invite, userId, joinType) {
 async function getListTaskStats(listId) {
   const tasks = await fetchAllByWhere('tasks', { listId });
 
+  return calculateListTaskStats(tasks);
+}
+
+function calculateListTaskStats(tasks) {
   // 应用周期任务过滤：同前端逻辑
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -742,6 +798,65 @@ async function getListTaskStats(listId) {
   return { taskCount, pendingCount, completedCount, progress };
 }
 
+function getListStatsFromFields(list) {
+  const taskCount = Number(list.taskCount);
+  const pendingCount = Number(list.pendingCount);
+
+  if (!Number.isFinite(taskCount) || !Number.isFinite(pendingCount)) {
+    return null;
+  }
+
+  const safeTaskCount = Math.max(taskCount, 0);
+  const safePendingCount = Math.min(Math.max(pendingCount, 0), safeTaskCount);
+  const completedCount = Number.isFinite(Number(list.completedCount))
+    ? Math.min(Math.max(Number(list.completedCount), 0), safeTaskCount)
+    : safeTaskCount - safePendingCount;
+  const progress = Number.isFinite(Number(list.progress))
+    ? Math.min(Math.max(Number(list.progress), 0), 100)
+    : (safeTaskCount > 0 ? Math.round((completedCount / safeTaskCount) * 100) : 0);
+
+  return {
+    taskCount: safeTaskCount,
+    pendingCount: safePendingCount,
+    completedCount,
+    progress
+  };
+}
+
+async function getBatchListTaskStats(lists) {
+  const statsMap = {};
+  const missingListIds = [];
+
+  lists.forEach(list => {
+    const stats = getListStatsFromFields(list);
+    if (stats) {
+      statsMap[list._id] = stats;
+      return;
+    }
+
+    missingListIds.push(list._id);
+  });
+
+  if (missingListIds.length === 0) {
+    return statsMap;
+  }
+
+  const tasks = await fetchAllByWhere('tasks', { listId: _.in(missingListIds) });
+  const tasksByListId = {};
+  tasks.forEach(task => {
+    if (!tasksByListId[task.listId]) {
+      tasksByListId[task.listId] = [];
+    }
+    tasksByListId[task.listId].push(task);
+  });
+
+  missingListIds.forEach(listId => {
+    statsMap[listId] = calculateListTaskStats(tasksByListId[listId] || []);
+  });
+
+  return statsMap;
+}
+
 // 获取清单成员摘要（头像列表 + 总数）
 async function getListMemberSummary(listId) {
   const { data: members } = await db.collection('list_members')
@@ -773,6 +888,89 @@ async function getListMemberSummary(listId) {
   }));
 
   return { members: memberAvatars, memberCount };
+}
+
+function getListMemberSummaryFromFields(list) {
+  if (!Number.isFinite(Number(list.memberCount)) || !Array.isArray(list.memberPreview)) {
+    return null;
+  }
+
+  return {
+    members: list.memberPreview.slice(0, 3),
+    memberCount: Math.max(Number(list.memberCount), 0)
+  };
+}
+
+async function getBatchListMemberSummaries(lists) {
+  const summaryMap = {};
+  const missingSharedListIds = [];
+
+  lists.forEach(list => {
+    if (!list.isShared) {
+      summaryMap[list._id] = { members: [], memberCount: 0 };
+      return;
+    }
+
+    const summary = getListMemberSummaryFromFields(list);
+    if (summary) {
+      summaryMap[list._id] = summary;
+      return;
+    }
+
+    missingSharedListIds.push(list._id);
+  });
+
+  if (missingSharedListIds.length === 0) {
+    return summaryMap;
+  }
+
+  const memberRecords = await fetchAllByWhere('list_members', { listId: _.in(missingSharedListIds) }, {
+    field: { listId: true, userId: true, joinedAt: true }
+  });
+
+  const membersByListId = {};
+  memberRecords.forEach(member => {
+    if (!membersByListId[member.listId]) {
+      membersByListId[member.listId] = [];
+    }
+    membersByListId[member.listId].push(member);
+  });
+
+  const previewUserIds = [...new Set(missingSharedListIds.flatMap(listId => {
+    const members = membersByListId[listId] || [];
+    return members.slice(0, 3).map(member => member.userId);
+  }))];
+
+  let usersById = {};
+  if (previewUserIds.length > 0) {
+    const { data: users } = await db.collection('users')
+      .where({ _id: _.in(previewUserIds) })
+      .field({ avatarUrl: true, nickname: true })
+      .get();
+
+    usersById = users.reduce((map, user) => {
+      map[user._id] = user;
+      return map;
+    }, {});
+  }
+
+  await Promise.all(missingSharedListIds.map(async listId => {
+    const members = membersByListId[listId] || [];
+    const memberPreview = await Promise.all(members.slice(0, 3).map(async member => {
+      const user = usersById[member.userId];
+      return {
+        avatarUrl: user ? await resolveAvatarUrl(user.avatarUrl) : '',
+        nickname: user ? user.nickname : ''
+      };
+    }));
+
+    summaryMap[listId] = {
+      members: memberPreview,
+      memberCount: members.length
+    };
+  }));
+
+  return summaryMap;
 }
 
 // 获取用户在清单中的角色
@@ -899,9 +1097,13 @@ async function getMyLists(openid, data) {
 
     // 获取用户作为成员的清单ID列表
     const memberships = await fetchAllByWhere('list_members', { userId }, {
-      field: { listId: true }
+      field: { listId: true, role: true }
     });
     const memberListIds = memberships.map(m => m.listId);
+    const roleMap = memberships.reduce((map, membership) => {
+      map[membership.listId] = membership.role;
+      return map;
+    }, {});
 
     // 合并所有可访问的清单ID（去重）
     const allAccessibleIds = [...new Set([...myListIds, ...memberListIds])];
@@ -937,26 +1139,23 @@ async function getMyLists(openid, data) {
     const hasMore = lists.length > pageSize;
     const pagedLists = lists.slice(0, pageSize);
 
-    // 并行获取每个清单的统计信息和成员信息
-    const enrichedLists = await Promise.all(
-      pagedLists.map(async (list) => {
-        const [stats, memberSummary] = await Promise.all([
-          getListTaskStats(list._id),
-          list.isShared ? getListMemberSummary(list._id) : Promise.resolve({ members: [], memberCount: 0 })
-        ]);
+    const [statsMap, memberSummaryMap] = await Promise.all([
+      getBatchListTaskStats(pagedLists),
+      getBatchListMemberSummaries(pagedLists)
+    ]);
 
-        // 获取当前用户在该清单的角色
-        const myRole = list.creatorId === userId ? 1 : await getUserRole(list._id, userId);
+    const enrichedLists = pagedLists.map(list => {
+      const stats = statsMap[list._id] || { taskCount: 0, pendingCount: 0, completedCount: 0, progress: 0 };
+      const memberSummary = memberSummaryMap[list._id] || { members: [], memberCount: 0 };
 
-        return {
-          ...list,
-          ...stats,
-          members: memberSummary.members,
-          memberCount: memberSummary.memberCount,
-          myRole
-        };
-      })
-    );
+      return {
+        ...list,
+        ...stats,
+        members: memberSummary.members,
+        memberCount: memberSummary.memberCount,
+        myRole: list.creatorId === userId ? 1 : (roleMap[list._id] || null)
+      };
+    });
 
     return {
       code: 0,
@@ -1082,9 +1281,13 @@ async function searchLists(openid, data) {
     const myListIds = myLists.map(l => l._id);
 
     const memberships = await fetchAllByWhere('list_members', { userId }, {
-      field: { listId: true }
+      field: { listId: true, role: true }
     });
     const memberListIds = memberships.map(m => m.listId);
+    const roleMap = memberships.reduce((map, membership) => {
+      map[membership.listId] = membership.role;
+      return map;
+    }, {});
 
     const allAccessibleIds = [...new Set([...myListIds, ...memberListIds])];
 
@@ -1129,24 +1332,23 @@ async function searchLists(openid, data) {
       orderDirection: 'desc'
     });
 
-    const enrichedResults = await Promise.all(
-      results.map(async (list) => {
-        const [stats, memberSummary] = await Promise.all([
-          getListTaskStats(list._id),
-          list.isShared ? getListMemberSummary(list._id) : Promise.resolve({ members: [], memberCount: 0 })
-        ]);
+    const [statsMap, memberSummaryMap] = await Promise.all([
+      getBatchListTaskStats(results),
+      getBatchListMemberSummaries(results)
+    ]);
 
-        const myRole = list.creatorId === userId ? 1 : await getUserRole(list._id, userId);
+    const enrichedResults = results.map(list => {
+      const stats = statsMap[list._id] || { taskCount: 0, pendingCount: 0, completedCount: 0, progress: 0 };
+      const memberSummary = memberSummaryMap[list._id] || { members: [], memberCount: 0 };
 
-        return {
-          ...list,
-          ...stats,
-          members: memberSummary.members,
-          memberCount: memberSummary.memberCount,
-          myRole
-        };
-      })
-    );
+      return {
+        ...list,
+        ...stats,
+        members: memberSummary.members,
+        memberCount: memberSummary.memberCount,
+        myRole: list.creatorId === userId ? 1 : (roleMap[list._id] || null)
+      };
+    });
 
     return { code: 0, message: 'success', data: enrichedResults };
   } catch (error) {
@@ -1204,6 +1406,7 @@ async function createList(openid, data) {
           joinedAt: now
         }
       });
+      await recalculateListMemberSummary(result._id);
     }
 
     // 记录操作日志
@@ -1298,6 +1501,7 @@ async function updateList(openid, data) {
           }
         });
       }
+      await recalculateListMemberSummary(listId);
     }
 
     // 如果从共享切换为个人，移除非创建者成员并清理待处理邀请
@@ -1310,6 +1514,7 @@ async function updateList(openid, data) {
         .map(member => member._id);
 
       await removeDocsByIds('list_members', memberIdsToRemove);
+      await recalculateListMemberSummary(listId);
 
       const pendingInvites = await fetchAllByWhere('list_invites', {
         listId,
@@ -1582,6 +1787,7 @@ async function removeMember(openid, data) {
 
     if (members.length > 0) {
       await db.collection('list_members').doc(members[0]._id).remove();
+      await recalculateListMemberSummary(listId);
 
       if (!targetUserInfo) {
         targetUserInfo = { nickname: '' };

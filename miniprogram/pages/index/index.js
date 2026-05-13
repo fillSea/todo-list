@@ -8,6 +8,9 @@ const {
   handleTaskStatusToggle
 } = require('../../utils/taskToggle');
 
+const TASK_CACHE_TTL = 60 * 1000;
+const CATEGORY_CACHE_TTL = 10 * 60 * 1000;
+
 function isPersonalStandaloneTask(task) {
   return Number(task.ownershipType) === 1 || (!task.listId && task.creatorId);
 }
@@ -20,7 +23,6 @@ Page({
     categories: [
       { _id: 'all', name: '全部', color: '#1989fa' }
     ],
-    tasks: [],
     inProgressTasks: [],
     overdueTasks: [],
     completedTasks: [],
@@ -32,18 +34,23 @@ Page({
     searchKeyword: '',
     isSearching: false,
     searchResults: [],
-    searchTimer: null
+    searchTimer: null,
+    searchHint: ''
   },
 
   onLoad: function (options) {
+    this._loadedOnce = false;
+    this._isLoadingTasks = false;
+    this._isLoadingCategories = false;
+    this._rawTasks = [];
+    this._processedTasks = [];
     this.checkLoginStatus();
   },
 
   onShow: function () {
     this.checkLoginStatus();
-    if (this.data.isLoggedIn) {
+    if (this.data.isLoggedIn && this._loadedOnce) {
       this.loadCategories();
-      // loadTasks 已在 checkLoginStatus 中调用，无需重复调用
     }
   },
 
@@ -55,7 +62,6 @@ Page({
       categories: [
         { _id: 'all', name: '全部', color: '#1989fa' }
       ],
-      tasks: [],
       inProgressTasks: [],
       overdueTasks: [],
       completedTasks: [],
@@ -65,14 +71,27 @@ Page({
       categoryCompletedTasks: [],
       isSearching: false,
       searchResults: [],
-      searchKeyword: ''
+      searchKeyword: '',
+      searchHint: ''
     });
+    this._loadedOnce = false;
+    this._isLoadingTasks = false;
+    this._rawTasks = [];
+    this._processedTasks = [];
   },
 
   // 加载用户自定义分类
   loadCategories: function () {
+    if (this._isLoadingCategories) {
+      return;
+    }
+
+    const userId = app.getCurrentUserId();
+    const cacheKey = app.getUserScopedCacheKey(app.categoryCachePrefix, userId);
+    const cacheTimeKey = app.getUserScopedCacheKey(app.categoryCacheTimePrefix, userId);
     // 先展示缓存
-    const cachedCategories = wx.getStorageSync('cachedCategories');
+    const cachedCategories = app.getTimedCache(cacheKey, cacheTimeKey, CATEGORY_CACHE_TTL)
+      || app.getTimedCache('cachedCategories', 'cachedCategoriesTime', CATEGORY_CACHE_TTL);
     if (cachedCategories && cachedCategories.length > 0) {
       this.setData({
         categories: [
@@ -81,6 +100,12 @@ Page({
         ]
       });
     }
+
+    if (cachedCategories) {
+      return;
+    }
+
+    this._isLoadingCategories = true;
 
     wx.cloud.callFunction({
       name: 'categoryFunctions',
@@ -96,10 +121,16 @@ Page({
             ...userCategories
           ]
         });
-        wx.setStorageSync('cachedCategories', userCategories);
+        if ((this._rawTasks || []).length > 0) {
+          this.processTasks();
+        }
+        app.setTimedCache(cacheKey, cacheTimeKey, userCategories);
+        app.setTimedCache('cachedCategories', 'cachedCategoriesTime', userCategories);
       }
     }).catch(err => {
       console.error('加载分类失败:', err);
+    }).finally(() => {
+      this._isLoadingCategories = false;
     });
   },
 
@@ -112,25 +143,44 @@ Page({
       return;
     }
 
-    this.setData({
-      isLoggedIn,
-      userInfo
-    });
+    if (this.data.isLoggedIn !== isLoggedIn || this.data.userInfo !== userInfo) {
+      this.setData({
+        isLoggedIn,
+        userInfo
+      });
+    }
 
     // 如果已登录，加载任务数据
     if (isLoggedIn) {
+      this.loadCategories();
       this.loadTasks();
     }
   },
 
   // 从云端加载任务数据（缓存优先策略）
-  loadTasks: function () {
-    // 先展示缓存数据
-    const cachedTasks = wx.getStorageSync('cachedTasks');
-    if (cachedTasks && cachedTasks.length > 0) {
-      this.setData({ tasks: cachedTasks });
-      this.processTasks();
+  loadTasks: function (options = {}) {
+    if (this._isLoadingTasks) {
+      return;
     }
+
+    const forceRefresh = Boolean(options.forceRefresh);
+    const userId = app.getCurrentUserId();
+    const cacheKey = app.getUserScopedCacheKey(app.taskCachePrefix, userId);
+    const cacheTimeKey = app.getUserScopedCacheKey(app.taskCacheTimePrefix, userId);
+
+    // 先展示缓存数据
+    const cachedTasks = !forceRefresh
+      ? (app.getTimedCache(cacheKey, cacheTimeKey, TASK_CACHE_TTL)
+        || app.getTimedCache('cachedTasks', 'cachedTasksTime', TASK_CACHE_TTL))
+      : null;
+    if (Array.isArray(cachedTasks)) {
+      this._rawTasks = cachedTasks;
+      this.processTasks(cachedTasks);
+      this._loadedOnce = true;
+      return;
+    }
+
+    this._isLoadingTasks = true;
 
     // 后台请求最新数据
     wx.cloud.callFunction({
@@ -145,20 +195,22 @@ Page({
     }).then(res => {
       if (res.result && res.result.code === 0) {
         const tasks = res.result.data.list || [];
-        this.setData({ tasks });
-        this.processTasks();
+        this._rawTasks = tasks;
+        this.processTasks(tasks);
+        this._loadedOnce = true;
         // 更新缓存
-        wx.setStorageSync('cachedTasks', tasks);
-        wx.setStorageSync('cachedTasksTime', Date.now());
+        app.setTimedCache(cacheKey, cacheTimeKey, tasks);
+        app.setTimedCache('cachedTasks', 'cachedTasksTime', tasks);
       }
     }).catch(err => {
       console.error('加载任务失败:', err);
-      this.processTasks();
+      this.processTasks(this._rawTasks || []);
+    }).finally(() => {
+      this._isLoadingTasks = false;
     });
   },
 
-  processTasks: function () {
-    const tasks = this.data.tasks;
+  processTasks: function (tasks = this._rawTasks || []) {
 
     // 构造 tasks 集合
     const processedTasks = tasks.map(task => {
@@ -219,6 +271,8 @@ Page({
       return task._id === nearestPeriodicByGroup[groupId];
     });
 
+    this._processedTasks = processedTasks;
+
     // 构造不同分类的 tasks 集合: 正在进行、已过期、已完成
     // status 只持久化 0=未完成、1=已完成，逾期由 isOverdue 派生
     const inProgressTasks = filteredTasks.filter(task => task.status === 0 && !task.isOverdue);
@@ -238,7 +292,6 @@ Page({
     }
 
     this.setData({
-      tasks: processedTasks,
       inProgressTasks: inProgressTasks,
       overdueTasks: overdueTasks,
       completedTasks: completedTasks,
@@ -276,7 +329,9 @@ Page({
   onTaskComplete: async function (e) {
     const taskId = e.currentTarget.dataset.id;
     const newStatus = normalizeCheckboxValue(e.detail) ? 1 : 0;
-    const task = this.data.tasks.find(t => t._id === taskId);
+    const task = (this._processedTasks || []).find(t => t._id === taskId)
+      || (this._rawTasks || []).find(t => t._id === taskId)
+      || this.data.searchResults.find(t => t._id === taskId);
 
     await handleTaskStatusToggle({
       taskId,
@@ -285,14 +340,14 @@ Page({
       refreshView: () => this.loadTasks(),
       reloadTasks: () => this.loadTasks(),
       updateLocalTaskStatus: (status) => {
-        const tasks = this.data.tasks.map(item => {
+        const tasks = (this._rawTasks || []).map(item => {
           if (item._id === taskId) {
             return { ...item, status };
           }
           return item;
         });
-        this.setData({ tasks });
-        this.processTasks();
+        this._rawTasks = tasks;
+        this.processTasks(tasks);
       },
       navigateToDate: (dateStr) => {
         wx.switchTab({
@@ -342,7 +397,12 @@ Page({
     if (this._searchTimer) clearTimeout(this._searchTimer);
 
     if (!keyword.trim()) {
-      this.setData({ isSearching: false, searchResults: [] });
+      this.setData({ isSearching: false, searchResults: [], searchHint: '' });
+      return;
+    }
+
+    if (keyword.trim().length < 2) {
+      this.setData({ isSearching: true, searchResults: [], searchHint: '请输入至少 2 个字符' });
       return;
     }
 
@@ -356,22 +416,29 @@ Page({
   onSearchConfirm: function () {
     const keyword = this.data.searchKeyword.trim();
     if (!keyword) return;
+    if (keyword.length < 2) {
+      this.setData({ isSearching: true, searchResults: [], searchHint: '请输入至少 2 个字符' });
+      return;
+    }
     this.doSearch(keyword);
   },
 
   // 清除搜索
   onClearSearch: function () {
-    this.setData({ searchKeyword: '', isSearching: false, searchResults: [] });
+    this._searchToken = null;
+    this.setData({ searchKeyword: '', isSearching: false, searchResults: [], searchHint: '' });
   },
 
   // 执行搜索
   doSearch: function (keyword) {
     if (!this.data.isLoggedIn) {
-      this.setData({ isSearching: false, searchResults: [] });
+      this.setData({ isSearching: false, searchResults: [], searchHint: '' });
       return;
     }
 
-    this.setData({ isSearching: true });
+    const searchToken = Date.now() + '_' + keyword;
+    this._searchToken = searchToken;
+    this.setData({ isSearching: true, searchHint: '' });
 
     wx.cloud.callFunction({
       name: 'taskFunctions',
@@ -380,6 +447,10 @@ Page({
         data: { keyword, page: 1, pageSize: 50 }
       }
     }).then(res => {
+      if (this._searchToken !== searchToken) {
+        return;
+      }
+
       if (res.result && res.result.code === 0) {
         const tasks = (res.result.data.list || []).map(task => {
           const dueDate = new Date(task.dueDate);
@@ -402,7 +473,7 @@ Page({
             categoryColor: category ? category.color : '#999'
           };
         });
-        this.setData({ searchResults: tasks });
+        this.setData({ searchResults: tasks, searchHint: '' });
       }
     }).catch(err => {
       console.error('搜索失败:', err);

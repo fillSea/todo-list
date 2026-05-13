@@ -12,7 +12,10 @@
     <view class="search-result-header">
       <text class="search-result-text">搜索结果：{{searchResults.length}} 条</text>
     </view>
-    <view class="empty-state" wx:if="{{searchResults.length === 0}}">
+    <view class="empty-state" wx:if="{{searchHint}}">
+      <text class="empty-text">{{searchHint}}</text>
+    </view>
+    <view class="empty-state" wx:elif="{{searchResults.length === 0}}">
       <text class="empty-text">未找到匹配的任务</text>
     </view>
     <block wx:else>

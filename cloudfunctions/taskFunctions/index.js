@@ -1796,6 +1796,8 @@ async function touchListVersion(listId, userId, eventType) {
   if (!listId) return;
 
   try {
+    await recalculateListStats(listId);
+
     const { data } = await db.collection('list_versions')
       .where({ listId })
       .limit(1)
@@ -1827,6 +1829,102 @@ async function touchListVersion(listId, userId, eventType) {
   } catch (error) {
     console.error('更新清单实时版本失败:', error);
   }
+}
+
+async function recalculateListStats(listId) {
+  if (!listId) return;
+
+  try {
+    const tasks = await fetchAllByWhere('tasks', { listId });
+    const stats = calculateListTaskStats(tasks);
+
+    await db.collection('lists').doc(listId).update({
+      data: {
+        ...stats,
+        statsUpdatedAt: db.serverDate()
+      }
+    });
+  } catch (error) {
+    console.error('重算清单任务统计失败:', { listId, error });
+  }
+}
+
+async function fetchAllByWhere(collectionName, where, options = {}) {
+  const {
+    orderByField,
+    orderDirection = 'asc',
+    field,
+    batchSize = 100
+  } = options;
+
+  let allData = [];
+  let offset = 0;
+
+  while (true) {
+    let query = db.collection(collectionName).where(where);
+
+    if (field) {
+      query = query.field(field);
+    }
+
+    if (orderByField) {
+      query = query.orderBy(orderByField, orderDirection);
+    }
+
+    const { data } = await query
+      .skip(offset)
+      .limit(batchSize)
+      .get();
+
+    allData = allData.concat(data);
+
+    if (data.length < batchSize) {
+      break;
+    }
+
+    offset += data.length;
+  }
+
+  return allData;
+}
+
+function calculateListTaskStats(tasks) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const processedTasks = tasks.map(task => {
+    const dueDate = task.dueDate ? new Date(task.dueDate) : null;
+    const dueDateOnly = dueDate ? new Date(dueDate) : null;
+    if (dueDateOnly) dueDateOnly.setHours(0, 0, 0, 0);
+    const isOverdue = dueDateOnly && dueDateOnly < today && Number(task.status) === 0;
+    return { ...task, isOverdue };
+  });
+
+  const nearestPeriodicByGroup = {};
+  processedTasks
+    .filter(task => Number(task.repeatType) > 0 && Number(task.status) === 0 && !task.isOverdue)
+    .sort((taskA, taskB) => new Date(taskA.dueDate) - new Date(taskB.dueDate))
+    .forEach(task => {
+      const groupId = task.parentTaskId || task._id;
+      if (!nearestPeriodicByGroup[groupId]) {
+        nearestPeriodicByGroup[groupId] = task._id;
+      }
+    });
+
+  const filteredTasks = processedTasks.filter(task => {
+    if (Number(task.status) === 1) return true;
+    if (!task.repeatType || Number(task.repeatType) === 0) return true;
+    if (task.isOverdue) return true;
+    const groupId = task.parentTaskId || task._id;
+    return task._id === nearestPeriodicByGroup[groupId];
+  });
+
+  const taskCount = filteredTasks.length;
+  const pendingCount = filteredTasks.filter(task => Number(task.status) === 0).length;
+  const completedCount = taskCount - pendingCount;
+  const progress = taskCount > 0 ? Math.round((completedCount / taskCount) * 100) : 0;
+
+  return { taskCount, pendingCount, completedCount, progress };
 }
 
 // 获取 UTC+8 时区的当天零点（用于日期比较）

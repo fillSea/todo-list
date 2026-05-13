@@ -423,20 +423,40 @@ Page({
 
       // 处理列表数据
       const processedLists = this.processListData(lists);
+      const nextLists = page === 1 ? processedLists : [...this.data.lists, ...processedLists];
 
       this.setData({
-        lists: page === 1 ? processedLists : [...this.data.lists, ...processedLists],
-        filteredLists: page === 1 ? processedLists : [...this.data.lists, ...processedLists],
+        lists: nextLists,
+        filteredLists: this.data.searchMode === 'remote' ? this.data.remoteSearchResults : nextLists,
         hasMore,
         normalPage: page,
         normalHasMore: hasMore,
         isLoading: false,
         isRefreshing: false,
-        isLoadingMore: false
+        isLoadingMore: false,
+        emptyTitle: this._getEmptyTitle({
+          ...this.data,
+          lists: nextLists,
+          filteredLists: this.data.searchMode === 'remote' ? this.data.remoteSearchResults : nextLists,
+          hasMore,
+          normalPage: page,
+          normalHasMore: hasMore,
+          isLoading: false,
+          isRefreshing: false,
+          isLoadingMore: false
+        }),
+        emptyDesc: this._getEmptyDesc({
+          ...this.data,
+          lists: nextLists,
+          filteredLists: this.data.searchMode === 'remote' ? this.data.remoteSearchResults : nextLists,
+          hasMore,
+          normalPage: page,
+          normalHasMore: hasMore,
+          isLoading: false,
+          isRefreshing: false,
+          isLoadingMore: false
+        })
       });
-
-      // 应用筛选
-      this.applyFilter();
 
     } catch (error) {
       console.error('加载清单列表失败:', error);

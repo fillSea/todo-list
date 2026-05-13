@@ -18,9 +18,16 @@ App({
     'cachedTasks',
     'cachedTasksTime',
     'cachedCategories',
+    'cachedCategoriesTime',
     'notificationSettings',
     'jumpToDate'
   ],
+
+  taskCachePrefix: 'cachedTasks_',
+  taskCacheTimePrefix: 'cachedTasksTime_',
+  categoryCachePrefix: 'cachedCategories_',
+  categoryCacheTimePrefix: 'cachedCategoriesTime_',
+  calendarCachePrefix: 'calendarTasks_',
 
   onLaunch: function () {
     if (!wx.cloud) {
@@ -106,7 +113,11 @@ App({
 
     const storageInfo = wx.getStorageInfoSync();
     storageInfo.keys
-      .filter(key => key.startsWith('calendarTasks_'))
+      .filter(key => key.startsWith(this.calendarCachePrefix)
+        || key.startsWith(this.taskCachePrefix)
+        || key.startsWith(this.taskCacheTimePrefix)
+        || key.startsWith(this.categoryCachePrefix)
+        || key.startsWith(this.categoryCacheTimePrefix))
       .forEach(key => wx.removeStorageSync(key));
 
     wx.removeTabBarBadge({ index: 3 });
@@ -132,11 +143,42 @@ App({
   },
 
   getLoginState: function () {
+    if (this.globalData.isLoggedIn && this.globalData.userInfo) {
+      return {
+        userInfo: this.globalData.userInfo,
+        isLoggedIn: true,
+        loginTime: wx.getStorageSync('loginTime') || null
+      };
+    }
+
     return {
       userInfo: wx.getStorageSync('userInfo') || null,
       isLoggedIn: wx.getStorageSync('isLoggedIn') || false,
       loginTime: wx.getStorageSync('loginTime') || null
     };
+  },
+
+  getCurrentUserId: function () {
+    const { userInfo } = this.getLoginState();
+    return userInfo ? (userInfo._id || userInfo.openid || userInfo._openid || '') : '';
+  },
+
+  getUserScopedCacheKey: function (prefix, userId) {
+    return `${prefix}${userId || this.getCurrentUserId() || 'guest'}`;
+  },
+
+  getTimedCache: function (dataKey, timeKey, ttl) {
+    const cacheTime = wx.getStorageSync(timeKey);
+    if (!cacheTime || Date.now() - cacheTime > ttl) {
+      return null;
+    }
+
+    return wx.getStorageSync(dataKey) || null;
+  },
+
+  setTimedCache: function (dataKey, timeKey, data) {
+    wx.setStorageSync(dataKey, data);
+    wx.setStorageSync(timeKey, Date.now());
   },
 
   getShareEntryInfo: function () {
@@ -169,11 +211,20 @@ App({
 
     const storageInfo = wx.getStorageInfoSync();
     storageInfo.keys
-      .filter(key => key.startsWith('calendarTasks_'))
+      .filter(key => key.startsWith(this.calendarCachePrefix)
+        || key.startsWith(this.taskCachePrefix)
+        || key.startsWith(this.taskCacheTimePrefix))
       .forEach(key => wx.removeStorageSync(key));
   },
 
   clearCategoryCaches: function () {
     wx.removeStorageSync('cachedCategories');
+    wx.removeStorageSync('cachedCategoriesTime');
+
+    const storageInfo = wx.getStorageInfoSync();
+    storageInfo.keys
+      .filter(key => key.startsWith(this.categoryCachePrefix)
+        || key.startsWith(this.categoryCacheTimePrefix))
+      .forEach(key => wx.removeStorageSync(key));
   }
 });
