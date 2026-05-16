@@ -7,6 +7,7 @@ const {
   normalizeCheckboxValue,
   handleTaskStatusToggle
 } = require('../../utils/taskToggle');
+const { createListVersionWatcher } = require('../../utils/realtimeWatcher');
 
 const TASK_CACHE_TTL = 60 * 1000;
 const CATEGORY_CACHE_TTL = 10 * 60 * 1000;
@@ -39,6 +40,7 @@ Page({
   },
 
   onLoad: function (options) {
+    this.listVersionWatcher = null;
     this._loadedOnce = false;
     this._isLoadingTasks = false;
     this._isLoadingCategories = false;
@@ -52,6 +54,17 @@ Page({
     if (this.data.isLoggedIn && this._loadedOnce) {
       this.loadCategories();
     }
+    if (this.data.isLoggedIn) {
+      this.refreshListVersionWatcher();
+    }
+  },
+
+  onHide() {
+    this.stopListVersionWatcher();
+  },
+
+  onUnload() {
+    this.stopListVersionWatcher();
   },
 
   resetGuestData: function () {
@@ -78,6 +91,65 @@ Page({
     this._isLoadingTasks = false;
     this._rawTasks = [];
     this._processedTasks = [];
+    this.stopListVersionWatcher();
+  },
+
+  async refreshListVersionWatcher() {
+    if (!this.data.isLoggedIn) return;
+
+    try {
+      const result = await wx.cloud.callFunction({
+        name: 'listFunctions',
+        data: {
+          action: 'getMyLists',
+          data: {
+            filter: 'all',
+            page: 1,
+            pageSize: 100
+          }
+        }
+      });
+
+      if (!result.result || result.result.code !== 0) {
+        return;
+      }
+
+      const lists = result.result.data?.list || [];
+      const listIds = lists.map(list => list && list._id).filter(Boolean);
+
+      if (!this.listVersionWatcher) {
+        this.listVersionWatcher = createListVersionWatcher({
+          listIds,
+          onChange: events => this.handleRealtimeListChange(events),
+          onError: err => console.error('首页任务实时监听失败:', err)
+        });
+      }
+
+      this.listVersionWatcher.restart(listIds);
+    } catch (error) {
+      console.error('启动首页任务实时监听失败:', error);
+    }
+  },
+
+  stopListVersionWatcher() {
+    if (this.listVersionWatcher) {
+      this.listVersionWatcher.stop();
+    }
+  },
+
+  handleRealtimeListChange(events = []) {
+    const shouldRefresh = events.some(event => {
+      const type = event.eventType || '';
+      return type.indexOf('task_') === 0 ||
+        type.indexOf('member_') === 0 ||
+        type === 'list_delete';
+    });
+
+    if (!shouldRefresh) return;
+
+    app.clearTaskCaches();
+    this.loadTasks({ forceRefresh: true });
+    this.refreshListVersionWatcher();
   },
 
   // 加载用户自定义分类

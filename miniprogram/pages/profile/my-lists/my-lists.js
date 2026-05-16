@@ -1,4 +1,5 @@
 const app = getApp();
+const { createListVersionWatcher } = require('../../../utils/realtimeWatcher');
 
 Page({
   data: {
@@ -18,6 +19,7 @@ Page({
   },
 
   onLoad: function (options) {
+    this.listVersionWatcher = null;
     const type = options.type || 'all';
     this.setData({ type });
 
@@ -30,6 +32,14 @@ Page({
 
   onShow: function () {
     this.syncLoginState();
+  },
+
+  onHide() {
+    this.stopListVersionWatcher();
+  },
+
+  onUnload() {
+    this.stopListVersionWatcher();
   },
 
   onPullDownRefresh: function () {
@@ -61,11 +71,39 @@ Page({
         hasMore: false,
         page: 1
       });
+      this.stopListVersionWatcher();
       return;
     }
 
     this.setData({ isLoggedIn: true });
     this.loadLists();
+  },
+
+  restartListVersionWatcher(lists = this.data.lists) {
+    const listIds = (lists || []).map(list => list && list._id).filter(Boolean);
+    if (!this.listVersionWatcher) {
+      this.listVersionWatcher = createListVersionWatcher({
+        listIds,
+        onChange: events => this.handleRealtimeChange(events),
+        onError: err => console.error('个人清单页实时监听失败:', err)
+      });
+    }
+
+    this.listVersionWatcher.restart(listIds);
+  },
+
+  stopListVersionWatcher() {
+    if (this.listVersionWatcher) {
+      this.listVersionWatcher.stop();
+    }
+  },
+
+  handleRealtimeChange(events = []) {
+    if (events.some(event => event.eventType && event.eventType.indexOf('task_') === 0)) {
+      app.clearTaskCaches();
+    }
+
+    this.setData({ page: 1, hasMore: true }, () => this.loadLists());
   },
 
   // 加载清单列表
@@ -94,9 +132,10 @@ Page({
         }));
         this.setData({
           lists,
-          hasMore: res.result.data.hasMore || (res.result.data.length >= this.data.pageSize),
+          hasMore: res.result.data.hasMore || (lists.length >= this.data.pageSize),
           page: 1
         });
+        this.restartListVersionWatcher(lists);
       } else {
         wx.showToast({
           title: res.result?.message || '加载失败',
@@ -144,6 +183,7 @@ Page({
           hasMore: res.result.data.hasMore || (newLists.length >= this.data.pageSize),
           page: nextPage
         });
+        this.restartListVersionWatcher([...this.data.lists, ...newLists]);
       }
     } catch (error) {
       console.error('加载更多清单失败:', error);

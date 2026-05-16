@@ -1,5 +1,6 @@
 // 调试模式开关
 const DEBUG_MODE = false;
+const { createListVersionWatcher } = require('../../utils/realtimeWatcher');
 
 Page({
   data: {
@@ -61,6 +62,7 @@ Page({
   },
 
   onLoad: function (options) {
+    this.listVersionWatcher = null;
     const { listId } = options;
 
     if (!listId) {
@@ -93,6 +95,62 @@ Page({
     if (this.data.listId && this.data.myRole === 1) {
       this.loadPendingInvites();
     }
+    this.startListVersionWatcher();
+  },
+
+  onHide() {
+    this.stopListVersionWatcher();
+  },
+
+  onUnload() {
+    this.stopListVersionWatcher();
+  },
+
+  startListVersionWatcher() {
+    if (DEBUG_MODE || !this.data.listId) return;
+
+    if (!this.listVersionWatcher) {
+      this.listVersionWatcher = createListVersionWatcher({
+        listIds: [this.data.listId],
+        onChange: events => this.handleRealtimeChange(events),
+        onError: err => console.error('邀请页实时监听失败:', err)
+      });
+    }
+
+    this.listVersionWatcher.restart([this.data.listId]);
+  },
+
+  stopListVersionWatcher() {
+    if (this.listVersionWatcher) {
+      this.listVersionWatcher.stop();
+    }
+  },
+
+  handleRealtimeChange(events = []) {
+    const shouldRefresh = events.some(event => {
+      const type = event.eventType || '';
+      return type.indexOf('member_') === 0 ||
+        type.indexOf('invite_') === 0 ||
+        type.indexOf('application_') === 0 ||
+        type === 'join_apply' ||
+        type === 'list_update' ||
+        type === 'list_delete';
+    });
+
+    if (!shouldRefresh) return;
+
+    const hasOpenDraft = this.data.showRolePopup || this.data.showSearchPopup || this.data.showExpirePopup;
+    if (hasOpenDraft) {
+      Promise.all([
+        this.data.myRole === 1 ? this.loadPendingInvites() : Promise.resolve(),
+        this.loadRecentMembers()
+      ]).catch(error => {
+        console.error('邀请页实时局部刷新失败:', error);
+      });
+      return;
+    }
+
+    this.loadData();
   },
 
   onShareAppMessage: function () {

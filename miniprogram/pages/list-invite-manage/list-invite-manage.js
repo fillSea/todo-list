@@ -1,5 +1,6 @@
 // 调试模式开关
 const DEBUG_MODE = false;
+const { createListVersionWatcher } = require('../../utils/realtimeWatcher');
 
 Page({
   data: {
@@ -38,6 +39,7 @@ Page({
   },
 
   onLoad: function (options) {
+    this.listVersionWatcher = null;
     const { listId } = options;
 
     if (!listId) {
@@ -63,6 +65,50 @@ Page({
   onShow: function () {
     if (this.data.listId) {
       this.loadInvites();
+      this.startListVersionWatcher();
+    }
+  },
+
+  onHide() {
+    this.stopListVersionWatcher();
+  },
+
+  onUnload() {
+    this.stopListVersionWatcher();
+  },
+
+  startListVersionWatcher() {
+    if (DEBUG_MODE || !this.data.listId) return;
+
+    if (!this.listVersionWatcher) {
+      this.listVersionWatcher = createListVersionWatcher({
+        listIds: [this.data.listId],
+        onChange: events => this.handleRealtimeChange(events),
+        onError: err => console.error('邀请管理实时监听失败:', err)
+      });
+    }
+
+    this.listVersionWatcher.restart([this.data.listId]);
+  },
+
+  stopListVersionWatcher() {
+    if (this.listVersionWatcher) {
+      this.listVersionWatcher.stop();
+    }
+  },
+
+  handleRealtimeChange(events = []) {
+    const shouldRefresh = events.some(event => {
+      const type = event.eventType || '';
+      return type.indexOf('invite_') === 0 ||
+        type.indexOf('application_') === 0 ||
+        type === 'join_apply' ||
+        type === 'member_add' ||
+        type === 'member_remove';
+    });
+
+    if (shouldRefresh) {
+      this.setData({ page: 1, hasMore: true }, () => this.loadInvites());
     }
   },
 

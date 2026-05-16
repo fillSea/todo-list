@@ -10,6 +10,7 @@ const {
   normalizeCheckboxValue,
   handleTaskStatusToggle
 } = require('../../utils/taskToggle');
+const { createListVersionWatcher } = require('../../utils/realtimeWatcher');
 
 const CALENDAR_TASK_CACHE_TTL = 3 * 60 * 1000;
 const CATEGORY_CACHE_TTL = 10 * 60 * 1000;
@@ -40,6 +41,7 @@ Page({
   },
 
   onLoad: function (options) {
+    this.listVersionWatcher = null;
     this._loadedOnce = false;
     this._isLoadingTasks = false;
     this._isLoadingCategories = false;
@@ -77,6 +79,9 @@ Page({
 
     this.loadCategories();
     this.loadTasks();
+    if (isLoggedIn) {
+      this.refreshListVersionWatcher();
+    }
   },
 
   onShow: function () {
@@ -102,10 +107,20 @@ Page({
       return;
     }
 
+    this.refreshListVersionWatcher();
+
     if (this._loadedOnce || jumpToDate) {
       this.loadCategories();
       this.loadTasks();
     }
+  },
+
+  onHide() {
+    this.stopListVersionWatcher();
+  },
+
+  onUnload() {
+    this.stopListVersionWatcher();
   },
 
   resetGuestData: function () {
@@ -128,8 +143,67 @@ Page({
     this._rawTasks = [];
     this._calendarTaskIndex = {};
     this._loadingTaskScope = '';
+    this.stopListVersionWatcher();
 
     this.generateCalendar();
+  },
+
+  async refreshListVersionWatcher() {
+    if (!this.data.isRegistered) return;
+
+    try {
+      const result = await wx.cloud.callFunction({
+        name: 'listFunctions',
+        data: {
+          action: 'getMyLists',
+          data: {
+            filter: 'all',
+            page: 1,
+            pageSize: 100
+          }
+        }
+      });
+
+      if (!result.result || result.result.code !== 0) {
+        return;
+      }
+
+      const lists = result.result.data?.list || [];
+      const listIds = lists.map(list => list && list._id).filter(Boolean);
+
+      if (!this.listVersionWatcher) {
+        this.listVersionWatcher = createListVersionWatcher({
+          listIds,
+          onChange: events => this.handleRealtimeListChange(events),
+          onError: err => console.error('日历任务实时监听失败:', err)
+        });
+      }
+
+      this.listVersionWatcher.restart(listIds);
+    } catch (error) {
+      console.error('启动日历任务实时监听失败:', error);
+    }
+  },
+
+  stopListVersionWatcher() {
+    if (this.listVersionWatcher) {
+      this.listVersionWatcher.stop();
+    }
+  },
+
+  handleRealtimeListChange(events = []) {
+    const shouldRefresh = events.some(event => {
+      const type = event.eventType || '';
+      return type.indexOf('task_') === 0 ||
+        type.indexOf('member_') === 0 ||
+        type === 'list_delete';
+    });
+
+    if (!shouldRefresh) return;
+
+    app.clearTaskCaches();
+    this.loadTasks({ forceRefresh: true });
+    this.refreshListVersionWatcher();
   },
 
   // 从数据库加载分类数据

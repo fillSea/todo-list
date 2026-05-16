@@ -3,6 +3,7 @@ const {
     isTaskOverdueByDate,
     getTaskSeriesGroupId
 } = require('../../utils/taskDisplay');
+const { createListVersionWatcher } = require('../../utils/realtimeWatcher');
 
 // 调试模式开关 - 设置为 true 使用伪造数据
 const DEBUG_MODE = false;
@@ -211,8 +212,6 @@ Page({
 
     onLoad: function (options) {
         this.realtimeWatcher = null;
-        this.realtimeRefreshTimer = null;
-        this.realtimeReady = false;
 
         const { statusBarHeight, navBarHeight, headerSideWidth, capsuleSafeWidth } = this.getCustomNavMetrics();
         const { id } = options;
@@ -284,58 +283,29 @@ Page({
         const { listId } = this.data;
         if (!listId) return;
 
-        this.stopRealtimeWatcher();
-
-        const db = wx.cloud.database();
-        this.realtimeReady = false;
-
-        this.realtimeWatcher = db.collection('list_versions')
-            .where({ listId })
-            .watch({
-                onChange: snapshot => {
-                    if (snapshot.type === 'init') {
-                        this.realtimeReady = true;
-                        return;
-                    }
-
-                    if (!this.realtimeReady) {
-                        this.realtimeReady = true;
-                        return;
-                    }
-
-                    this.scheduleRealtimeRefresh();
-                },
-                onError: err => {
-                    console.error('共享清单实时监听失败:', err);
-                    this.stopRealtimeWatcher();
-                }
+        if (!this.realtimeWatcher) {
+            this.realtimeWatcher = createListVersionWatcher({
+                listIds: [listId],
+                onChange: events => this.handleRealtimeChange(events),
+                onError: err => console.error('共享清单实时监听失败:', err)
             });
-    },
-
-    scheduleRealtimeRefresh() {
-        if (this.realtimeRefreshTimer) {
-            clearTimeout(this.realtimeRefreshTimer);
         }
 
-        this.realtimeRefreshTimer = setTimeout(() => {
-            this.realtimeRefreshTimer = null;
+        this.realtimeWatcher.restart([listId]);
+    },
+
+    handleRealtimeChange(events = []) {
+        if (events.some(event => event.eventType && event.eventType.indexOf('task_') === 0)) {
             app.clearTaskCaches();
-            this.loadListDetail(false);
-        }, 300);
+        }
+
+        this.loadListDetail(false);
     },
 
     stopRealtimeWatcher() {
         if (this.realtimeWatcher) {
-            this.realtimeWatcher.close();
-            this.realtimeWatcher = null;
+            this.realtimeWatcher.stop();
         }
-
-        if (this.realtimeRefreshTimer) {
-            clearTimeout(this.realtimeRefreshTimer);
-            this.realtimeRefreshTimer = null;
-        }
-
-        this.realtimeReady = false;
     },
 
     // 加载清单详情
@@ -436,6 +406,15 @@ Page({
             }
         } catch (error) {
             console.error('加载清单详情失败:', error);
+            if (!showLoading) {
+                wx.showToast({
+                    title: '清单已删除或无权限访问',
+                    icon: 'none'
+                });
+                setTimeout(() => wx.navigateBack(), 1200);
+                return;
+            }
+
             wx.showToast({
                 title: '加载失败，请重试',
                 icon: 'none'

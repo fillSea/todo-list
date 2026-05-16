@@ -1021,6 +1021,44 @@ async function logOperation(type, targetId, userId, content, listId) {
   }
 }
 
+async function touchListVersion(listId, userId, eventType, meta = {}) {
+  if (!listId) return;
+
+  try {
+    const { data } = await db.collection('list_versions')
+      .where({ listId })
+      .limit(1)
+      .get();
+
+    const payload = {
+      listId,
+      updatedAt: db.serverDate(),
+      updatedBy: userId,
+      eventType,
+      meta
+    };
+
+    if (data.length > 0) {
+      await db.collection('list_versions').doc(data[0]._id).update({
+        data: {
+          ...payload,
+          version: _.inc(1)
+        }
+      });
+      return;
+    }
+
+    await db.collection('list_versions').add({
+      data: {
+        ...payload,
+        version: 1
+      }
+    });
+  } catch (error) {
+    console.error('更新清单实时版本失败:', error);
+  }
+}
+
 // ==================== 清单查询 ====================
 
 // 获取可用的清单列表（用于创建任务时选择）
@@ -1411,6 +1449,7 @@ async function createList(openid, data) {
 
     // 记录操作日志
     await logOperation('list_create', result._id, userId, { listData }, result._id);
+    await touchListVersion(result._id, userId, 'list_create', { isShared });
 
     return {
       code: 0,
@@ -1533,6 +1572,10 @@ async function updateList(openid, data) {
       before: list,
       after: updateData
     }, listId);
+    await touchListVersion(listId, userId, 'list_update', {
+      isSharedChanged: isChangingShared,
+      visibilityChanged: isChangingVisibility
+    });
 
     return { code: 0, message: '更新成功' };
   } catch (error) {
@@ -1584,6 +1627,7 @@ async function deleteList(openid, data) {
 
     // 记录操作日志（在删除清单之前）
     await logOperation('list_delete', listId, userId, { deletedList: lists[0] }, listId);
+    await touchListVersion(listId, userId, 'list_delete', { deletedListName: lists[0].name || '' });
 
     // 删除清单
     await db.collection('lists').doc(listId).remove();
@@ -1745,6 +1789,11 @@ async function inviteMember(openid, data) {
       approvalTargetId: approvalMeta.approvalTargetId,
       approvalSource: approvalMeta.approvalSource
     }, listId);
+    await touchListVersion(listId, userId, 'invite_send', {
+      targetUserId,
+      role,
+      inviteType
+    });
 
     return { code: 0, success: true, message: '邀请已发送' };
   } catch (error) {
@@ -1798,6 +1847,10 @@ async function removeMember(openid, data) {
         targetUserName: targetUserInfo.nickname || '',
         oldRole: members[0].role
       }, listId);
+      await touchListVersion(listId, userId, 'member_remove', {
+        targetUserId,
+        oldRole: members[0].role
+      });
     }
 
     return { code: 0, message: '移除成功' };
@@ -2083,6 +2136,11 @@ async function updateMemberRole(openid, data) {
       oldRole: members[0].role,
       newRole: role
     }, listId);
+    await touchListVersion(listId, userId, 'member_update', {
+      targetUserId: members[0].userId,
+      oldRole: members[0].role,
+      newRole: role
+    });
 
     return { code: 0, message: '修改成功' };
   } catch (error) {
@@ -2321,6 +2379,11 @@ async function generateInviteLink(openid, data) {
         updatedAt: db.serverDate()
       }
     });
+    await touchListVersion(listId, userId, 'invite_send', {
+      inviteType: 'link',
+      role,
+      needApproval: approvalMeta.needApproval
+    });
 
     // 统计该清单的邀请使用情况
     const { data: allInvites } = await db.collection('list_invites')
@@ -2420,6 +2483,11 @@ async function createWechatInvite(openid, data) {
         createdAt: db.serverDate(),
         updatedAt: db.serverDate()
       }
+    });
+    await touchListVersion(listId, userId, 'invite_send', {
+      inviteType: 'wechat',
+      role,
+      needApproval: approvalMeta.needApproval
     });
 
     return {
@@ -2706,6 +2774,11 @@ async function acceptInvite(openid, data) {
         targetUserName: targetUserInfo?.nickname || invite.inviteeInfo?.nickname || '',
         role: invite.role
       }, invite.listId);
+      await touchListVersion(invite.listId, userId, 'member_add', {
+        targetUserId: userId,
+        role: invite.role,
+        joinType: 'invite_accept'
+      });
 
       await notifyInviterInviteHandled(acceptedInvite, userId, 'accepted');
     }
@@ -2822,6 +2895,11 @@ async function applyJoinList(openid, data) {
       inviterRole: applicationInvite.inviterRole || invite.inviterRole || 1,
       approvalSource: applicationInvite.approvalSource || ''
     }, invite.listId);
+    await touchListVersion(invite.listId, userId, 'join_apply', {
+      targetUserId: userId,
+      role: invite.role,
+      inviteType: invite.inviteType
+    });
 
     return { code: 0, success: true, message: '申请已提交，等待审批' };
   } catch (error) {
@@ -2882,6 +2960,11 @@ async function rejectInvite(openid, data) {
       role: invite.role,
       inviteType: invite.inviteType
     }, invite.listId);
+    await touchListVersion(invite.listId, userId, 'invite_reject', {
+      targetUserId: userId,
+      role: invite.role,
+      inviteType: invite.inviteType
+    });
 
     await notifyInviterInviteHandled(rejectedInvite, userId, 'rejected');
 
@@ -2961,6 +3044,11 @@ async function remindInvite(openid, data) {
       targetUserName: invite.inviteeInfo?.nickname || '',
       role: invite.role
     }, invite.listId);
+    await touchListVersion(invite.listId, userId, 'invite_remind', {
+      inviteId,
+      targetUserId: invite.inviteeId,
+      role: invite.role
+    });
 
     return { code: 0, success: true, message: '提醒已发送' };
   } catch (error) {
@@ -3016,6 +3104,11 @@ async function cancelInvite(openid, data) {
       targetUserName: invite.inviteeInfo?.nickname || '',
       role: invite.role
     }, invite.listId);
+    await touchListVersion(invite.listId, userId, 'invite_cancel', {
+      inviteId,
+      targetUserId: invite.inviteeId,
+      role: invite.role
+    });
 
     return { code: 0, success: true, message: '邀请已取消' };
   } catch (error) {
@@ -3092,6 +3185,11 @@ async function approveApplication(openid, data) {
       inviterRole: invite.inviterRole || 1,
       approvalSource: invite.approvalSource || ''
     }, invite.listId);
+    await touchListVersion(invite.listId, userId, 'application_approve', {
+      targetUserId: invite.inviteeId,
+      role: invite.role,
+      memberCreated: joinResult.memberCreated
+    });
 
     // 记录操作日志
     if (joinResult.memberCreated) {
@@ -3101,6 +3199,11 @@ async function approveApplication(openid, data) {
         role: invite.role,
         joinType: 'application_approve'
       }, invite.listId);
+      await touchListVersion(invite.listId, userId, 'member_add', {
+        targetUserId: invite.inviteeId,
+        role: invite.role,
+        joinType: 'application_approve'
+      });
     }
 
     return {
@@ -3177,6 +3280,11 @@ async function rejectApplication(openid, data) {
       inviterRole: invite.inviterRole || 1,
       approvalSource: invite.approvalSource || ''
     }, invite.listId);
+    await touchListVersion(invite.listId, userId, 'application_reject', {
+      targetUserId: invite.inviteeId,
+      role: invite.role,
+      inviteType: invite.inviteType
+    });
 
     return { code: 0, success: true, message: '已拒绝加入申请' };
   } catch (error) {
@@ -3228,6 +3336,10 @@ async function clearInvites(openid, data) {
       clearedCount: deletableInvites.length,
       status: status === undefined ? null : status
     }, listId);
+    await touchListVersion(listId, userId, 'invite_clear', {
+      clearedCount: deletableInvites.length,
+      status: status === undefined ? null : status
+    });
 
     return { code: 0, success: true, message: `已清空 ${deletableInvites.length} 条邀请记录` };
   } catch (error) {

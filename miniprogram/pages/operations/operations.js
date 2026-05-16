@@ -1,5 +1,6 @@
 // 调试模式开关
 const DEBUG_MODE = false;
+const { createListVersionWatcher } = require('../../utils/realtimeWatcher');
 
 Page({
   data: {
@@ -21,6 +22,7 @@ Page({
   },
 
   onLoad: function (options) {
+    this.listVersionWatcher = null;
     const { listId } = options;
 
     if (!listId) {
@@ -34,6 +36,42 @@ Page({
 
     this.setData({ listId });
     this.loadOperations();
+  },
+
+  onShow() {
+    this.startListVersionWatcher();
+  },
+
+  onHide() {
+    this.stopListVersionWatcher();
+  },
+
+  onUnload() {
+    this.stopListVersionWatcher();
+  },
+
+  startListVersionWatcher() {
+    if (DEBUG_MODE || !this.data.listId) return;
+
+    if (!this.listVersionWatcher) {
+      this.listVersionWatcher = createListVersionWatcher({
+        listIds: [this.data.listId],
+        onChange: () => this.handleRealtimeChange(),
+        onError: err => console.error('操作记录实时监听失败:', err)
+      });
+    }
+
+    this.listVersionWatcher.restart([this.data.listId]);
+  },
+
+  stopListVersionWatcher() {
+    if (this.listVersionWatcher) {
+      this.listVersionWatcher.stop();
+    }
+  },
+
+  handleRealtimeChange() {
+    this.setData({ page: 1, hasMore: true }, () => this.loadOperations());
   },
 
   // 加载操作记录

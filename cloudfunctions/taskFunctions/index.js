@@ -1792,7 +1792,7 @@ async function recordOperation(type, targetId, userId, content, listId) {
   }
 }
 
-async function touchListVersion(listId, userId, eventType) {
+async function touchListVersion(listId, userId, eventType, meta = {}) {
   if (!listId) return;
 
   try {
@@ -1807,7 +1807,8 @@ async function touchListVersion(listId, userId, eventType) {
       listId,
       updatedAt: db.serverDate(),
       updatedBy: userId,
-      eventType
+      eventType,
+      meta
     };
 
     if (data.length > 0) {

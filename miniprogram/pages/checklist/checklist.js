@@ -1,4 +1,5 @@
 const app = getApp();
+const { createListVersionWatcher } = require('../../utils/realtimeWatcher');
 
 // 调试模式开关 - 设置为 true 使用伪造数据
 const DEBUG_MODE = false;
@@ -227,6 +228,7 @@ Page({
   },
 
   onLoad: function (options) {
+    this.listVersionWatcher = null;
     const windowHeight = wx.getSystemInfoSync().windowHeight;
 
     this.setData({
@@ -246,11 +248,20 @@ Page({
     this.syncLoginState(false);
   },
 
+  onHide() {
+    this.stopListVersionWatcher();
+  },
+
+  onUnload() {
+    this.stopListVersionWatcher();
+  },
+
   syncLoginState(showLoading = true) {
     const { isLoggedIn, userInfo } = app.getLoginState();
 
     if (!isLoggedIn) {
       this.resetProfilePendingData();
+      this.stopListVersionWatcher();
       return;
     }
 
@@ -261,6 +272,7 @@ Page({
         isLoggedIn: true,
         userInfo
       });
+      this.stopListVersionWatcher();
       return;
     }
 
@@ -270,6 +282,47 @@ Page({
       userInfo
     }, () => {
       this.refreshCurrentView(showLoading);
+    });
+  },
+
+  getVisibleListIds(lists = this.data.filteredLists) {
+    return (lists || []).map(list => list && list._id).filter(Boolean);
+  },
+
+  restartListVersionWatcher(lists) {
+    if (DEBUG_MODE || !this.data.hasProfile) return;
+
+    const listIds = this.getVisibleListIds(lists);
+    if (!this.listVersionWatcher) {
+      this.listVersionWatcher = createListVersionWatcher({
+        listIds,
+        onChange: events => this.handleRealtimeListChange(events),
+        onError: err => console.error('清单列表实时监听失败:', err)
+      });
+    }
+
+    this.listVersionWatcher.restart(listIds);
+  },
+
+  stopListVersionWatcher() {
+    if (this.listVersionWatcher) {
+      this.listVersionWatcher.stop();
+    }
+  },
+
+  handleRealtimeListChange(events = []) {
+    if (events.some(event => event.eventType && event.eventType.indexOf('task_') === 0)) {
+      app.clearTaskCaches();
+    }
+
+    const keyword = (this.data.searchKeyword || '').trim();
+    if (this.data.searchMode === 'remote' && keyword) {
+      this.performRemoteSearch(keyword, false);
+      return;
+    }
+
+    this.setData({ page: 1, hasMore: true }, () => {
+      this.loadLists(false);
     });
   },
 
@@ -304,6 +357,7 @@ Page({
       emptyDesc: '完善个人资料后可创建个人清单和共享清单',
       ...extraState
     });
+    this.stopListVersionWatcher();
   },
 
   updateScrollLayout() {
@@ -457,6 +511,7 @@ Page({
           isLoadingMore: false
         })
       });
+      this.restartListVersionWatcher(nextLists);
 
     } catch (error) {
       console.error('加载清单列表失败:', error);
@@ -541,6 +596,7 @@ Page({
           this.applyFilter();
         }
       });
+      this.restartListVersionWatcher(processedLists);
     } catch (error) {
       console.error('加载筛选清单列表失败:', error);
       wx.showToast({
@@ -797,6 +853,7 @@ Page({
       }, () => {
         this.applyFilter();
       });
+      this.restartListVersionWatcher(processedLists);
     } catch (error) {
       console.error('搜索清单失败:', error);
       wx.showToast({
