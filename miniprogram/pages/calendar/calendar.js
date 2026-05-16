@@ -277,12 +277,14 @@ Page({
       return;
     }
 
+    let loadScope = '';
+
     try {
       // 按当前月份范围查询，前后各扩展7天覆盖跨月显示
       const { currentYear, currentMonth } = this.data;
       const forceRefresh = Boolean(options.forceRefresh);
       const userId = app.getCurrentUserId();
-      const loadScope = `${userId || 'guest'}_${currentYear}_${currentMonth}`;
+      loadScope = `${userId || 'guest'}_${currentYear}_${currentMonth}`;
 
       if (this._isLoadingTasks && this._loadingTaskScope === loadScope) {
         return;
@@ -687,18 +689,53 @@ Page({
     };
   },
 
-  updateLocalTaskStatus: function (taskId, newStatus) {
+  updateLocalTaskStatus: function (taskId, newStatus, resultData = {}) {
+    const patch = {
+      status: newStatus,
+      completedAt: 'completedAt' in resultData ? resultData.completedAt : (newStatus === 1 ? new Date().toISOString() : null),
+      completedBy: 'completedBy' in resultData ? resultData.completedBy : (newStatus === 1 ? app.getCurrentUserId() : '')
+    };
     const tasks = (this._rawTasks || []).map(task => {
       if (task._id === taskId) {
-        return { ...task, status: newStatus };
+        return { ...task, ...patch };
       }
       return task;
     });
 
     this._rawTasks = tasks;
+    this.patchCalendarTaskCache(taskId, patch);
     this.rebuildCalendarTaskIndex();
     this.generateCalendar();
     this.loadTasksForSelectedDate();
+    this._recentLocalTaskStatusChangeAt = Date.now();
+  },
+
+  patchCalendarTaskCache: function (taskId, patch) {
+    const { currentYear, currentMonth } = this.data;
+    const userId = app.getCurrentUserId();
+    const cachePairs = [
+      {
+        dataKey: `${app.calendarCachePrefix}${userId || 'guest'}_${currentYear}_${currentMonth}`,
+        timeKey: `${app.calendarCachePrefix}${userId || 'guest'}_${currentYear}_${currentMonth}_time`
+      },
+      {
+        dataKey: `${app.calendarCachePrefix}${currentYear}_${currentMonth}`,
+        timeKey: `${app.calendarCachePrefix}${currentYear}_${currentMonth}_time`
+      }
+    ];
+
+    cachePairs.forEach(({ dataKey, timeKey }) => {
+      const cachedTasks = wx.getStorageSync(dataKey);
+      if (!Array.isArray(cachedTasks)) return;
+
+      const nextTasks = cachedTasks.map(task => {
+        if (task._id === taskId) {
+          return { ...task, ...patch };
+        }
+        return task;
+      });
+      app.setTimedCache(dataKey, timeKey, nextTasks);
+    });
   },
 
   // 上一年
@@ -856,8 +893,9 @@ Page({
       newStatus,
       selectedDate: this.data.selectedDate,
       refreshView: () => this.loadTasksForSelectedDate(),
-      reloadTasks: () => this.loadTasks(),
-      updateLocalTaskStatus: (status) => this.updateLocalTaskStatus(taskId, status),
+      reloadTasks: () => this.loadTasks({ forceRefresh: true }),
+      silentRefreshAfterSuccess: () => this.loadTasks({ forceRefresh: true }),
+      updateLocalTaskStatus: (status, resultData) => this.updateLocalTaskStatus(taskId, status, resultData),
       navigateToDate: (dateStr) => this.jumpToDate(dateStr),
       notTodayConfirmText: '切换日期'
     });

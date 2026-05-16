@@ -1067,6 +1067,19 @@ async function getTaskList(openid, data) {
       lists.forEach(l => { listsMap[l._id] = l; });
     }
 
+    let listRoleMap = {};
+    if (listIds.length > 0) {
+      const { data: members } = await db.collection('list_members')
+        .where({
+          listId: _.in(listIds),
+          userId
+        })
+        .get();
+      members.forEach(member => {
+        listRoleMap[member.listId] = member.role;
+      });
+    }
+
     let categoriesMap = {};
     if (categoryIds.length > 0) {
       const { data: categories } = await db.collection('categories')
@@ -1079,9 +1092,14 @@ async function getTaskList(openid, data) {
       const task = normalizeTaskTimeSemantics(rawTask);
       const list = task.listId ? listsMap[task.listId] : null;
       const category = task.categoryId ? categoriesMap[task.categoryId] : null;
+      const listRole = list
+        ? (list.creatorId === userId ? 1 : Number(listRoleMap[task.listId]) || null)
+        : null;
       return stripCategoryForSharedListTask({
         ...task,
         listName: list ? list.name : '',
+        listRole,
+        canEditTask: !task.listId || listRole === 1 || listRole === 2,
         categoryName: category ? category.name : '',
         categoryColor: category ? category.color : ''
       }, list);
@@ -1108,6 +1126,11 @@ async function getTaskList(openid, data) {
 
 // 切换任务状态
 async function toggleTaskStatus(openid, data) {
+  const startedAt = Date.now();
+  const timings = [];
+  const markTiming = label => {
+    timings.push(`${label}:${Date.now() - startedAt}ms`);
+  };
   try {
     if (!data || !data.taskId) {
       return {
@@ -1117,6 +1140,7 @@ async function toggleTaskStatus(openid, data) {
     }
 
     const userId = await getUserId(openid);
+    markTiming('getUserId');
     const { taskId } = data;
     const status = Number(data.status);
 
@@ -1124,6 +1148,7 @@ async function toggleTaskStatus(openid, data) {
     const { data: tasks } = await db.collection('tasks')
       .where({ _id: taskId })
       .get();
+    markTiming('queryTask');
 
     if (tasks.length === 0) {
       return {
@@ -1151,9 +1176,12 @@ async function toggleTaskStatus(openid, data) {
         };
       }
     }
+    markTiming('verifyPermission');
 
     const statusTransition = evaluateTaskStatusTransition(oldTask, status, data);
+    markTiming('evaluateTransition');
     if (statusTransition.response) {
+      console.log(`[toggleTaskStatus] taskId=${taskId}, status=${status}, earlyReturn=true, timings=${timings.join(',')}, total=${Date.now() - startedAt}ms`);
       return statusTransition.response;
     }
 
@@ -1171,6 +1199,7 @@ async function toggleTaskStatus(openid, data) {
         completedBy: isCompleting ? userId : ''
       }
     });
+    markTiming('updateTask');
 
     // 记录操作日志
     await recordOperation('task_update', taskId, userId, {
@@ -1188,6 +1217,7 @@ async function toggleTaskStatus(openid, data) {
       completedBy: isCompleting ? userId : '',
       listId: oldTask.listId || ''
     }, oldTask.listId);
+    markTiming('recordOperation');
 
     // 如果任务被标记为完成且有重复设置，检查是否需要补充生成新的周期任务
     let newPeriodicTasks = [];
@@ -1195,8 +1225,11 @@ async function toggleTaskStatus(openid, data) {
       // 检查是否还有足够的预生成任务（保持未来30天都有任务）
       newPeriodicTasks = await ensurePeriodicTasks(openid, oldTask);
     }
+    markTiming('ensurePeriodicTasks');
 
     await touchListVersion(oldTask.listId, userId, 'task_status_change');
+    markTiming('touchListVersion');
+    console.log(`[toggleTaskStatus] taskId=${taskId}, status=${status}, repeatType=${oldTask.repeatType || 0}, timings=${timings.join(',')}, total=${Date.now() - startedAt}ms`);
 
     // 方案A：取消完成时只恢复当前任务状态，不删除后续周期任务
     // 后续周期任务保持原状态，用户可以独立管理每一天的任务

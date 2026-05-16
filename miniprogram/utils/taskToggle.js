@@ -53,10 +53,57 @@ async function handleTaskStatusToggle(options) {
     reloadTasks,
     updateLocalTaskStatus,
     navigateToDate,
-    notTodayConfirmText
+    notTodayConfirmText,
+    optimistic = true,
+    silentRefreshAfterSuccess
   } = options;
 
   let confirmedOverdue = false;
+  const oldStatus = task ? Number(task.status) : (newStatus === 1 ? 0 : 1);
+  const shouldDeferOptimisticUpdate = oldStatus === 1 && Number(newStatus) === 0;
+  const shouldDeferPermissionUnknownTask = task && task.listId && task.canEditTask !== true;
+  let optimisticApplied = false;
+
+  if (task && task.canEditTask === false) {
+    wx.showToast({
+      title: '您没有编辑权限',
+      icon: 'none'
+    });
+    if (typeof refreshView === 'function') {
+      refreshView();
+    }
+    return;
+  }
+
+  const applyLocalStatus = (status, resultData = {}) => {
+    if (typeof updateLocalTaskStatus === 'function') {
+      updateLocalTaskStatus(status, resultData);
+    }
+  };
+
+  const rollbackLocalStatus = () => {
+    if (optimisticApplied) {
+      applyLocalStatus(oldStatus, {
+        completedAt: task && task.completedAt,
+        completedBy: task && task.completedBy
+      });
+      optimisticApplied = false;
+      return;
+    }
+
+    if (typeof refreshView === 'function') {
+      refreshView();
+    }
+  };
+
+  const refreshInBackground = () => {
+    const refreshFn = silentRefreshAfterSuccess || reloadTasks;
+    if (typeof refreshFn === 'function') {
+      Promise.resolve()
+        .then(() => refreshFn())
+        .catch(error => console.error('后台刷新任务失败:', error));
+    }
+  };
 
   if (newStatus === 1 && task) {
     if (Number(task.repeatType) > 0 && selectedDate) {
@@ -71,7 +118,7 @@ async function handleTaskStatusToggle(options) {
         });
 
         if (!confirmRes.confirm) {
-          refreshView();
+          refreshView && refreshView();
           return;
         }
 
@@ -83,7 +130,7 @@ async function handleTaskStatusToggle(options) {
           showCancel: false,
           confirmText: '知道了'
         });
-        refreshView();
+        refreshView && refreshView();
         return;
       }
     } else if (task.isOverdue) {
@@ -95,7 +142,7 @@ async function handleTaskStatusToggle(options) {
       });
 
       if (!confirmRes.confirm) {
-        refreshView();
+        refreshView && refreshView();
         return;
       }
 
@@ -104,6 +151,11 @@ async function handleTaskStatusToggle(options) {
   }
 
   try {
+    if (optimistic && !shouldDeferOptimisticUpdate && !shouldDeferPermissionUnknownTask) {
+      applyLocalStatus(newStatus);
+      optimisticApplied = true;
+    }
+
     const { rawResult, resultData } = await callToggleTaskStatus({
       taskId,
       status: newStatus,
@@ -115,11 +167,12 @@ async function handleTaskStatusToggle(options) {
         title: rawResult.result.message || '操作失败',
         icon: 'none'
       });
-      refreshView();
+      rollbackLocalStatus();
       return;
     }
 
     if (resultData && resultData.needConfirmCompleteNotToday) {
+      rollbackLocalStatus();
       const modalRes = await showModalAsync({
         title: '提示',
         content: resultData.confirmMessage || '只能完成当天的周期任务',
@@ -127,15 +180,16 @@ async function handleTaskStatusToggle(options) {
         cancelText: '取消'
       });
 
-      if (modalRes.confirm && resultData.dueDate) {
+      if (modalRes.confirm && resultData.dueDate && typeof navigateToDate === 'function') {
         navigateToDate(resultData.dueDate);
       } else {
-        refreshView();
+        refreshView && refreshView();
       }
       return;
     }
 
     if (resultData && resultData.needConfirmUncheck) {
+      rollbackLocalStatus();
       const modalRes = await showModalAsync({
         title: '提示',
         content: resultData.confirmMessage || '取消完成此任务不会影响后续的周期任务，是否确认？',
@@ -144,7 +198,6 @@ async function handleTaskStatusToggle(options) {
       });
 
       if (!modalRes.confirm) {
-        refreshView();
         return;
       }
 
@@ -159,31 +212,42 @@ async function handleTaskStatusToggle(options) {
           title: confirmResult.rawResult.result.message || '操作失败',
           icon: 'none'
         });
-        refreshView();
         return;
       }
 
-      updateLocalTaskStatus(newStatus);
+      applyLocalStatus(newStatus, confirmResult.resultData || {});
       wx.showToast({
         title: '已取消完成',
         icon: 'success'
       });
+      if (confirmResult.resultData && (confirmResult.resultData.newPeriodicTasks || confirmResult.resultData.isRepeatTask)) {
+        refreshInBackground();
+      }
       return;
     }
 
     if (resultData && (resultData.newPeriodicTasks || resultData.isRepeatTask)) {
-      await reloadTasks();
+      if (!optimisticApplied) {
+        applyLocalStatus(newStatus, resultData);
+      } else {
+        applyLocalStatus(newStatus, resultData);
+      }
+      refreshInBackground();
       return;
     }
 
-    updateLocalTaskStatus(newStatus);
+    if (!optimisticApplied) {
+      applyLocalStatus(newStatus, resultData || {});
+    } else if (resultData) {
+      applyLocalStatus(newStatus, resultData);
+    }
   } catch (error) {
     console.error('更新任务状态失败:', error);
     wx.showToast({
       title: '操作失败',
       icon: 'none'
     });
-    refreshView();
+    rollbackLocalStatus();
   }
 }
 

@@ -3,6 +3,9 @@ const {
     isTaskOverdueByDate,
     getTaskSeriesGroupId
 } = require('../../utils/taskDisplay');
+const {
+    handleTaskStatusToggle
+} = require('../../utils/taskToggle');
 const { createListVersionWatcher } = require('../../utils/realtimeWatcher');
 
 // 调试模式开关 - 设置为 true 使用伪造数据
@@ -509,6 +512,31 @@ Page({
         });
     },
 
+    updateLocalTaskStatus(taskId, status, resultData = {}) {
+        const patch = {
+            status,
+            completedAt: 'completedAt' in resultData ? resultData.completedAt : (status === 1 ? new Date().toISOString() : null),
+            completedBy: 'completedBy' in resultData ? resultData.completedBy : (status === 1 ? app.getCurrentUserId() : '')
+        };
+        const taskList = this.data.taskList.map(task => {
+            if (task._id === taskId) {
+                return this.processTaskData({ ...task, ...patch });
+            }
+            return task;
+        });
+        const completedCount = taskList.filter(t => t.status === 1).length;
+        const progressPercent = taskList.length > 0 ? Math.round((completedCount / taskList.length) * 100) : 0;
+
+        this.setData({
+            taskList,
+            completedCount,
+            progressPercent,
+            progressColor: this.getProgressColor(progressPercent)
+        });
+        this.applyTaskFilter();
+        this._recentLocalTaskStatusChangeAt = Date.now();
+    },
+
     // 获取空状态标题
     getEmptyTitle(filter) {
         switch (filter) {
@@ -752,6 +780,7 @@ Page({
     async onTaskStatusChange(e) {
         const { id, status } = e.currentTarget.dataset;
         const newStatus = status === 1 ? 0 : 1;
+        const task = this.data.taskList.find(t => t._id === id);
 
         // 权限检查：查看者不能修改任务状态
         if (!this.data.canEdit) {
@@ -762,130 +791,25 @@ Page({
             return;
         }
 
-        // 如果是将已过期任务标记为完成，先弹出确认框
-        let confirmedOverdue = false;
-        if (newStatus === 1) {
-            const task = this.data.taskList.find(t => t._id === id);
-            if (task && task.isOverdue) {
-                const res = await new Promise(resolve => {
-                    wx.showModal({
-                        title: '提示',
-                        content: '该任务已过期，确认要标记为已完成吗？',
-                        confirmText: '确认完成',
-                        cancelText: '取消',
-                        success: resolve
-                    });
-                });
-                if (!res.confirm) return;
-                confirmedOverdue = true;
-            }
-        }
-
         try {
             if (DEBUG_MODE) {
                 await this.simulateDelay(300);
-
-                const taskList = this.data.taskList.map(task => {
-                    if (task._id === id) {
-                        return { ...task, status: newStatus };
-                    }
-                    return task;
-                });
-
-                const completedCount = taskList.filter(t => t.status === 1).length;
-                const progressPercent = taskList.length > 0 ? Math.round((completedCount / taskList.length) * 100) : 0;
-
-                this.setData({
-                    taskList,
-                    completedCount,
-                    progressPercent,
-                    progressColor: this.getProgressColor(progressPercent)
-                });
-
-                this.applyTaskFilter();
+                this.updateLocalTaskStatus(id, newStatus);
 
                 wx.showToast({
                     title: newStatus === 1 ? '任务已完成' : '任务已恢复',
                     icon: 'none'
                 });
             } else {
-                const result = await wx.cloud.callFunction({
-                    name: 'taskFunctions',
-                    data: {
-                        action: 'toggleTaskStatus',
-                        data: {
-                            taskId: id,
-                            status: newStatus,
-                            confirmCompleteOverdue: confirmedOverdue || undefined
-                        }
-                    }
-                });
-
-                // 云函数返回错误
-                if (result.result && result.result.code !== 0) {
-                    wx.showToast({
-                        title: result.result.message || '操作失败',
-                        icon: 'none'
-                    });
-                    return;
-                }
-
-                const resultData = result.result && result.result.data;
-
-                // 非当天的周期任务，提示用户
-                if (resultData && resultData.needConfirmCompleteNotToday) {
-                    wx.showModal({
-                        title: '提示',
-                        content: resultData.confirmMessage || '只能完成当天的周期任务',
-                        confirmText: '知道了',
-                        showCancel: false
-                    });
-                    return;
-                }
-
-                // 取消完成周期任务，需要确认
-                if (resultData && resultData.needConfirmUncheck) {
-                    const confirmMessage = resultData.confirmMessage || '取消完成此任务不会影响后续的周期任务，是否确认？';
-                    wx.showModal({
-                        title: '提示',
-                        content: confirmMessage,
-                        confirmText: '确认',
-                        cancelText: '取消',
-                        success: async (res) => {
-                            if (res.confirm) {
-                                try {
-                                    const confirmResult = await wx.cloud.callFunction({
-                                        name: 'taskFunctions',
-                                        data: {
-                                            action: 'toggleTaskStatus',
-                                            data: {
-                                                taskId: id,
-                                                status: newStatus,
-                                                confirmUncheck: true
-                                            }
-                                        }
-                                    });
-                                    if (confirmResult.result && confirmResult.result.code === 0) {
-                                        app.clearTaskCaches();
-                                        this.loadListDetail(false);
-                                        wx.showToast({ title: '已取消完成', icon: 'success' });
-                                    }
-                                } catch (error) {
-                                    console.error('操作失败:', error);
-                                }
-                            }
-                        }
-                    });
-                    return;
-                }
-
-                // 正常完成，刷新列表
-                app.clearTaskCaches();
-                this.loadListDetail(false);
-
-                wx.showToast({
-                    title: newStatus === 1 ? '任务已完成' : '任务已恢复',
-                    icon: 'none'
+                await handleTaskStatusToggle({
+                    taskId: id,
+                    task,
+                    newStatus,
+                    refreshView: () => this.applyTaskFilter(),
+                    reloadTasks: () => this.loadListDetail(false),
+                    silentRefreshAfterSuccess: () => this.loadListDetail(false),
+                    updateLocalTaskStatus: (nextStatus, resultData) => this.updateLocalTaskStatus(id, nextStatus, resultData),
+                    notTodayConfirmText: '知道了'
                 });
             }
         } catch (error) {

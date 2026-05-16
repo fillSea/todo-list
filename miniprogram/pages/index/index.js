@@ -282,6 +282,59 @@ Page({
     });
   },
 
+  patchTaskCaches: function (taskId, patch) {
+    const userId = app.getCurrentUserId();
+    const cachePairs = [
+      {
+        dataKey: app.getUserScopedCacheKey(app.taskCachePrefix, userId),
+        timeKey: app.getUserScopedCacheKey(app.taskCacheTimePrefix, userId)
+      },
+      {
+        dataKey: 'cachedTasks',
+        timeKey: 'cachedTasksTime'
+      }
+    ];
+
+    cachePairs.forEach(({ dataKey, timeKey }) => {
+      const cachedTasks = wx.getStorageSync(dataKey);
+      if (!Array.isArray(cachedTasks)) return;
+
+      const nextTasks = cachedTasks.map(item => {
+        if (item._id === taskId) {
+          return { ...item, ...patch };
+        }
+        return item;
+      });
+      app.setTimedCache(dataKey, timeKey, nextTasks);
+    });
+  },
+
+  updateLocalTaskStatus: function (taskId, status, resultData = {}) {
+    const patch = {
+      status,
+      completedAt: 'completedAt' in resultData ? resultData.completedAt : (status === 1 ? new Date().toISOString() : null),
+      completedBy: 'completedBy' in resultData ? resultData.completedBy : ''
+    };
+    const tasks = (this._rawTasks || []).map(item => {
+      if (item._id === taskId) {
+        return { ...item, ...patch };
+      }
+      return item;
+    });
+    const searchResults = (this.data.searchResults || []).map(item => {
+      if (item._id === taskId) {
+        return { ...item, ...patch };
+      }
+      return item;
+    });
+
+    this._rawTasks = tasks;
+    this.setData({ searchResults });
+    this.processTasks(tasks);
+    this.patchTaskCaches(taskId, patch);
+    this._recentLocalTaskStatusChangeAt = Date.now();
+  },
+
   processTasks: function (tasks = this._rawTasks || []) {
 
     // 构造 tasks 集合
@@ -410,17 +463,9 @@ Page({
       task,
       newStatus,
       refreshView: () => this.loadTasks(),
-      reloadTasks: () => this.loadTasks(),
-      updateLocalTaskStatus: (status) => {
-        const tasks = (this._rawTasks || []).map(item => {
-          if (item._id === taskId) {
-            return { ...item, status };
-          }
-          return item;
-        });
-        this._rawTasks = tasks;
-        this.processTasks(tasks);
-      },
+      reloadTasks: () => this.loadTasks({ forceRefresh: true }),
+      silentRefreshAfterSuccess: () => this.loadTasks({ forceRefresh: true }),
+      updateLocalTaskStatus: (status, resultData) => this.updateLocalTaskStatus(taskId, status, resultData),
       navigateToDate: (dateStr) => {
         wx.switchTab({
           url: '/pages/calendar/calendar'
